@@ -62,6 +62,45 @@ Save.prototype.beginEvent = function() {
     this.terminate();
 };
 
+/**
+ * CaveCAD: makes the Cave Survey library available in THIS engine, and
+ * answers whether it is there.
+ *
+ * The add-on cannot hook a save itself, and that is measured rather than
+ * assumed (2026-08-29, probe/CsSaveProbe in cavecad-tools, against real
+ * GUI saves): a wrapper installed on Save.prototype.save from add-on
+ * init never fires. Every open document gets its OWN script handler and
+ * therefore its own script engine (RDocumentInterface::scriptHandlers,
+ * RDocumentInterface.cpp:202). Add-ons are initialised in the
+ * application-level engine; this action runs in the document's. So the
+ * prototype the add-on patched is not this one, and its globals are not
+ * defined here at all -- which is also why every Cave Survey tool
+ * re-includes Core/CsAll.js at its own top rather than trusting it to be
+ * loaded.
+ *
+ * The path comes from a setting the add-on writes in the engine that
+ * knows it: an include() written relative to the scripts root resolves
+ * only against the application bundle, never against the per-user
+ * install where the add-on actually lives. include() is per-engine and
+ * guarded by basename, so this costs one load per document, not one per
+ * save -- and it is called twice per save on purpose, once before the
+ * write and once after.
+ */
+function csLoadCaveSurvey() {
+    try {
+        var csAddOn = RSettings.getStringValue("CaveSurvey/AddOnPath", "");
+        if (csAddOn.length===0) {
+            return false;
+        }
+        include(csAddOn + "/Core/CsAll.js");
+        return typeof CsCave!=="undefined";
+    }
+    catch (e) {
+        qWarning("CaveCAD: could not load the Cave Survey library: " + e);
+        return false;
+    }
+}
+
 Save.prototype.save = function(fileName, fileVersion, overwriteWarning) {
     if (isNull(overwriteWarning)) {
         overwriteWarning = true;
@@ -162,6 +201,22 @@ Save.prototype.save = function(fileName, fileVersion, overwriteWarning) {
 
     var bakFileName = AutoSave.getAutoSaveFileNameCurrent();
 
+    // CaveCAD: keep the version this save is about to overwrite.
+    //
+    // BEFORE the export, not after: once exportFile has run the previous
+    // version is gone, so no "after save" hook could ever take this
+    // backup. CsBackup already guarded this suite's own destructive
+    // operations; an ordinary save was the other way a good drawing gets
+    // replaced by a bad one.
+    try {
+        if (csLoadCaveSurvey() && isFunction(CsCave.beforeSave)) {
+            CsCave.beforeSave(fileName);
+        }
+    }
+    catch (eCaveSurveyBefore) {
+        qWarning("CaveCAD: pre-save backup failed: " + eCaveSurveyBefore);
+    }
+
     if (!di.exportFile(fileName, fileVersion)) {
         var text = qsTr("File %1 has not been saved.").arg(fileName);
         appWin.handleUserWarning(text, true);
@@ -183,6 +238,21 @@ Save.prototype.save = function(fileName, fileVersion, overwriteWarning) {
         mdiChild.setWindowTitle(addDirtyFlag(title));
     }
     RSettings.addRecentFile(fileName, di.getThumbnail());
+
+    // CaveCAD: the after-save half. See csLoadCaveSurvey above for why
+    // this cannot be a hook the add-on installs itself.
+    //
+    // Everything here is a convenience -- project folders (including
+    // backup/), the scans path, the launcher shelf, the drawing's
+    // preview. None of it may cost the caver their save.
+    try {
+        if (csLoadCaveSurvey() && isFunction(CsCave.afterSave)) {
+            CsCave.afterSave(fileName, di);
+        }
+    }
+    catch (eCaveSurveyAfter) {
+        qWarning("CaveCAD: after-save work failed: " + eCaveSurveyAfter);
+    }
 
     appWin.handleUserMessage(qsTr("Saved file:") + " " + fileName);
     if (fileVersion.length!==0) {
