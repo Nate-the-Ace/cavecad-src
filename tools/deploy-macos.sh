@@ -42,7 +42,15 @@ cp "$SRC"/plugins/designer/libcavecadcustomwidgets.dylib \
 # only the formats built into QtGui (PNG, BMP, PPM...) -- no JPEG at all,
 # which is the format survey sketches are scanned to and photographs are
 # taken in. A cave's scans/ folder would insert as nothing.
-QT_PLUGINS="$(brew --prefix qtbase 2>/dev/null)/share/qt/plugins"
+#
+# The FULL qt formula, not qtbase: qtbase carries only gif/ico/jpeg,
+# while qt adds the qtimageformats set -- TIFF (scanned notes), HEIC
+# (iPhone photographs), WebP, SVG. Both are the same Qt version, so the
+# plugins are ABI-compatible with the qtbase the binary links.
+QT_PLUGINS="$(brew --prefix qt 2>/dev/null)/share/qt/plugins"
+if [ ! -d "$QT_PLUGINS/imageformats" ]; then
+    QT_PLUGINS="$(brew --prefix qtbase 2>/dev/null)/share/qt/plugins"
+fi
 if [ -d "$QT_PLUGINS/imageformats" ]; then
     cp "$QT_PLUGINS"/imageformats/*.dylib \
        "$STAGE/Contents/PlugIns/imageformats/" 2>/dev/null || true
