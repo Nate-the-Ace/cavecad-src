@@ -18,6 +18,7 @@
  */
 #include "RCave3dView.h"
 
+#include <QDebug>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -111,7 +112,13 @@ void RCave3dView::initializeGL() {
     surfaceProgram->bindAttributeLocation("aPos", 0);
     surfaceProgram->bindAttributeLocation("aNormal", 1);
     surfaceProgram->bindAttributeLocation("aColor", 2);
-    surfaceProgram->link();
+    if (!surfaceProgram->link()) {
+        // A shader that fails to link draws NOTHING, and an empty 3D
+        // window looks exactly like a cave with no survey in it. Say
+        // which of the two it is.
+        qWarning() << "RCave3dView: passage shader did not link:"
+                   << surfaceProgram->log();
+    }
 
     lineProgram = new QOpenGLShaderProgram();
     lineProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, LINE_VERTEX);
@@ -119,7 +126,10 @@ void RCave3dView::initializeGL() {
                                          LINE_FRAGMENT);
     lineProgram->bindAttributeLocation("aPos", 0);
     lineProgram->bindAttributeLocation("aColor", 1);
-    lineProgram->link();
+    if (!lineProgram->link()) {
+        qWarning() << "RCave3dView: centerline shader did not link:"
+                   << lineProgram->log();
+    }
 }
 
 void RCave3dView::resizeGL(int w, int h) {

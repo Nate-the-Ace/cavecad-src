@@ -23,6 +23,7 @@ endif()
 add_library(cavecadgui SHARED
     RCharacterWidget.cpp RCharacterWidget.h
     RCadToolBar.cpp RCadToolBar.h
+    RCave3dBridge.cpp RCave3dBridge.h
     RCave3dView.cpp RCave3dView.h
     RCave3dWindow.cpp RCave3dWindow.h
     RCadToolBarPanel.cpp RCadToolBarPanel.h
