@@ -85,6 +85,19 @@ public:
     /** One line under the view: counts, warnings, what failed. */
     Q_INVOKABLE void setStatus(int handle, const QString& text);
 
+    /** Frame the whole cave at the current orientation. */
+    Q_INVOKABLE void viewAll(int handle);
+
+    /** Look straight down, the way the map is drawn. */
+    Q_INVOKABLE void viewPlan(int handle);
+
+    /** Look north, the way the extended elevation is drawn. */
+    Q_INVOKABLE void viewProfile(int handle);
+
+    /** Show or hide the passage surface and the centerline. */
+    Q_INVOKABLE void setShowSurface(int handle, bool on);
+    Q_INVOKABLE void setShowLines(int handle, bool on);
+
 signals:
     /**
      * A window's Refresh button was pressed.

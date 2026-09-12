@@ -168,6 +168,41 @@ void RCave3dBridge::setStatus(int handle, const QString& text) {
     window->setStatus(text);
 }
 
+void RCave3dBridge::viewAll(int handle) {
+    RCave3dWindow* window = windowFor(handle);
+    if (window != NULL && window->getView() != NULL) {
+        window->getView()->viewAll();
+    }
+}
+
+void RCave3dBridge::viewPlan(int handle) {
+    RCave3dWindow* window = windowFor(handle);
+    if (window != NULL && window->getView() != NULL) {
+        window->getView()->viewPlan();
+    }
+}
+
+void RCave3dBridge::viewProfile(int handle) {
+    RCave3dWindow* window = windowFor(handle);
+    if (window != NULL && window->getView() != NULL) {
+        window->getView()->viewProfile();
+    }
+}
+
+void RCave3dBridge::setShowSurface(int handle, bool on) {
+    RCave3dWindow* window = windowFor(handle);
+    if (window != NULL && window->getView() != NULL) {
+        window->getView()->setShowSurface(on);
+    }
+}
+
+void RCave3dBridge::setShowLines(int handle, bool on) {
+    RCave3dWindow* window = windowFor(handle);
+    if (window != NULL && window->getView() != NULL) {
+        window->getView()->setShowLines(on);
+    }
+}
+
 void RCave3dBridge::onWindowRefresh() {
     RCave3dWindow* window = qobject_cast<RCave3dWindow*>(sender());
     if (window == NULL) {

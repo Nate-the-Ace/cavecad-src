@@ -78,7 +78,12 @@ RCave3dWindow::RCave3dWindow(const QString& caveName, QWidget* parent)
             [this](bool on) { view->setShowLines(on); });
 
     status = new QLabel(this);
-    statusBar()->addWidget(status);
+    // STRETCH 1, not the default 0. A status-bar widget with no stretch
+    // is given its sizeHint, and this label's first sizeHint is taken
+    // while it is still empty -- so every line set afterwards is clipped
+    // to a couple of characters. It read "5" where it meant "530
+    // triangles, 75 centerline segments, 146.6 ft of relief".
+    statusBar()->addWidget(status, 1);
 }
 
 RCave3dWindow::~RCave3dWindow() {

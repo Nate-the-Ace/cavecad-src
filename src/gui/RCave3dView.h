@@ -85,6 +85,13 @@ protected:
 private:
     QMatrix4x4 cameraMatrix() const;
 
+    /** The camera's own axes at the current yaw and pitch. One source
+     *  for framing and for panning: they were derived separately once,
+     *  and the pan copy used world Z as its up, which is only right
+     *  while the camera is level. */
+    void cameraBasis(QVector3D& forward, QVector3D& right,
+                     QVector3D& up) const;
+
     QOpenGLShaderProgram* surfaceProgram;
     QOpenGLShaderProgram* lineProgram;
 

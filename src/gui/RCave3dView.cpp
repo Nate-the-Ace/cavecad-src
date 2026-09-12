@@ -136,6 +136,25 @@ void RCave3dView::resizeGL(int w, int h) {
     glViewport(0, 0, w, qMax(1, h));
 }
 
+void RCave3dView::cameraBasis(QVector3D& forward, QVector3D& right,
+                              QVector3D& up) const {
+    float yawRad = qDegreesToRadians(yaw);
+    float pitchRad = qDegreesToRadians(pitch);
+    // The direction the camera looks, which is the negative of the
+    // offset cameraMatrix puts the eye at.
+    forward = QVector3D(-std::cos(pitchRad) * std::sin(yawRad),
+                        std::cos(pitchRad) * std::cos(yawRad),
+                        -std::sin(pitchRad));
+    right = QVector3D::crossProduct(forward, QVector3D(0.0f, 0.0f, 1.0f));
+    if (right.lengthSquared() < 1e-12f) {
+        // Straight up or straight down: every horizontal direction is
+        // equally "right", so pick one and be consistent.
+        right = QVector3D(1.0f, 0.0f, 0.0f);
+    }
+    right.normalize();
+    up = QVector3D::crossProduct(right, forward).normalized();
+}
+
 QMatrix4x4 RCave3dView::cameraMatrix() const {
     float aspect = float(width()) / float(qMax(1, height()));
 
@@ -242,11 +261,44 @@ void RCave3dView::setShowLines(bool on) {
 
 void RCave3dView::viewAll() {
     target = (boundsMin + boundsMax) * 0.5f;
-    float radius = (boundsMax - boundsMin).length() * 0.5f;
-    if (radius < 1e-6f) {
-        radius = 1.0f;
+
+    // FIT THE BOX AS IT IS SEEN, not its diagonal. A cave is long and
+    // thin, so its bounding-sphere radius is set almost entirely by its
+    // LENGTH -- back the camera off by that and a passage seen across
+    // its short axis ends up a thread in the middle of a dark window,
+    // which is exactly what "view all" is supposed not to do.
+    //
+    // So each of the eight corners is put into view space and asked how
+    // far back the camera must be for it to fall inside the frustum.
+    // The answer is the largest of those.
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+
+    float aspect = float(width()) / float(qMax(1, height()));
+    float tanY = std::tan(qDegreesToRadians(45.0f * 0.5f));
+    float tanX = tanY * aspect;
+
+    float needed = 0.0f;
+    for (int i = 0; i < 8; i++) {
+        QVector3D corner(
+            (i & 1) ? boundsMax.x() : boundsMin.x(),
+            (i & 2) ? boundsMax.y() : boundsMin.y(),
+            (i & 4) ? boundsMax.z() : boundsMin.z());
+        QVector3D v = corner - target;
+        float depth = QVector3D::dotProduct(v, forward);
+        float dx = std::fabs(QVector3D::dotProduct(v, right));
+        float dy = std::fabs(QVector3D::dotProduct(v, up));
+        // The corner sits at (distance + depth) in front of the eye, so
+        // it fits when dx <= (distance + depth) * tanX.
+        needed = qMax(needed, dx / tanX - depth);
+        needed = qMax(needed, dy / tanY - depth);
     }
-    distance = radius * 2.5f;
+
+    if (!(needed > 1e-6f)) {
+        // A single station, or a cave with no extent yet.
+        needed = 1.0f;
+    }
+    distance = needed * 1.05f;   // a little air around the edges
     update();
 }
 
@@ -278,12 +330,14 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
          (e->modifiers() & Qt::ShiftModifier));
 
     if (panning) {
-        // Pan in the camera's own plane, scaled by how far away we are,
-        // so a drag moves the same amount of screen whatever the zoom.
-        float yawRad = qDegreesToRadians(yaw);
-        QVector3D right(std::cos(yawRad), std::sin(yawRad), 0.0f);
-        QVector3D up = QVector3D::crossProduct(
-            right, QVector3D(std::sin(yawRad), -std::cos(yawRad), 0.0f));
+        // Pan in the camera's OWN plane -- not in the world's. A pan
+        // that used world Z as its up is only right while the camera is
+        // level; in the plan view it would push the cave toward the
+        // camera and appear to do nothing.
+        QVector3D forward, right, up;
+        cameraBasis(forward, right, up);
+        // Scaled by how far away we are, so a drag moves the same
+        // amount of SCREEN whatever the zoom.
         float scale = distance * 0.002f;
         target -= right * (delta.x() * scale);
         target += up * (delta.y() * scale);
