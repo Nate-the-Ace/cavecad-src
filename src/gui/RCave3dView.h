@@ -24,7 +24,9 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
+#include <QColor>
 #include <QMatrix4x4>
+#include <QString>
 #include <QPoint>
 #include <QVector3D>
 #include <QVector>
@@ -56,13 +58,42 @@ public:
     RCave3dView(QWidget* parent = NULL);
     virtual ~RCave3dView();
 
+    /** One entry of a legend: a colour and what it means. Built on the
+     *  script side, which is the only side that knows what a trip or a
+     *  foot is; this class only paints it. */
+    struct LegendStop {
+        QColor color;
+        QString label;
+    };
+
     void setTriangles(const QVector<float>& positions,
                       const QVector<float>& normals,
                       const QVector<float>& colors);
     void setLines(const QVector<float>& positions,
                   const QVector<float>& colors);
+    void setGhost(const QVector<float>& positions,
+                  const QVector<float>& colors);
+    void setLeads(const QVector<float>& positions,
+                  const QVector<float>& colors);
     void setBounds(const QVector3D& min, const QVector3D& max);
     void clearGeometry();
+
+    void setLegend(const QString& title, const QString& note,
+                   const QString& kind, const QVector<LegendStop>& stops);
+
+    /**
+     * Draw only the first `triangleVertices` / `lineVertices` of each
+     * buffer -- the build animation, which costs two integers because
+     * CsMesh3d emits its geometry leg by leg.
+     *
+     * Negative means draw everything, which is also what a fresh mesh
+     * gets: the animation is a thing you do, never a state the panel
+     * sits in.
+     */
+    void setProgress(int triangleVertices, int lineVertices);
+
+    void setShowGhost(bool on);
+    void setShowLeads(bool on);
 
     void setShowSurface(bool on);
     void setShowLines(bool on);
@@ -84,6 +115,10 @@ protected:
 
 private:
     QMatrix4x4 cameraMatrix() const;
+    void drawFlatLines(const QMatrix4x4& mvp,
+                       const QVector<float>& positions,
+                       const QVector<float>& colors, bool visible);
+    void paintLegend();
 
     /** The camera's own axes at the current yaw and pitch. One source
      *  for framing and for panning: they were derived separately once,
@@ -103,6 +138,10 @@ private:
     QVector<float> triangleColors;
     QVector<float> linePositions;
     QVector<float> lineColors;
+    QVector<float> ghostPositions;
+    QVector<float> ghostColors;
+    QVector<float> leadPositions;
+    QVector<float> leadColors;
 
     QVector3D boundsMin;
     QVector3D boundsMax;
@@ -115,6 +154,16 @@ private:
 
     bool showSurface;
     bool showLines;
+    bool showGhost;
+    bool showLeads;
+
+    int progressTriangles;
+    int progressLines;
+
+    QString legendTitle;
+    QString legendNote;
+    QString legendKind;
+    QVector<LegendStop> legendStops;
 
     /** True while the camera is still where a framing command put it.
      *  A docked panel is resized constantly, and a view that fitted

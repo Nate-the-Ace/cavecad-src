@@ -19,6 +19,8 @@
 #include "RCave3dView.h"
 
 #include <QDebug>
+#include <QLinearGradient>
+#include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -82,6 +84,10 @@ RCave3dView::RCave3dView(QWidget* parent)
       target(0.0f, 0.0f, 0.0f),
       showSurface(true),
       showLines(true),
+      showGhost(false),
+      showLeads(false),
+      progressTriangles(-1),
+      progressLines(-1),
       cameraUntouched(true) {
 
     setFocusPolicy(Qt::StrongFocus);
@@ -215,7 +221,14 @@ void RCave3dView::paintGL() {
         surfaceProgram->setAttributeArray(0, trianglePositions.constData(), 3);
         surfaceProgram->setAttributeArray(1, triangleNormals.constData(), 3);
         surfaceProgram->setAttributeArray(2, triangleColors.constData(), 3);
-        glDrawArrays(GL_TRIANGLES, 0, trianglePositions.size() / 3);
+        int triVerts = trianglePositions.size() / 3;
+        if (progressTriangles >= 0 && progressTriangles < triVerts) {
+            triVerts = progressTriangles;
+        }
+        // A triangle needs all three of its vertices, so a prefix that
+        // ends mid-triangle draws a torn one.
+        triVerts -= triVerts % 3;
+        glDrawArrays(GL_TRIANGLES, 0, triVerts);
         surfaceProgram->disableAttributeArray(0);
         surfaceProgram->disableAttributeArray(1);
         surfaceProgram->disableAttributeArray(2);
@@ -230,11 +243,118 @@ void RCave3dView::paintGL() {
         lineProgram->enableAttributeArray(1);
         lineProgram->setAttributeArray(0, linePositions.constData(), 3);
         lineProgram->setAttributeArray(1, lineColors.constData(), 3);
-        glDrawArrays(GL_LINES, 0, linePositions.size() / 3);
+        int lineVerts = linePositions.size() / 3;
+        if (progressLines >= 0 && progressLines < lineVerts) {
+            lineVerts = progressLines;
+        }
+        lineVerts -= lineVerts % 2;
+        glDrawArrays(GL_LINES, 0, lineVerts);
         lineProgram->disableAttributeArray(0);
         lineProgram->disableAttributeArray(1);
         lineProgram->release();
     }
+
+    // The ghost and the lead markers share the line shader and are NOT
+    // clamped by progress. The ghost is the survey as recorded, not the
+    // survey being built, and clipping it would imply the raw network
+    // grows too; a lead is a fact about the finished cave.
+    drawFlatLines(mvp, ghostPositions, ghostColors, showGhost);
+    drawFlatLines(mvp, leadPositions, leadColors, showLeads);
+
+    paintLegend();
+}
+
+void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
+                                const QVector<float>& positions,
+                                const QVector<float>& colors,
+                                bool visible) {
+    if (!visible || positions.isEmpty() || lineProgram == NULL ||
+            !lineProgram->isLinked()) {
+        return;
+    }
+    lineProgram->bind();
+    lineProgram->setUniformValue("uMvp", mvp);
+    lineProgram->enableAttributeArray(0);
+    lineProgram->enableAttributeArray(1);
+    lineProgram->setAttributeArray(0, positions.constData(), 3);
+    lineProgram->setAttributeArray(1, colors.constData(), 3);
+    glDrawArrays(GL_LINES, 0, positions.size() / 3);
+    lineProgram->disableAttributeArray(0);
+    lineProgram->disableAttributeArray(1);
+    lineProgram->release();
+}
+
+void RCave3dView::paintLegend() {
+    if (legendStops.isEmpty()) {
+        return;
+    }
+
+    // QOpenGLWidget IS a QPaintDevice, so this is ordinary Qt text and
+    // needs no GL text machinery at all. Qt saves and restores the GL
+    // state around the painter.
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const int pad = 10;
+    const int swatch = 12;
+    const int lineH = 16;
+    int y = height() - pad;
+
+    QFont f = painter.font();
+    f.setPointSizeF(f.pointSizeF() - 1.0);
+    painter.setFont(f);
+
+    // Light on the fixed dark ground, so no light/dark theme handling.
+    const QColor ink(232, 232, 232);
+    const QColor edge(90, 90, 90);
+
+    if (!legendNote.isEmpty()) {
+        painter.setPen(QColor(178, 178, 178));
+        painter.drawText(pad, y, legendNote);
+        y -= lineH;
+    }
+
+    if (legendKind == QString("ramp") && legendStops.size() >= 2) {
+        // Read upward, the way a depth scale is read: the first stop is
+        // the bottom of the range and sits at the bottom of the bar.
+        int barH = lineH * legendStops.size();
+        QRect bar(pad, y - barH, swatch, barH);
+
+        QLinearGradient g(bar.topLeft(), bar.bottomLeft());
+        for (int i = 0; i < legendStops.size(); i++) {
+            qreal at = 1.0 - qreal(i) / qreal(legendStops.size() - 1);
+            g.setColorAt(at, legendStops.at(i).color);
+        }
+        painter.fillRect(bar, QBrush(g));
+        painter.setPen(edge);
+        painter.drawRect(bar);
+
+        painter.setPen(ink);
+        for (int i = 0; i < legendStops.size(); i++) {
+            int ly = bar.bottom() -
+                (barH * i) / (legendStops.size() - 1);
+            painter.drawText(pad + swatch + 6, ly + 4,
+                             legendStops.at(i).label);
+        }
+        y -= barH + 4;
+    } else {
+        for (int i = legendStops.size() - 1; i >= 0; i--) {
+            QRect box(pad, y - swatch, swatch, swatch);
+            painter.fillRect(box, legendStops.at(i).color);
+            painter.setPen(edge);
+            painter.drawRect(box);
+            painter.setPen(ink);
+            painter.drawText(pad + swatch + 6, y - 1,
+                             legendStops.at(i).label);
+            y -= lineH;
+        }
+    }
+
+    QFont bold = painter.font();
+    bold.setBold(true);
+    painter.setFont(bold);
+    painter.setPen(ink);
+    painter.drawText(pad, y - 2, legendTitle);
 }
 
 void RCave3dView::setTriangles(const QVector<float>& positions,
@@ -253,6 +373,46 @@ void RCave3dView::setLines(const QVector<float>& positions,
     update();
 }
 
+void RCave3dView::setGhost(const QVector<float>& positions,
+                           const QVector<float>& colors) {
+    ghostPositions = positions;
+    ghostColors = colors;
+    update();
+}
+
+void RCave3dView::setLeads(const QVector<float>& positions,
+                           const QVector<float>& colors) {
+    leadPositions = positions;
+    leadColors = colors;
+    update();
+}
+
+void RCave3dView::setLegend(const QString& title, const QString& note,
+                            const QString& kind,
+                            const QVector<LegendStop>& stops) {
+    legendTitle = title;
+    legendNote = note;
+    legendKind = kind;
+    legendStops = stops;
+    update();
+}
+
+void RCave3dView::setProgress(int triangleVertices, int lineVertices) {
+    progressTriangles = triangleVertices;
+    progressLines = lineVertices;
+    update();
+}
+
+void RCave3dView::setShowGhost(bool on) {
+    showGhost = on;
+    update();
+}
+
+void RCave3dView::setShowLeads(bool on) {
+    showLeads = on;
+    update();
+}
+
 void RCave3dView::setBounds(const QVector3D& min, const QVector3D& max) {
     boundsMin = min;
     boundsMax = max;
@@ -265,6 +425,13 @@ void RCave3dView::clearGeometry() {
     triangleColors.clear();
     linePositions.clear();
     lineColors.clear();
+    ghostPositions.clear();
+    ghostColors.clear();
+    leadPositions.clear();
+    leadColors.clear();
+    legendStops.clear();
+    progressTriangles = -1;
+    progressLines = -1;
     update();
 }
 
