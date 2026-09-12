@@ -7,7 +7,7 @@ project(cavecadgui VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(${QT_VER} REQUIRED COMPONENTS Core Widgets Concurrent Gui Network OpenGL Sql Svg Xml PrintSupport Qml)
+find_package(${QT_VER} REQUIRED COMPONENTS Core Widgets Concurrent Gui Network OpenGL OpenGLWidgets Sql Svg Xml PrintSupport Qml)
 qt_standard_project_setup()
 
 if(WIN32)
@@ -23,6 +23,8 @@ endif()
 add_library(cavecadgui SHARED
     RCharacterWidget.cpp RCharacterWidget.h
     RCadToolBar.cpp RCadToolBar.h
+    RCave3dView.cpp RCave3dView.h
+    RCave3dWindow.cpp RCave3dWindow.h
     RCadToolBarPanel.cpp RCadToolBarPanel.h
     RColumnLayout.cpp RColumnLayout.h
     RCloseCurrentEvent.h
@@ -92,6 +94,7 @@ target_link_libraries(cavecadgui PUBLIC
     Qt::Widgets
     Qt::Network
     Qt::OpenGL
+    Qt::OpenGLWidgets
     Qt::Sql
     Qt::Svg
     Qt::Xml
