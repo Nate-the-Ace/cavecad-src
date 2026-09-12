@@ -25,6 +25,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QSurfaceFormat>
 #include <QtMath>
 
 namespace {
@@ -90,6 +91,28 @@ RCave3dView::RCave3dView(QWidget* parent)
       progressTriangles(-1),
       progressLines(-1),
       cameraUntouched(true) {
+
+    // ASK FOR THE CONTEXT EXPLICITLY, rather than taking the platform
+    // default.
+    //
+    // The shaders below are GLSL 1.10 (attribute / varying /
+    // gl_FragColor) and the geometry is passed as client-side arrays.
+    // Both are legal in a COMPATIBILITY profile and illegal in a core
+    // one. Every platform's default happens to be compatibility today
+    // -- macOS gives 2.1 legacy unless core 3.2+ is requested, Windows
+    // and Mesa give the driver's compatibility profile -- so this
+    // currently works everywhere by luck rather than by intent.
+    //
+    // Saying so out loud means a driver or a Qt version that would
+    // otherwise hand back a core context gives a clear failure at
+    // creation instead of shaders that will not compile, and it means
+    // the same context on Windows and Linux as the one this was
+    // developed against.
+    QSurfaceFormat fmt;
+    fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+    fmt.setVersion(2, 1);
+    fmt.setDepthBufferSize(24);
+    setFormat(fmt);
 
     setFocusPolicy(Qt::StrongFocus);
     // Small enough that a dock can be dragged narrow without the
