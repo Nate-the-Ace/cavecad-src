@@ -25,6 +25,8 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QColor>
+
+class RCave3dLegend;
 #include <QMatrix4x4>
 #include <QString>
 #include <QPoint>
@@ -118,7 +120,7 @@ private:
     void drawFlatLines(const QMatrix4x4& mvp,
                        const QVector<float>& positions,
                        const QVector<float>& colors, bool visible);
-    void paintLegend();
+    void layOutLegend();
 
     /** The camera's own axes at the current yaw and pitch. One source
      *  for framing and for panning: they were derived separately once,
@@ -160,10 +162,7 @@ private:
     int progressTriangles;
     int progressLines;
 
-    QString legendTitle;
-    QString legendNote;
-    QString legendKind;
-    QVector<LegendStop> legendStops;
+    RCave3dLegend* legend;
 
     /** True while the camera is still where a framing command put it.
      *  A docked panel is resized constantly, and a view that fitted

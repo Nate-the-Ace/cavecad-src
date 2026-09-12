@@ -17,6 +17,7 @@
  * along with CaveCAD.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "RCave3dView.h"
+#include "RCave3dLegend.h"
 
 #include <QDebug>
 #include <QLinearGradient>
@@ -94,6 +95,18 @@ RCave3dView::RCave3dView(QWidget* parent)
     // Small enough that a dock can be dragged narrow without the
     // panel fighting back.
     setMinimumSize(160, 120);
+
+    // THE LEGEND IS A CHILD WIDGET OVER THE VIEW, not a QPainter pass
+    // inside paintGL.
+    //
+    // The QPainter route is what Qt documents, and it drew NOTHING here
+    // -- no warning, no error, with the painter reporting success --
+    // whichever order the native-painting block was arranged in. A
+    // child widget cannot be defeated by GL state, is ordinary Qt
+    // painting, and to the reader is the same thing: a legend floating
+    // over the cave, taking no layout space.
+    legend = new RCave3dLegend(this);
+    legend->show();
 }
 
 RCave3dView::~RCave3dView() {
@@ -153,6 +166,7 @@ void RCave3dView::initializeGL() {
 
 void RCave3dView::resizeGL(int w, int h) {
     glViewport(0, 0, w, qMax(1, h));
+    layOutLegend();
     if (cameraUntouched) {
         // Re-fit rather than keep a distance computed for a different
         // aspect ratio. viewAll does not itself count as the caver
@@ -260,8 +274,6 @@ void RCave3dView::paintGL() {
     // grows too; a lead is a fact about the finished cave.
     drawFlatLines(mvp, ghostPositions, ghostColors, showGhost);
     drawFlatLines(mvp, leadPositions, leadColors, showLeads);
-
-    paintLegend();
 }
 
 void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
@@ -284,77 +296,16 @@ void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
     lineProgram->release();
 }
 
-void RCave3dView::paintLegend() {
-    if (legendStops.isEmpty()) {
+/** Puts the legend in the bottom-left corner, at whatever size its
+ *  contents need. */
+void RCave3dView::layOutLegend() {
+    if (legend == NULL) {
         return;
     }
-
-    // QOpenGLWidget IS a QPaintDevice, so this is ordinary Qt text and
-    // needs no GL text machinery at all. Qt saves and restores the GL
-    // state around the painter.
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-
-    const int pad = 10;
-    const int swatch = 12;
-    const int lineH = 16;
-    int y = height() - pad;
-
-    QFont f = painter.font();
-    f.setPointSizeF(f.pointSizeF() - 1.0);
-    painter.setFont(f);
-
-    // Light on the fixed dark ground, so no light/dark theme handling.
-    const QColor ink(232, 232, 232);
-    const QColor edge(90, 90, 90);
-
-    if (!legendNote.isEmpty()) {
-        painter.setPen(QColor(178, 178, 178));
-        painter.drawText(pad, y, legendNote);
-        y -= lineH;
-    }
-
-    if (legendKind == QString("ramp") && legendStops.size() >= 2) {
-        // Read upward, the way a depth scale is read: the first stop is
-        // the bottom of the range and sits at the bottom of the bar.
-        int barH = lineH * legendStops.size();
-        QRect bar(pad, y - barH, swatch, barH);
-
-        QLinearGradient g(bar.topLeft(), bar.bottomLeft());
-        for (int i = 0; i < legendStops.size(); i++) {
-            qreal at = 1.0 - qreal(i) / qreal(legendStops.size() - 1);
-            g.setColorAt(at, legendStops.at(i).color);
-        }
-        painter.fillRect(bar, QBrush(g));
-        painter.setPen(edge);
-        painter.drawRect(bar);
-
-        painter.setPen(ink);
-        for (int i = 0; i < legendStops.size(); i++) {
-            int ly = bar.bottom() -
-                (barH * i) / (legendStops.size() - 1);
-            painter.drawText(pad + swatch + 6, ly + 4,
-                             legendStops.at(i).label);
-        }
-        y -= barH + 4;
-    } else {
-        for (int i = legendStops.size() - 1; i >= 0; i--) {
-            QRect box(pad, y - swatch, swatch, swatch);
-            painter.fillRect(box, legendStops.at(i).color);
-            painter.setPen(edge);
-            painter.drawRect(box);
-            painter.setPen(ink);
-            painter.drawText(pad + swatch + 6, y - 1,
-                             legendStops.at(i).label);
-            y -= lineH;
-        }
-    }
-
-    QFont bold = painter.font();
-    bold.setBold(true);
-    painter.setFont(bold);
-    painter.setPen(ink);
-    painter.drawText(pad, y - 2, legendTitle);
+    QSize want = legend->sizeHint();
+    legend->setGeometry(8, height() - want.height() - 8,
+                        want.width(), want.height());
+    legend->setVisible(want.height() > 0);
 }
 
 void RCave3dView::setTriangles(const QVector<float>& positions,
@@ -390,10 +341,10 @@ void RCave3dView::setLeads(const QVector<float>& positions,
 void RCave3dView::setLegend(const QString& title, const QString& note,
                             const QString& kind,
                             const QVector<LegendStop>& stops) {
-    legendTitle = title;
-    legendNote = note;
-    legendKind = kind;
-    legendStops = stops;
+    if (legend != NULL) {
+        legend->setLegend(title, note, kind, stops);
+        layOutLegend();
+    }
     update();
 }
 
@@ -429,7 +380,10 @@ void RCave3dView::clearGeometry() {
     ghostColors.clear();
     leadPositions.clear();
     leadColors.clear();
-    legendStops.clear();
+    if (legend != NULL) {
+        legend->setLegend(QString(), QString(), QString(),
+                          QVector<LegendStop>());
+    }
     progressTriangles = -1;
     progressLines = -1;
     update();
