@@ -19,9 +19,11 @@
 #include "RCave3dBridge.h"
 #include "RCave3dView.h"
 #include "RCave3dPanel.h"
+#include "RCave3dView.h"
 #include "RDockWidget.h"
 #include "RMainWindowQt.h"
 
+#include <QColor>
 #include <QVariantList>
 #include <QVector3D>
 
@@ -95,6 +97,10 @@ int RCave3dBridge::open(const QString& caveName) {
         panel = new RCave3dPanel();
         connect(panel, SIGNAL(refreshRequested()),
                 this, SLOT(onWindowRefresh()));
+        connect(panel, SIGNAL(modeChanged(QString)),
+                this, SLOT(onPanelModeChanged(QString)));
+        connect(panel, SIGNAL(overlayToggled(QString, bool)),
+                this, SLOT(onPanelOverlayToggled(QString, bool)));
 
         dock = new RDockWidget(title, appWin);
         // The object name is what Qt saves and restores window state
@@ -165,6 +171,41 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     view->setLines(toFloats(lines.value("positions")),
                    toFloats(lines.value("colors")));
 
+    QVariantMap ghost = mesh.value("ghost").toMap();
+    QVector<float> ghostPos = toFloats(ghost.value("positions"));
+    view->setGhost(ghostPos, toFloats(ghost.value("colors")));
+    p->setGhostAvailable(!ghostPos.isEmpty());
+
+    QVariantMap leads = mesh.value("leads").toMap();
+    view->setLeads(toFloats(leads.value("positions")),
+                   toFloats(leads.value("colors")));
+
+    QVariantMap legend = mesh.value("legend").toMap();
+    QVector<RCave3dView::LegendStop> stops;
+    QVariantList stopList = legend.value("stops").toList();
+    for (int i = 0; i < stopList.size(); i++) {
+        QVariantMap sv = stopList.at(i).toMap();
+        QVariantList c = sv.value("color").toList();
+        RCave3dView::LegendStop stop;
+        stop.color = QColor::fromRgbF(
+            c.value(0).toDouble(), c.value(1).toDouble(),
+            c.value(2).toDouble());
+        stop.label = sv.value("label").toString();
+        stops.append(stop);
+    }
+    view->setLegend(legend.value("title").toString(),
+                    legend.value("note").toString(),
+                    legend.value("kind").toString(), stops);
+
+    QVector<QPair<int, int> > steps;
+    QVariantList stepList = mesh.value("steps").toList();
+    for (int i = 0; i < stepList.size(); i++) {
+        QVariantMap sv = stepList.at(i).toMap();
+        steps.append(QPair<int, int>(sv.value("triangleVertices").toInt(),
+                                     sv.value("lineVertices").toInt()));
+    }
+    p->setSteps(steps);
+
     QVariantMap bounds = mesh.value("bounds").toMap();
     view->setBounds(toVector(bounds.value("min"), QVector3D(-1, -1, -1)),
                     toVector(bounds.value("max"), QVector3D(1, 1, 1)));
@@ -219,6 +260,41 @@ void RCave3dBridge::setShowLines(int handle, bool on) {
     RCave3dPanel* p = panelFor(handle);
     if (p != NULL && p->getView() != NULL) {
         p->getView()->setShowLines(on);
+    }
+}
+
+void RCave3dBridge::setShowGhost(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowGhost(on);
+    }
+}
+
+void RCave3dBridge::setShowLeads(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowLeads(on);
+    }
+}
+
+void RCave3dBridge::setColorModes(int h, const QStringList& keys,
+                                  const QStringList& labels,
+                                  const QString& current) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setColorModes(keys, labels, current);
+    }
+}
+
+void RCave3dBridge::onPanelModeChanged(const QString& mode) {
+    if (handle != 0) {
+        emit colorModeChanged(handle, mode);
+    }
+}
+
+void RCave3dBridge::onPanelOverlayToggled(const QString& which, bool on) {
+    if (handle != 0) {
+        emit overlayToggled(handle, which, on);
     }
 }
 

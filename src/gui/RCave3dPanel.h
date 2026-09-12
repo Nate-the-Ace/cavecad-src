@@ -21,11 +21,18 @@
 
 #include "gui_global.h"
 
+#include <QPair>
 #include <QSize>
+#include <QStringList>
+#include <QVector>
 #include <QWidget>
 
 class RCave3dView;
+class QAction;
+class QComboBox;
 class QLabel;
+class QSlider;
+class QTimer;
 
 /**
  * \brief The 3D passage view with its toolbar and status line, as one
@@ -63,16 +70,56 @@ public:
      *  is fitted into a letterbox two hundred pixels tall. */
     virtual QSize sizeHint() const;
 
+    /** Fills the colour-mode dropdown. Does NOT emit modeChanged:
+     *  filling the combo is not the caver choosing something. */
+    void setColorModes(const QStringList& keys, const QStringList& labels,
+                       const QString& current);
+
+    /** The animation's frames: cumulative (triangleVertices,
+     *  lineVertices) per leg, straight from CsMesh3d's step table. */
+    void setSteps(const QVector<QPair<int, int> >& steps);
+
+    /** Greys the Ghost toggle when the mesh carried no ghost -- which
+     *  means adjustment is off or the solve did not converge, not that
+     *  something failed here. */
+    void setGhostAvailable(bool available);
+
+    void setShowGhost(bool on);
+    void setShowLeads(bool on);
+
 signals:
     /** The user asked for the mesh to be rebuilt from the drawing. */
     void refreshRequested();
 
+    /** The caver picked a different colour mode, by its key. */
+    void modeChanged(const QString& mode);
+
+    /** An overlay was toggled: "ghost" or "leads". */
+    void overlayToggled(const QString& which, bool on);
+
 private slots:
     void onRefresh();
+    void onModeChanged(int index);
+    void onPlayToggled(bool on);
+    void onPlayTick();
+    void onProgressChanged(int value);
 
 private:
     RCave3dView* view;
     QLabel* status;
+
+    QComboBox* modeCombo;
+    QStringList modeKeys;
+    /** True while setColorModes is populating, so a programmatic fill
+     *  is not mistaken for a choice and does not trigger a rebuild. */
+    bool fillingCombo;
+
+    QAction* ghostAction;
+    QAction* leadsAction;
+    QAction* playAction;
+    QSlider* progressSlider;
+    QTimer* playTimer;
+    QVector<QPair<int, int> > steps;
 };
 
 #endif

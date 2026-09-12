@@ -23,6 +23,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QStringList>
 #include <QVariantMap>
 
 class RCave3dPanel;
@@ -102,9 +103,21 @@ public:
     /** Look north, the way the extended elevation is drawn. */
     Q_INVOKABLE void viewProfile(int handle);
 
-    /** Show or hide the passage surface and the centerline. */
+    /** Show or hide each of the four overlays. */
     Q_INVOKABLE void setShowSurface(int handle, bool on);
     Q_INVOKABLE void setShowLines(int handle, bool on);
+    Q_INVOKABLE void setShowGhost(int handle, bool on);
+    Q_INVOKABLE void setShowLeads(int handle, bool on);
+
+    /**
+     * Fills the colour-mode dropdown. `keys` are CsMesh3d colorBy
+     * values and `labels` what the caver reads; they are parallel.
+     * Filling does not emit colorModeChanged -- populating a combo is
+     * not somebody choosing something.
+     */
+    Q_INVOKABLE void setColorModes(int handle, const QStringList& keys,
+                                   const QStringList& labels,
+                                   const QString& current);
 
 signals:
     /**
@@ -118,8 +131,19 @@ signals:
      */
     void refreshRequested(int handle);
 
+    /** The caver picked a different colour mode. The script side
+     *  rebuilds the mesh with it; nothing here knows what any of them
+     *  mean. */
+    void colorModeChanged(int handle, const QString& mode);
+
+    /** An overlay was toggled: "ghost" or "leads". Carried out so the
+     *  script side can remember it between sessions. */
+    void overlayToggled(int handle, const QString& which, bool on);
+
 private slots:
     void onWindowRefresh();
+    void onPanelModeChanged(const QString& mode);
+    void onPanelOverlayToggled(const QString& which, bool on);
 
 private:
     RCave3dPanel* panelFor(int handle) const;
