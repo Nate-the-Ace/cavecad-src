@@ -185,6 +185,31 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     view->setSections(sectionPos, toFloats(sections.value("colors")));
     p->setSectionsAvailable(!sectionPos.isEmpty());
 
+    // The draped sketches. `runs` says how many indices belong to each
+    // scan, so the view can bind one texture per scan without needing to
+    // know what a scan is.
+    QVariantMap scans = mesh.value("scans").toMap();
+    QVector<float> scanPos = toFloats(scans.value("positions"));
+    QStringList scanPaths;
+    QVariantList pathList = scans.value("paths").toList();
+    for (int i = 0; i < pathList.size(); i++) {
+        scanPaths.append(pathList.at(i).toString());
+    }
+    QVector<int> scanIdx;
+    QVariantList idxList = scans.value("indices").toList();
+    scanIdx.reserve(idxList.size());
+    for (int i = 0; i < idxList.size(); i++) {
+        scanIdx.append(idxList.at(i).toInt());
+    }
+    QVector<int> scanRuns;
+    QVariantList runList = scans.value("runs").toList();
+    for (int i = 0; i < runList.size(); i++) {
+        scanRuns.append(runList.at(i).toInt());
+    }
+    view->setScans(scanPos, toFloats(scans.value("uvs")), scanIdx,
+                   scanPaths, scanRuns);
+    p->setScansAvailable(!scanPaths.isEmpty());
+
     QVariantMap legend = mesh.value("legend").toMap();
     QVector<RCave3dView::LegendStop> stops;
     QVariantList stopList = legend.value("stops").toList();
@@ -286,6 +311,13 @@ void RCave3dBridge::setShowSections(int h, bool on) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
         p->setShowSections(on);
+    }
+}
+
+void RCave3dBridge::setShowScans(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowScans(on);
     }
 }
 

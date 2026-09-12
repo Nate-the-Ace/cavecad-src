@@ -18,6 +18,7 @@
  */
 #include "RCave3dView.h"
 #include "RCave3dLegend.h"
+#include "RCave3dTexture.h"
 
 #include <QDebug>
 #include <QLinearGradient>
@@ -56,6 +57,33 @@ const char* SURFACE_FRAGMENT =
     "    gl_FragColor = vec4(vColor * (0.35 + 0.65 * lambert), 1.0);\n"
     "}\n";
 
+// The scan pass. Textured, and keyed so only what the pencil darkened
+// survives.
+const char* SCAN_VERTEX =
+    "attribute highp vec3 aPos;\n"
+    "attribute highp vec2 aUv;\n"
+    "uniform highp mat4 uMvp;\n"
+    "varying highp vec2 vUv;\n"
+    "void main() {\n"
+    "    vUv = aUv;\n"
+    "    gl_Position = uMvp * vec4(aPos, 1.0);\n"
+    "}\n";
+
+const char* SCAN_FRAGMENT =
+    "varying highp vec2 vUv;\n"
+    "uniform sampler2D uTex;\n"
+    "uniform highp float uInkMax;\n"
+    "void main() {\n"
+    "    lowp vec4 c = texture2D(uTex, vUv);\n"
+    // PAPER IS NOT INK. A scan is mostly white page, and drawn whole it
+    // is a wall in front of the cave. Discarding everything lighter than
+    // the threshold leaves the pencil floating over the passage, which
+    // is the only way the sketch and the geometry can be read together.
+    "    highp float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));\n"
+    "    if (lum > uInkMax) { discard; }\n"
+    "    gl_FragColor = vec4(c.rgb, 1.0);\n"
+    "}\n";
+
 const char* LINE_VERTEX =
     "attribute highp vec3 aPos;\n"
     "attribute lowp vec3 aColor;\n"
@@ -78,6 +106,7 @@ RCave3dView::RCave3dView(QWidget* parent)
     : QOpenGLWidget(parent),
       surfaceProgram(NULL),
       lineProgram(NULL),
+      scanProgram(NULL),
       boundsMin(-1.0f, -1.0f, -1.0f),
       boundsMax(1.0f, 1.0f, 1.0f),
       yaw(0.0f),
@@ -89,6 +118,8 @@ RCave3dView::RCave3dView(QWidget* parent)
       showGhost(false),
       showLeads(false),
       showSections(false),
+      showScans(false),
+      scansNeedUpload(false),
       progressTriangles(-1),
       progressLines(-1),
       cameraUntouched(true) {
@@ -137,6 +168,8 @@ RCave3dView::~RCave3dView() {
     makeCurrent();
     delete surfaceProgram;
     delete lineProgram;
+    delete scanProgram;
+    dropScanTextures();
     doneCurrent();
 }
 
@@ -152,6 +185,11 @@ void RCave3dView::initializeGL() {
     surfaceProgram = NULL;
     delete lineProgram;
     lineProgram = NULL;
+    delete scanProgram;
+    scanProgram = NULL;
+    // Every texture belonged to the context that has just died.
+    dropScanTextures();
+    scansNeedUpload = !scanPaths.isEmpty();
 
     glEnable(GL_DEPTH_TEST);
     // Backface culling stays OFF. A passage is a tube seen from inside
@@ -186,6 +224,19 @@ void RCave3dView::initializeGL() {
         qWarning() << "RCave3dView: centerline shader did not link:"
                    << lineProgram->log();
     }
+
+    scanProgram = new QOpenGLShaderProgram();
+    scanProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, SCAN_VERTEX);
+    scanProgram->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                         SCAN_FRAGMENT);
+    scanProgram->bindAttributeLocation("aPos", 0);
+    scanProgram->bindAttributeLocation("aUv", 1);
+    if (!scanProgram->link()) {
+        qWarning() << "RCave3dView: scan shader did not link:"
+                   << scanProgram->log();
+    }
+
+    uploadScanTextures();
 }
 
 void RCave3dView::resizeGL(int w, int h) {
@@ -299,6 +350,95 @@ void RCave3dView::paintGL() {
     drawFlatLines(mvp, ghostPositions, ghostColors, showGhost);
     drawFlatLines(mvp, leadPositions, leadColors, showLeads);
     drawFlatLines(mvp, sectionPositions, sectionColors, showSections);
+
+    drawScans(mvp);
+}
+
+void RCave3dView::dropScanTextures() {
+    for (int i = 0; i < scanTextures.size(); i++) {
+        delete scanTextures.at(i);
+    }
+    scanTextures.clear();
+}
+
+void RCave3dView::uploadScanTextures() {
+    dropScanTextures();
+    for (int i = 0; i < scanPaths.size(); i++) {
+        RCave3dTexture* t = new RCave3dTexture(scanPaths.at(i));
+        if (!t->upload()) {
+            qWarning() << "RCave3dView: could not load scan"
+                       << scanPaths.at(i);
+        }
+        scanTextures.append(t);
+    }
+    scansNeedUpload = false;
+}
+
+void RCave3dView::drawScans(const QMatrix4x4& mvp) {
+    if (!showScans || scanIndices.isEmpty() || scanProgram == NULL ||
+            !scanProgram->isLinked()) {
+        return;
+    }
+    if (scansNeedUpload) {
+        uploadScanTextures();
+    }
+
+    // BLENDED, AND NOT WRITING DEPTH. Two sketches overlapping the same
+    // passage would otherwise z-fight into a shimmering mess, and a
+    // sketch is an overlay on the cave rather than part of its solid
+    // shape.
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+
+    scanProgram->bind();
+    scanProgram->setUniformValue("uMvp", mvp);
+    scanProgram->setUniformValue("uInkMax", GLfloat(0.62f));
+    scanProgram->setUniformValue("uTex", 0);
+    scanProgram->enableAttributeArray(0);
+    scanProgram->enableAttributeArray(1);
+    scanProgram->setAttributeArray(0, scanPositions.constData(), 3);
+    scanProgram->setAttributeArray(1, scanUvs.constData(), 2);
+
+    int at = 0;
+    for (int i = 0; i < scanRuns.size(); i++) {
+        int count = scanRuns.at(i);
+        if (count <= 0 || at + count > scanIndices.size()) {
+            at += count;
+            continue;
+        }
+        if (i < scanTextures.size() && scanTextures.at(i)->bind()) {
+            glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT,
+                           scanIndices.constData() + at);
+        }
+        at += count;
+    }
+
+    scanProgram->disableAttributeArray(0);
+    scanProgram->disableAttributeArray(1);
+    scanProgram->release();
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
+void RCave3dView::setScans(const QVector<float>& positions,
+                           const QVector<float>& uvs,
+                           const QVector<int>& indices,
+                           const QStringList& paths,
+                           const QVector<int>& runs) {
+    scanPositions = positions;
+    scanUvs = uvs;
+    scanIndices = indices;
+    scanPaths = paths;
+    scanRuns = runs;
+    scansNeedUpload = true;
+    update();
+}
+
+void RCave3dView::setShowScans(bool on) {
+    showScans = on;
+    update();
 }
 
 void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
@@ -419,6 +559,12 @@ void RCave3dView::clearGeometry() {
     leadColors.clear();
     sectionPositions.clear();
     sectionColors.clear();
+    scanPositions.clear();
+    scanUvs.clear();
+    scanIndices.clear();
+    scanPaths.clear();
+    scanRuns.clear();
+    dropScanTextures();
     if (legend != NULL) {
         legend->setLegend(QString(), QString(), QString(),
                           QVector<LegendStop>());

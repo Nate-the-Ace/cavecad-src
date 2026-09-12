@@ -109,6 +109,7 @@ public:
     Q_INVOKABLE void setShowGhost(int handle, bool on);
     Q_INVOKABLE void setShowLeads(int handle, bool on);
     Q_INVOKABLE void setShowSections(int handle, bool on);
+    Q_INVOKABLE void setShowScans(int handle, bool on);
 
     /**
      * Fills the colour-mode dropdown. `keys` are CsMesh3d colorBy

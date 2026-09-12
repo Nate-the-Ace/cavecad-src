@@ -29,7 +29,7 @@
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
-      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL),
+      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -135,6 +135,15 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     connect(sectionsAction, &QAction::toggled, [this](bool on) {
         view->setShowSections(on);
         emit overlayToggled(QString("sections"), on);
+    });
+
+    scansAction = row2->addAction(tr("Scans"));
+    scansAction->setCheckable(true);
+    scansAction->setStatusTip(tr("Lay the scanned sketches onto the "
+                                 "passage they were drawn of"));
+    connect(scansAction, &QAction::toggled, [this](bool on) {
+        view->setShowScans(on);
+        emit overlayToggled(QString("scans"), on);
     });
 
     row2->addSeparator();
@@ -262,6 +271,22 @@ void RCave3dPanel::setSectionsAvailable(bool available) {
 void RCave3dPanel::setShowSections(bool on) {
     if (sectionsAction != NULL && sectionsAction->isEnabled()) {
         sectionsAction->setChecked(on);
+    }
+}
+
+void RCave3dPanel::setScansAvailable(bool available) {
+    if (scansAction == NULL) {
+        return;
+    }
+    scansAction->setEnabled(available);
+    if (!available && scansAction->isChecked()) {
+        scansAction->setChecked(false);
+    }
+}
+
+void RCave3dPanel::setShowScans(bool on) {
+    if (scansAction != NULL && scansAction->isEnabled()) {
+        scansAction->setChecked(on);
     }
 }
 

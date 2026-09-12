@@ -91,6 +91,10 @@ public:
      *  is a fact about the drawing, not a failure here. */
     void setSectionsAvailable(bool available);
 
+    void setShowScans(bool on);
+    /** Greys the Scans toggle when the drawing holds none. */
+    void setScansAvailable(bool available);
+
 signals:
     /** The user asked for the mesh to be rebuilt from the drawing. */
     void refreshRequested();
@@ -121,6 +125,7 @@ private:
     QAction* ghostAction;
     QAction* leadsAction;
     QAction* sectionsAction;
+    QAction* scansAction;
     QAction* playAction;
     QSlider* progressSlider;
     QTimer* playTimer;

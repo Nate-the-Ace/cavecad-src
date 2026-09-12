@@ -27,8 +27,12 @@
 #include <QColor>
 
 class RCave3dLegend;
+class RCave3dTexture;
+class QOpenGLShaderProgram;
 #include <QMatrix4x4>
+#include <QList>
 #include <QString>
+#include <QStringList>
 #include <QPoint>
 #include <QVector3D>
 #include <QVector>
@@ -79,6 +83,17 @@ public:
                   const QVector<float>& colors);
     void setSections(const QVector<float>& positions,
                      const QVector<float>& colors);
+
+    /**
+     * The draped sketches. One entry of `runs` per scan, giving how many
+     * INDICES belong to it, so each draws bound to its own texture.
+     */
+    void setScans(const QVector<float>& positions,
+                  const QVector<float>& uvs,
+                  const QVector<int>& indices,
+                  const QStringList& paths,
+                  const QVector<int>& runs);
+    void setShowScans(bool on);
     void setBounds(const QVector3D& min, const QVector3D& max);
     void clearGeometry();
 
@@ -124,6 +139,9 @@ private:
                        const QVector<float>& positions,
                        const QVector<float>& colors, bool visible);
     void layOutLegend();
+    void uploadScanTextures();
+    void dropScanTextures();
+    void drawScans(const QMatrix4x4& mvp);
 
     /** The camera's own axes at the current yaw and pitch. One source
      *  for framing and for panning: they were derived separately once,
@@ -134,6 +152,7 @@ private:
 
     QOpenGLShaderProgram* surfaceProgram;
     QOpenGLShaderProgram* lineProgram;
+    QOpenGLShaderProgram* scanProgram;
 
     // Interleaved-free, one array per attribute: this is what the
     // script side already produces, and repacking it here would cost a
@@ -149,6 +168,18 @@ private:
     QVector<float> leadColors;
     QVector<float> sectionPositions;
     QVector<float> sectionColors;
+
+    QVector<float> scanPositions;
+    QVector<float> scanUvs;
+    QVector<int> scanIndices;
+    QStringList scanPaths;
+    QVector<int> scanRuns;
+    QList<RCave3dTexture*> scanTextures;
+    bool showScans;
+    /** Set when paths change, cleared once uploaded against a live
+     *  context -- which is also how a context remade by a dock float
+     *  gets its textures back. */
+    bool scansNeedUpload;
 
     QVector3D boundsMin;
     QVector3D boundsMax;
