@@ -178,18 +178,27 @@ void RCave3dView::initializeGL() {
 
     // CALLED AGAIN EVERY TIME THE CONTEXT IS REMADE, which a dock does
     // whenever it is torn off to float or dropped back in: reparenting
-    // a QOpenGLWidget destroys its context and builds a new one. The
-    // programs below belong to the context that has just died, so they
-    // are dropped here rather than leaked once per float.
-    delete surfaceProgram;
+    // a QOpenGLWidget destroys its context and builds a new one.
+    //
+    // WHATEVER IS STILL HELD HERE IS ALREADY DEAD, and must be FORGOTTEN
+    // rather than deleted. A QOpenGLTexture's destructor calls into the
+    // context that owned it; run now, against the NEW context, it
+    // dereferences a freed one and takes the application down --
+    // measured, EXC_BAD_ACCESS in QOpenGLTexturePrivate::destroy() on
+    // the first float. The real destruction happens in
+    // onContextAboutToBeDestroyed, while the owning context is still
+    // alive to destroy them against.
     surfaceProgram = NULL;
-    delete lineProgram;
     lineProgram = NULL;
-    delete scanProgram;
     scanProgram = NULL;
-    // Every texture belonged to the context that has just died.
-    dropScanTextures();
+    forgetScanTextures();
     scansNeedUpload = !scanPaths.isEmpty();
+
+    if (context() != NULL) {
+        connect(context(), SIGNAL(aboutToBeDestroyed()),
+                this, SLOT(onContextAboutToBeDestroyed()),
+                Qt::DirectConnection);
+    }
 
     glEnable(GL_DEPTH_TEST);
     // Backface culling stays OFF. A passage is a tube seen from inside
@@ -352,6 +361,25 @@ void RCave3dView::paintGL() {
     drawFlatLines(mvp, sectionPositions, sectionColors, showSections);
 
     drawScans(mvp);
+}
+
+void RCave3dView::onContextAboutToBeDestroyed() {
+    // Still current here, so these are safe to destroy.
+    makeCurrent();
+    delete surfaceProgram;
+    surfaceProgram = NULL;
+    delete lineProgram;
+    lineProgram = NULL;
+    delete scanProgram;
+    scanProgram = NULL;
+    dropScanTextures();
+    doneCurrent();
+}
+
+/** Lets go of textures whose context has already gone, WITHOUT calling
+ *  into GL. See initializeGL. */
+void RCave3dView::forgetScanTextures() {
+    scanTextures.clear();
 }
 
 void RCave3dView::dropScanTextures() {

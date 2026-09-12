@@ -124,6 +124,11 @@ public:
     void viewPlan();
     void viewProfile();
 
+private slots:
+    /** The context is about to die: everything GL must be destroyed
+     *  HERE, while it is still alive to destroy them against. */
+    void onContextAboutToBeDestroyed();
+
 protected:
     virtual void initializeGL();
     virtual void paintGL();
@@ -140,6 +145,7 @@ private:
                        const QVector<float>& colors, bool visible);
     void layOutLegend();
     void uploadScanTextures();
+    void forgetScanTextures();
     void dropScanTextures();
     void drawScans(const QMatrix4x4& mvp);
 
