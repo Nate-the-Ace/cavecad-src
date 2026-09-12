@@ -77,6 +77,8 @@ public:
                   const QVector<float>& colors);
     void setLeads(const QVector<float>& positions,
                   const QVector<float>& colors);
+    void setSections(const QVector<float>& positions,
+                     const QVector<float>& colors);
     void setBounds(const QVector3D& min, const QVector3D& max);
     void clearGeometry();
 
@@ -96,6 +98,7 @@ public:
 
     void setShowGhost(bool on);
     void setShowLeads(bool on);
+    void setShowSections(bool on);
 
     void setShowSurface(bool on);
     void setShowLines(bool on);
@@ -144,6 +147,8 @@ private:
     QVector<float> ghostColors;
     QVector<float> leadPositions;
     QVector<float> leadColors;
+    QVector<float> sectionPositions;
+    QVector<float> sectionColors;
 
     QVector3D boundsMin;
     QVector3D boundsMax;
@@ -158,6 +163,7 @@ private:
     bool showLines;
     bool showGhost;
     bool showLeads;
+    bool showSections;
 
     int progressTriangles;
     int progressLines;

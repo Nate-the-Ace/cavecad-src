@@ -29,7 +29,7 @@
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
-      fillingCombo(false), ghostAction(NULL), leadsAction(NULL),
+      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -126,6 +126,15 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     connect(leadsAction, &QAction::toggled, [this](bool on) {
         view->setShowLeads(on);
         emit overlayToggled(QString("leads"), on);
+    });
+
+    sectionsAction = row2->addAction(tr("Sections"));
+    sectionsAction->setCheckable(true);
+    sectionsAction->setStatusTip(tr("Stand every captured cross section "
+                                    "beside the passage it was drawn of"));
+    connect(sectionsAction, &QAction::toggled, [this](bool on) {
+        view->setShowSections(on);
+        emit overlayToggled(QString("sections"), on);
     });
 
     row2->addSeparator();
@@ -237,6 +246,22 @@ void RCave3dPanel::setShowGhost(bool on) {
 void RCave3dPanel::setShowLeads(bool on) {
     if (leadsAction != NULL) {
         leadsAction->setChecked(on);
+    }
+}
+
+void RCave3dPanel::setSectionsAvailable(bool available) {
+    if (sectionsAction == NULL) {
+        return;
+    }
+    sectionsAction->setEnabled(available);
+    if (!available && sectionsAction->isChecked()) {
+        sectionsAction->setChecked(false);
+    }
+}
+
+void RCave3dPanel::setShowSections(bool on) {
+    if (sectionsAction != NULL && sectionsAction->isEnabled()) {
+        sectionsAction->setChecked(on);
     }
 }
 

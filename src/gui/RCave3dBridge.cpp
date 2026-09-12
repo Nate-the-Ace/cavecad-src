@@ -180,6 +180,11 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     view->setLeads(toFloats(leads.value("positions")),
                    toFloats(leads.value("colors")));
 
+    QVariantMap sections = mesh.value("sections").toMap();
+    QVector<float> sectionPos = toFloats(sections.value("positions"));
+    view->setSections(sectionPos, toFloats(sections.value("colors")));
+    p->setSectionsAvailable(!sectionPos.isEmpty());
+
     QVariantMap legend = mesh.value("legend").toMap();
     QVector<RCave3dView::LegendStop> stops;
     QVariantList stopList = legend.value("stops").toList();
@@ -274,6 +279,13 @@ void RCave3dBridge::setShowLeads(int h, bool on) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
         p->setShowLeads(on);
+    }
+}
+
+void RCave3dBridge::setShowSections(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowSections(on);
     }
 }
 

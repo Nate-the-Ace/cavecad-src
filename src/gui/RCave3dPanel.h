@@ -83,9 +83,13 @@ public:
      *  means adjustment is off or the solve did not converge, not that
      *  something failed here. */
     void setGhostAvailable(bool available);
-
     void setShowGhost(bool on);
     void setShowLeads(bool on);
+    void setShowSections(bool on);
+
+    /** Greys the Sections toggle when the drawing holds none -- which
+     *  is a fact about the drawing, not a failure here. */
+    void setSectionsAvailable(bool available);
 
 signals:
     /** The user asked for the mesh to be rebuilt from the drawing. */
@@ -116,6 +120,7 @@ private:
 
     QAction* ghostAction;
     QAction* leadsAction;
+    QAction* sectionsAction;
     QAction* playAction;
     QSlider* progressSlider;
     QTimer* playTimer;

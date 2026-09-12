@@ -88,6 +88,7 @@ RCave3dView::RCave3dView(QWidget* parent)
       showLines(true),
       showGhost(false),
       showLeads(false),
+      showSections(false),
       progressTriangles(-1),
       progressLines(-1),
       cameraUntouched(true) {
@@ -297,6 +298,7 @@ void RCave3dView::paintGL() {
     // grows too; a lead is a fact about the finished cave.
     drawFlatLines(mvp, ghostPositions, ghostColors, showGhost);
     drawFlatLines(mvp, leadPositions, leadColors, showLeads);
+    drawFlatLines(mvp, sectionPositions, sectionColors, showSections);
 }
 
 void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
@@ -361,6 +363,18 @@ void RCave3dView::setLeads(const QVector<float>& positions,
     update();
 }
 
+void RCave3dView::setSections(const QVector<float>& positions,
+                              const QVector<float>& colors) {
+    sectionPositions = positions;
+    sectionColors = colors;
+    update();
+}
+
+void RCave3dView::setShowSections(bool on) {
+    showSections = on;
+    update();
+}
+
 void RCave3dView::setLegend(const QString& title, const QString& note,
                             const QString& kind,
                             const QVector<LegendStop>& stops) {
@@ -403,6 +417,8 @@ void RCave3dView::clearGeometry() {
     ghostColors.clear();
     leadPositions.clear();
     leadColors.clear();
+    sectionPositions.clear();
+    sectionColors.clear();
     if (legend != NULL) {
         legend->setLegend(QString(), QString(), QString(),
                           QVector<LegendStop>());
