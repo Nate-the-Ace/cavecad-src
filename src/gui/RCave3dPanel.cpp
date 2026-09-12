@@ -16,28 +16,42 @@
  * You should have received a copy of the GNU General Public License
  * along with CaveCAD.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "RCave3dWindow.h"
+#include "RCave3dPanel.h"
 #include "RCave3dView.h"
 
 #include <QAction>
 #include <QLabel>
-#include <QStatusBar>
 #include <QToolBar>
+#include <QVBoxLayout>
 
-RCave3dWindow::RCave3dWindow(const QString& caveName, QWidget* parent)
-    : QMainWindow(parent), view(NULL), status(NULL) {
+RCave3dPanel::RCave3dPanel(QWidget* parent)
+    : QWidget(parent), view(NULL), status(NULL) {
 
-    setWindowTitle(caveName.isEmpty()
-        ? tr("3D View")
-        : tr("3D View -- %1").arg(caveName));
-    setAttribute(Qt::WA_DeleteOnClose, false);
-    resize(900, 650);
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QToolBar* bar = new QToolBar(this);
+    bar->setObjectName("Cave3dToolBar");
+    bar->setIconSize(QSize(16, 16));
+    // A dock is narrow. Text-only buttons wrap into a second row and eat
+    // the view; icons-or-text-beside would need an icon set this panel
+    // does not have, so the buttons stay short words in a toolbar that
+    // is allowed to overflow into its own extension menu.
+    bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    layout->addWidget(bar);
 
     view = new RCave3dView(this);
-    setCentralWidget(view);
+    layout->addWidget(view, 1);
 
-    QToolBar* bar = addToolBar(tr("3D View"));
-    bar->setObjectName("Cave3dToolBar");
+    status = new QLabel(this);
+    status->setContentsMargins(4, 2, 4, 2);
+    // The label must be allowed to be NARROWER than its text, or the
+    // whole dock refuses to shrink below whatever the longest status
+    // line happens to be.
+    status->setMinimumWidth(0);
+    status->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(status);
 
     QAction* refresh = bar->addAction(tr("Refresh"));
     refresh->setStatusTip(tr("Rebuild the passage from the drawing as it "
@@ -50,8 +64,8 @@ RCave3dWindow::RCave3dWindow(const QString& caveName, QWidget* parent)
     // cartographer checks the map against, and reaching them by
     // hand-orbiting is imprecise in a way that matters when you are
     // comparing against a drawing.
-    QAction* all = bar->addAction(tr("View All"));
-    all->setShortcut(QKeySequence(Qt::Key_Home));
+    QAction* all = bar->addAction(tr("All"));
+    all->setStatusTip(tr("Frame the whole cave"));
     connect(all, &QAction::triggered, [this]() { view->viewAll(); });
 
     QAction* plan = bar->addAction(tr("Plan"));
@@ -77,24 +91,25 @@ RCave3dWindow::RCave3dWindow(const QString& caveName, QWidget* parent)
     connect(lines, &QAction::toggled,
             [this](bool on) { view->setShowLines(on); });
 
-    status = new QLabel(this);
-    // STRETCH 1, not the default 0. A status-bar widget with no stretch
-    // is given its sizeHint, and this label's first sizeHint is taken
-    // while it is still empty -- so every line set afterwards is clipped
-    // to a couple of characters. It read "5" where it meant "530
-    // triangles, 75 centerline segments, 146.6 ft of relief".
-    statusBar()->addWidget(status, 1);
+    setLayout(layout);
 }
 
-RCave3dWindow::~RCave3dWindow() {
+RCave3dPanel::~RCave3dPanel() {
 }
 
-void RCave3dWindow::setStatus(const QString& text) {
+QSize RCave3dPanel::sizeHint() const {
+    // Tall enough that a cave is worth looking at, not so tall that it
+    // shoves every other panel out of the column. The caver drags it
+    // from here and Qt remembers, because the dock has an object name.
+    return QSize(420, 460);
+}
+
+void RCave3dPanel::setStatus(const QString& text) {
     if (status != NULL) {
         status->setText(text);
     }
 }
 
-void RCave3dWindow::onRefresh() {
+void RCave3dPanel::onRefresh() {
     emit refreshRequested();
 }

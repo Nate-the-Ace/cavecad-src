@@ -25,7 +25,8 @@
 #include <QObject>
 #include <QVariantMap>
 
-class RCave3dWindow;
+class RCave3dPanel;
+class RDockWidget;
 
 /**
  * \brief Everything the script side can say to a 3D window.
@@ -51,16 +52,23 @@ public:
     RCave3dBridge(QObject* parent = NULL);
     virtual ~RCave3dBridge();
 
-    /** Opens a window titled for `caveName`. Returns its handle. */
+    /**
+     * Docks a 3D view into the main window, titled for `caveName`.
+     * Returns its handle.
+     *
+     * There is only ever ONE, because there is only ever one drawing in
+     * front of the caver. Calling open again re-titles and re-shows the
+     * panel that already exists rather than stacking a second.
+     */
     Q_INVOKABLE int open(const QString& caveName);
 
-    /** Closes and forgets a window. Unknown handles are ignored. */
+    /** Hides the panel. Unknown handles are ignored. */
     Q_INVOKABLE void close(int handle);
 
-    /** Whether this handle still names a window that is open. */
+    /** Whether this handle names a panel that is showing. */
     Q_INVOKABLE bool isOpen(int handle);
 
-    /** Brings an already-open window to the front. */
+    /** Shows and raises the panel, floating or docked as it was left. */
     Q_INVOKABLE void raiseWindow(int handle);
 
     /**
@@ -114,11 +122,11 @@ private slots:
     void onWindowRefresh();
 
 private:
-    RCave3dWindow* windowFor(int handle) const;
-    int handleOf(RCave3dWindow* window) const;
+    RCave3dPanel* panelFor(int handle) const;
 
-    QHash<int, RCave3dWindow*> windows;
-    int nextHandle;
+    RDockWidget* dock;
+    RCave3dPanel* panel;
+    int handle;
 };
 
 #endif

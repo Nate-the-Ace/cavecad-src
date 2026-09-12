@@ -81,10 +81,13 @@ RCave3dView::RCave3dView(QWidget* parent)
       distance(10.0f),
       target(0.0f, 0.0f, 0.0f),
       showSurface(true),
-      showLines(true) {
+      showLines(true),
+      cameraUntouched(true) {
 
     setFocusPolicy(Qt::StrongFocus);
-    setMinimumSize(320, 240);
+    // Small enough that a dock can be dragged narrow without the
+    // panel fighting back.
+    setMinimumSize(160, 120);
 }
 
 RCave3dView::~RCave3dView() {
@@ -96,6 +99,16 @@ RCave3dView::~RCave3dView() {
 
 void RCave3dView::initializeGL() {
     initializeOpenGLFunctions();
+
+    // CALLED AGAIN EVERY TIME THE CONTEXT IS REMADE, which a dock does
+    // whenever it is torn off to float or dropped back in: reparenting
+    // a QOpenGLWidget destroys its context and builds a new one. The
+    // programs below belong to the context that has just died, so they
+    // are dropped here rather than leaked once per float.
+    delete surfaceProgram;
+    surfaceProgram = NULL;
+    delete lineProgram;
+    lineProgram = NULL;
 
     glEnable(GL_DEPTH_TEST);
     // Backface culling stays OFF. A passage is a tube seen from inside
@@ -134,6 +147,12 @@ void RCave3dView::initializeGL() {
 
 void RCave3dView::resizeGL(int w, int h) {
     glViewport(0, 0, w, qMax(1, h));
+    if (cameraUntouched) {
+        // Re-fit rather than keep a distance computed for a different
+        // aspect ratio. viewAll does not itself count as the caver
+        // touching the camera, so this does not become self-sustaining.
+        viewAll();
+    }
 }
 
 void RCave3dView::cameraBasis(QVector3D& forward, QVector3D& right,
@@ -299,6 +318,7 @@ void RCave3dView::viewAll() {
         needed = 1.0f;
     }
     distance = needed * 1.05f;   // a little air around the edges
+    cameraUntouched = true;
     update();
 }
 
@@ -341,6 +361,7 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
         float scale = distance * 0.002f;
         target -= right * (delta.x() * scale);
         target += up * (delta.y() * scale);
+        cameraUntouched = false;
         update();
         return;
     }
@@ -354,6 +375,7 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
         if (pitch < -89.9f) {
             pitch = -89.9f;
         }
+        cameraUntouched = false;
         update();
     }
 }
@@ -366,6 +388,7 @@ void RCave3dView::wheelEvent(QWheelEvent* e) {
     if (distance < 1e-4f) {
         distance = 1e-4f;
     }
+    cameraUntouched = false;
     update();
 }
 

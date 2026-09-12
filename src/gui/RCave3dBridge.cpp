@@ -18,7 +18,9 @@
  */
 #include "RCave3dBridge.h"
 #include "RCave3dView.h"
-#include "RCave3dWindow.h"
+#include "RCave3dPanel.h"
+#include "RDockWidget.h"
+#include "RMainWindowQt.h"
 
 #include <QVariantList>
 #include <QVector3D>
@@ -62,77 +64,94 @@ QVector3D toVector(const QVariant& value, const QVector3D& fallback) {
 } // namespace
 
 RCave3dBridge::RCave3dBridge(QObject* parent)
-    : QObject(parent), nextHandle(1) {
+    : QObject(parent), dock(NULL), panel(NULL), handle(0) {
 }
 
 RCave3dBridge::~RCave3dBridge() {
-    QHash<int, RCave3dWindow*>::iterator it;
-    for (it = windows.begin(); it != windows.end(); ++it) {
-        delete it.value();
-    }
-    windows.clear();
+    // The dock is parented to the main window, which deletes it. Taking
+    // it down from here would be a double delete on shutdown.
+    dock = NULL;
+    panel = NULL;
 }
 
-RCave3dWindow* RCave3dBridge::windowFor(int handle) const {
-    return windows.value(handle, NULL);
-}
-
-int RCave3dBridge::handleOf(RCave3dWindow* window) const {
-    QHash<int, RCave3dWindow*>::const_iterator it;
-    for (it = windows.constBegin(); it != windows.constEnd(); ++it) {
-        if (it.value() == window) {
-            return it.key();
-        }
+RCave3dPanel* RCave3dBridge::panelFor(int h) const {
+    if (h == 0 || h != handle) {
+        return NULL;
     }
-    return 0;
+    return panel;
 }
 
 int RCave3dBridge::open(const QString& caveName) {
-    RCave3dWindow* window = new RCave3dWindow(caveName);
-    connect(window, SIGNAL(refreshRequested()), this, SLOT(onWindowRefresh()));
-    int handle = nextHandle++;
-    windows.insert(handle, window);
-    window->show();
+    RMainWindowQt* appWin = RMainWindowQt::getMainWindow();
+    if (appWin == NULL) {
+        return 0;   // headless: nothing to dock into
+    }
+
+    QString title = caveName.isEmpty()
+        ? tr("3D View")
+        : tr("3D View -- %1").arg(caveName);
+
+    if (dock == NULL) {
+        panel = new RCave3dPanel();
+        connect(panel, SIGNAL(refreshRequested()),
+                this, SLOT(onWindowRefresh()));
+
+        dock = new RDockWidget(title, appWin);
+        // The object name is what Qt saves and restores window state
+        // by. Without it the panel forgets where the caver put it every
+        // time the application restarts, and Qt says so on stderr.
+        dock->setObjectName("Cave3dDock");
+        dock->setWidget(panel);
+        dock->setAllowedAreas(Qt::AllDockWidgetAreas);
+        appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
+        handle = 1;
+    } else {
+        dock->setWindowTitle(title);
+    }
+
+    dock->show();
+    dock->raise();
     return handle;
 }
 
-void RCave3dBridge::close(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL) {
+void RCave3dBridge::close(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || dock == NULL) {
         return;
     }
-    windows.remove(handle);
-    window->close();
-    window->deleteLater();
+    // HIDDEN, NOT DELETED. A dock the caver has arranged is worth
+    // keeping: closing and reopening should put the panel back where it
+    // was, and deleting it would also tear down the GL context for the
+    // sake of a button press.
+    dock->hide();
 }
 
-bool RCave3dBridge::isOpen(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL) {
+bool RCave3dBridge::isOpen(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || dock == NULL) {
         return false;
     }
-    // A window the user closed with its own title-bar button is still
-    // in the table but is no longer a window anybody can see. Saying it
-    // is open would make a script push meshes into nothing.
-    return window->isVisible();
+    return dock->isVisible();
 }
 
-void RCave3dBridge::raiseWindow(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL) {
+void RCave3dBridge::raiseWindow(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || dock == NULL) {
         return;
     }
-    window->show();
-    window->raise();
-    window->activateWindow();
+    dock->show();
+    dock->raise();
+    if (dock->isFloating()) {
+        dock->activateWindow();
+    }
 }
 
 void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL) {
+    RCave3dPanel* p = panelFor(handle);
+    if (p == NULL) {
         return;
     }
-    RCave3dView* view = window->getView();
+    RCave3dView* view = p->getView();
     if (view == NULL) {
         return;
     }
@@ -153,62 +172,57 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
 }
 
 void RCave3dBridge::clear(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL || window->getView() == NULL) {
+    RCave3dPanel* p = panelFor(handle);
+    if (p == NULL || p->getView() == NULL) {
         return;
     }
-    window->getView()->clearGeometry();
+    p->getView()->clearGeometry();
 }
 
 void RCave3dBridge::setStatus(int handle, const QString& text) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window == NULL) {
+    RCave3dPanel* p = panelFor(handle);
+    if (p == NULL) {
         return;
     }
-    window->setStatus(text);
+    p->setStatus(text);
 }
 
 void RCave3dBridge::viewAll(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window != NULL && window->getView() != NULL) {
-        window->getView()->viewAll();
+    RCave3dPanel* p = panelFor(handle);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->viewAll();
     }
 }
 
 void RCave3dBridge::viewPlan(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window != NULL && window->getView() != NULL) {
-        window->getView()->viewPlan();
+    RCave3dPanel* p = panelFor(handle);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->viewPlan();
     }
 }
 
 void RCave3dBridge::viewProfile(int handle) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window != NULL && window->getView() != NULL) {
-        window->getView()->viewProfile();
+    RCave3dPanel* p = panelFor(handle);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->viewProfile();
     }
 }
 
 void RCave3dBridge::setShowSurface(int handle, bool on) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window != NULL && window->getView() != NULL) {
-        window->getView()->setShowSurface(on);
+    RCave3dPanel* p = panelFor(handle);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->setShowSurface(on);
     }
 }
 
 void RCave3dBridge::setShowLines(int handle, bool on) {
-    RCave3dWindow* window = windowFor(handle);
-    if (window != NULL && window->getView() != NULL) {
-        window->getView()->setShowLines(on);
+    RCave3dPanel* p = panelFor(handle);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->setShowLines(on);
     }
 }
 
 void RCave3dBridge::onWindowRefresh() {
-    RCave3dWindow* window = qobject_cast<RCave3dWindow*>(sender());
-    if (window == NULL) {
-        return;
-    }
-    int handle = handleOf(window);
     if (handle != 0) {
         emit refreshRequested(handle);
     }

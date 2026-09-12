@@ -116,6 +116,14 @@ private:
     bool showSurface;
     bool showLines;
 
+    /** True while the camera is still where a framing command put it.
+     *  A docked panel is resized constantly, and a view that fitted
+     *  itself once at whatever size the dock happened to have on
+     *  creation stays wrong for every size after. So while this holds,
+     *  a resize re-fits; once the caver orbits or zooms it is their
+     *  camera and a resize leaves it alone. */
+    bool cameraUntouched;
+
     QPoint lastMousePos;
 };
 
