@@ -148,6 +148,8 @@ RCave3dView::RCave3dView(QWidget* parent)
       showSections(false),
       showScans(false),
       scanInk(RCave3dView::DEFAULT_SCAN_INK),
+      cameraMode(RCave3dView::CameraManual), cameraProgress(0.0),
+      flyYaw(0.0f), flyPitch(0.0f), spinFromYaw(0.0f),
       scansNeedUpload(false),
       progressTriangles(-1),
       progressLines(-1),
@@ -331,6 +333,70 @@ float RCave3dView::worldPerPixel() const {
     return 2.0f * tanHalf * distance / float(qMax(1, height()));
 }
 
+void RCave3dView::setFlyPath(const QVector<float>& points,
+                             const QVector<int>& breaks) {
+    flyPoints = points;
+    flyBreaks = breaks;
+    if (!hasFlyPath() && cameraMode == CameraFly) {
+        setCameraMode(CameraManual);
+    }
+    update();
+}
+
+void RCave3dView::setCameraMode(CameraMode mode) {
+    if (mode == CameraFly && !hasFlyPath()) {
+        mode = CameraManual;
+    }
+    if (mode == cameraMode) {
+        return;
+    }
+    if (mode == CameraFly) {
+        // Start looking straight down the passage, not wherever the
+        // caver happened to have the camera pointed.
+        flyYaw = 0.0f;
+        flyPitch = 0.0f;
+    }
+    if (mode == CameraSpin) {
+        // Turn from where they left it: snapping to north first would
+        // throw away the view they chose to spin.
+        spinFromYaw = yaw;
+    }
+    cameraMode = mode;
+    // Neither mode is the caver placing the camera, so a rebuild is
+    // still free to reframe afterwards.
+    update();
+}
+
+void RCave3dView::setCameraProgress(double t) {
+    if (t < 0.0) { t = 0.0; }
+    if (t > 1.0) { t = 1.0; }
+    cameraProgress = t;
+    update();
+}
+
+/** Where on the flight path progress `t` sits, and which way it faces. */
+static void flySample(const QVector<float>& pts, double t,
+                      QVector3D& eye, QVector3D& ahead) {
+    int count = pts.size() / 3;
+    if (count < 2) {
+        eye = QVector3D(0, 0, 0);
+        ahead = QVector3D(0, 1, 0);
+        return;
+    }
+    double at = t * double(count - 1);
+    int i = int(at);
+    if (i > count - 2) { i = count - 2; }
+    double f = at - double(i);
+    QVector3D a(pts.at(i * 3), pts.at(i * 3 + 1), pts.at(i * 3 + 2));
+    QVector3D b(pts.at(i * 3 + 3), pts.at(i * 3 + 4), pts.at(i * 3 + 5));
+    eye = a + (b - a) * float(f);
+    QVector3D dir = b - a;
+    if (dir.lengthSquared() < 1e-12f) {
+        dir = QVector3D(0, 1, 0);
+    }
+    ahead = dir.normalized();
+}
+
 QMatrix4x4 RCave3dView::cameraMatrix() const {
     float aspect = float(width()) / float(qMax(1, height()));
 
@@ -356,7 +422,37 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
     QMatrix4x4 projection;
     projection.perspective(FOV_DEGREES, aspect, near, far);
 
-    float yawRad = qDegreesToRadians(yaw);
+    float useYaw = yaw;
+    if (cameraMode == CameraSpin) {
+        // A SLOW TURN ROUND THE CAVE, which is what a cave is usually
+        // shown doing: one whole revolution over the length of the
+        // animation, so an exported loop joins up with itself.
+        useYaw = spinFromYaw + float(cameraProgress) * 360.0f;
+    }
+
+    if (cameraMode == CameraFly && hasFlyPath()) {
+        // DOWN THE PASSAGE, from inside it. The eye rides the
+        // centreline and looks along it, with whatever the caver has
+        // dragged added on top so they can look about without stopping.
+        QVector3D eyeAt, ahead;
+        flySample(flyPoints, cameraProgress, eyeAt, ahead);
+        QMatrix4x4 turn;
+        turn.rotate(flyYaw, QVector3D(0.0f, 0.0f, 1.0f));
+        QVector3D look = turn.map(ahead);
+        QVector3D side = QVector3D::crossProduct(look,
+            QVector3D(0.0f, 0.0f, 1.0f));
+        if (side.lengthSquared() < 1e-12f) {
+            side = QVector3D(1.0f, 0.0f, 0.0f);
+        }
+        QMatrix4x4 tilt;
+        tilt.rotate(flyPitch, side.normalized());
+        look = tilt.map(look).normalized();
+        QMatrix4x4 flyView;
+        flyView.lookAt(eyeAt, eyeAt + look, QVector3D(0.0f, 0.0f, 1.0f));
+        return projection * flyView;
+    }
+
+    float yawRad = qDegreesToRadians(useYaw);
     float pitchRad = qDegreesToRadians(pitch);
     QVector3D eye(
         target.x() + distance * std::cos(pitchRad) * std::sin(yawRad),
@@ -608,6 +704,44 @@ bool RCave3dView::hasStations() const {
     return labels != NULL && labels->hasStations();
 }
 
+QImage RCave3dView::renderFrame(int w, int h) {
+    if (w < 16 || h < 16) {
+        return QImage();
+    }
+    // THE FRAME AS THE SCREEN SHOWS IT, overlays and all. The GL
+    // framebuffer carries the cave; the station names and the legend
+    // are child widgets and are not in it, and a flight with no station
+    // names on it is the one thing this animation is for.
+    //
+    // Rendered at the widget's own size rather than a chosen one: an
+    // offscreen surface at another size would need its own context, and
+    // the overlays lay themselves out for THIS geometry.
+    Q_UNUSED(w)
+    Q_UNUSED(h)
+    makeCurrent();
+    QImage shot = grabFramebuffer();
+    doneCurrent();
+    if (shot.isNull()) {
+        return shot;
+    }
+    QPainter painter(&shot);
+    // The widgets paint at device pixels; the grab is at device pixels
+    // too, so the overlay is scaled to match rather than assumed equal.
+    qreal sx = qreal(shot.width()) / qreal(qMax(1, width()));
+    qreal sy = qreal(shot.height()) / qreal(qMax(1, height()));
+    painter.scale(sx, sy);
+    if (labels != NULL && labels->isShowing()) {
+        labels->render(&painter, QPoint(0, 0), QRegion(),
+                       QWidget::DrawChildren);
+    }
+    if (legend != NULL && legend->isVisible()) {
+        legend->render(&painter, legend->pos(), QRegion(),
+                       QWidget::DrawChildren);
+    }
+    painter.end();
+    return shot;
+}
+
 void RCave3dView::layOutLegend() {
     // The labels cover the whole view: they place themselves by where
     // the stations land, not by a corner.
@@ -851,6 +985,18 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
     }
 
     if (e->buttons() & Qt::LeftButton) {
+        if (cameraMode == CameraFly) {
+            // LOOK AROUND WITHOUT STOPPING. Flying down a passage, the
+            // thing a caver wants most is to turn their head at a
+            // junction -- so a drag turns the view off the path's own
+            // direction rather than taking the camera off the path.
+            flyYaw -= delta.x() * 0.4f;
+            flyPitch -= delta.y() * 0.4f;
+            if (flyPitch > 85.0f) { flyPitch = 85.0f; }
+            if (flyPitch < -85.0f) { flyPitch = -85.0f; }
+            update();
+            return;
+        }
         yaw += delta.x() * 0.4f;
         pitch += delta.y() * 0.4f;
         if (pitch > 89.9f) {

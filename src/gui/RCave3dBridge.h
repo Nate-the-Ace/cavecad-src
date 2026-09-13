@@ -114,6 +114,31 @@ public:
     /** Station names written over the passage. */
     Q_INVOKABLE void setShowStations(int handle, bool on);
 
+    /** The flight path down the passage, as a flat [x,y,z,...] list
+     *  with the indices where one surveyed run gives way to another. */
+    Q_INVOKABLE void setFlyPath(int handle, const QVariantList& points,
+                                const QVariantList& breaks);
+
+    /** "manual", "fly" or "spin". */
+    Q_INVOKABLE void setCameraMode(int handle, const QString& mode);
+    Q_INVOKABLE QString getCameraMode(int handle);
+    Q_INVOKABLE void setCameraProgress(int handle, double t);
+
+    /**
+     * Writes an animation out as a numbered PNG per frame.
+     *
+     * FRAMES, NOT A VIDEO FILE. Encoding one would mean either shipping
+     * an encoder or depending on whatever the caver happens to have,
+     * and a folder of frames is something every editor on every
+     * platform will take. The caller is told the command that turns
+     * them into a film.
+     *
+     * \return how many frames were written, or -1 when the folder could
+     *         not be written to.
+     */
+    Q_INVOKABLE int exportFrames(int handle, const QString& dir,
+                                 int frames);
+
     /** Where a draped scan stops being pencil and starts being paper,
      *  as a luminance 0 to 1. Clamped by the view; setting it does not
      *  come back as scanInkChanged. */
@@ -150,6 +175,12 @@ signals:
      *  this is so the add-on can remember the setting. */
     void scanInkChanged(int handle, double value);
 
+    /** The caver chose how the camera moves: "manual", "fly" or "spin". */
+    void cameraModeChanged(int handle, const QString& mode);
+
+    /** The caver pressed Export. The script side chooses where. */
+    void exportRequested(int handle);
+
     /** The caver picked a different colour mode. The script side
      *  rebuilds the mesh with it; nothing here knows what any of them
      *  mean. */
@@ -164,6 +195,8 @@ private slots:
     void onPanelModeChanged(const QString& mode);
     void onPanelOverlayToggled(const QString& which, bool on);
     void onPanelScanInkChanged(double value);
+    void onPanelCameraModeChanged(const QString& mode);
+    void onPanelExportRequested();
 
 private:
     RCave3dPanel* panelFor(int handle) const;

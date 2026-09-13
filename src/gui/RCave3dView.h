@@ -103,6 +103,28 @@ public:
     void setShowStations(bool on);
     bool hasStations() const;
 
+    /** How the camera moves on its own: not at all, down the passage,
+     *  or slowly round the cave. */
+    enum CameraMode { CameraManual, CameraFly, CameraSpin };
+
+    /** The flight path, as [x,y,z,...] in world coordinates, with the
+     *  indices where one surveyed run gives way to another. */
+    void setFlyPath(const QVector<float>& points,
+                    const QVector<int>& breaks);
+    bool hasFlyPath() const { return flyPoints.size() >= 6; }
+
+    void setCameraMode(CameraMode mode);
+    CameraMode getCameraMode() const { return cameraMode; }
+
+    /** Where along the flight, or how far round the spin: 0 to 1. */
+    void setCameraProgress(double t);
+    double getCameraProgress() const { return cameraProgress; }
+
+    /** One frame of whatever the camera is doing, at a chosen size,
+     *  with the labels and legend painted on as the screen shows them.
+     *  \return a null image when there is nothing to render. */
+    QImage renderFrame(int w, int h);
+
     /** Where a draped scan stops being pencil and starts being paper.
      *
      *  Luminance, 0 (black) to 1 (white): anything lighter is dropped,
@@ -240,6 +262,18 @@ private:
     QList<RCave3dTexture*> scanTextures;
     bool showScans;
     double scanInk;
+    QVector<float> flyPoints;
+    QVector<int> flyBreaks;
+    CameraMode cameraMode;
+    double cameraProgress;
+    /** Where the caver has dragged the view while the camera is flying:
+     *  an offset on top of the path's own direction, so they can look
+     *  around without stopping. */
+    float flyYaw;
+    float flyPitch;
+    /** The yaw the spin started from, so it turns from where the caver
+     *  left the camera rather than snapping to north. */
+    float spinFromYaw;
     /** Set when paths change, cleared once uploaded against a live
      *  context -- which is also how a context remade by a dock float
      *  gets its textures back. */

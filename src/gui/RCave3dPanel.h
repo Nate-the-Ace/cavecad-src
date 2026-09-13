@@ -99,6 +99,13 @@ public:
     /** Greys the Stations toggle when the mesh carried no names. */
     void setStationsAvailable(bool available);
 
+    /** "manual", "fly" or "spin". The Play button drives whichever is
+     *  chosen, so there is one animation control rather than three. */
+    void setCameraMode(const QString& mode);
+    void setCameraProgress(double t);
+    /** Greys Fly when the drawing holds no surveyed passage to fly. */
+    void setFlyAvailable(bool available);
+
     /** Where the ink slider sits, as the view's own luminance
      *  threshold. Setting it does NOT emit scanInkChanged: filling a
      *  control in is not the caver moving it. */
@@ -118,6 +125,12 @@ signals:
      *  so the script side can remember the setting between sessions;
      *  the view is already showing it by the time this arrives. */
     void scanInkChanged(double value);
+
+    /** The caver picked a way for the camera to move on its own. */
+    void cameraModeChanged(const QString& mode);
+
+    /** The caver asked for the animation to be written out. */
+    void exportRequested();
 
 private slots:
     void onRefresh();
@@ -147,6 +160,11 @@ private:
     QAction* sectionsAction;
     QAction* scansAction;
     QAction* stationsAction;
+    QAction* flyAction;
+    QAction* spinAction;
+    /** True while a camera-mode button is being set from code, so the
+     *  two exclusive toggles do not fight each other. */
+    bool settingCameraMode;
     QLabel* inkLabel;
     QSlider* inkSlider;
     /** What QToolBar::addWidget handed back. A widget put into a

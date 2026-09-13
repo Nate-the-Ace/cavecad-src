@@ -26,6 +26,8 @@
 #include <QColor>
 #include <QVariantList>
 #include <QVector3D>
+#include <QDir>
+#include <QImage>
 
 namespace {
 
@@ -103,6 +105,10 @@ int RCave3dBridge::open(const QString& caveName) {
                 this, SLOT(onPanelOverlayToggled(QString, bool)));
         connect(panel, SIGNAL(scanInkChanged(double)),
                 this, SLOT(onPanelScanInkChanged(double)));
+        connect(panel, SIGNAL(cameraModeChanged(QString)),
+                this, SLOT(onPanelCameraModeChanged(QString)));
+        connect(panel, SIGNAL(exportRequested()),
+                this, SLOT(onPanelExportRequested()));
 
         dock = new RDockWidget(title, appWin);
         // The object name is what Qt saves and restores window state
@@ -342,6 +348,91 @@ void RCave3dBridge::setShowScans(int h, bool on) {
     }
 }
 
+void RCave3dBridge::setFlyPath(int h, const QVariantList& points,
+                               const QVariantList& breaks) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return;
+    }
+    QVector<float> pts;
+    pts.reserve(points.size());
+    for (int i = 0; i < points.size(); i++) {
+        pts.append(float(points.at(i).toDouble()));
+    }
+    QVector<int> brk;
+    for (int i = 0; i < breaks.size(); i++) {
+        brk.append(breaks.at(i).toInt());
+    }
+    p->getView()->setFlyPath(pts, brk);
+    p->setFlyAvailable(pts.size() >= 6);
+}
+
+void RCave3dBridge::setCameraMode(int h, const QString& mode) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL) {
+        return;
+    }
+    p->setCameraMode(mode);
+}
+
+QString RCave3dBridge::getCameraMode(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return QString("manual");
+    }
+    switch (p->getView()->getCameraMode()) {
+    case RCave3dView::CameraFly:  return QString("fly");
+    case RCave3dView::CameraSpin: return QString("spin");
+    default: break;
+    }
+    return QString("manual");
+}
+
+void RCave3dBridge::setCameraProgress(int h, double t) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setCameraProgress(t);
+    }
+}
+
+int RCave3dBridge::exportFrames(int h, const QString& dir, int frames) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return -1;
+    }
+    QDir d(dir);
+    if (!d.exists() && !d.mkpath(".")) {
+        return -1;
+    }
+    RCave3dView* v = p->getView();
+    int count = qBound(2, frames, 3600);
+    double was = v->getCameraProgress();
+    int written = 0;
+    for (int i = 0; i < count; i++) {
+        // The last frame lands ONE STEP SHORT of the start rather than
+        // on it, so a spin exported as a loop does not show the same
+        // frame twice where it joins.
+        double t = double(i) / double(count);
+        if (v->getCameraMode() == RCave3dView::CameraFly) {
+            // A flight is not a loop: it should reach the far end.
+            t = double(i) / double(count - 1);
+        }
+        v->setCameraProgress(t);
+        QImage frame = v->renderFrame(v->width(), v->height());
+        if (frame.isNull()) {
+            break;
+        }
+        QString name = QString("frame_%1.png")
+            .arg(i, 5, 10, QChar('0'));
+        if (!frame.save(d.filePath(name), "PNG")) {
+            break;
+        }
+        written++;
+    }
+    v->setCameraProgress(was);
+    return written;
+}
+
 void RCave3dBridge::setShowStations(int h, bool on) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
@@ -410,6 +501,18 @@ void RCave3dBridge::onPanelOverlayToggled(const QString& which, bool on) {
 void RCave3dBridge::onPanelScanInkChanged(double value) {
     if (handle != 0) {
         emit scanInkChanged(handle, value);
+    }
+}
+
+void RCave3dBridge::onPanelCameraModeChanged(const QString& mode) {
+    if (handle != 0) {
+        emit cameraModeChanged(handle, mode);
+    }
+}
+
+void RCave3dBridge::onPanelExportRequested() {
+    if (handle != 0) {
+        emit exportRequested(handle);
     }
 }
 

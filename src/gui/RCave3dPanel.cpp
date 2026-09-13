@@ -17,6 +17,11 @@
  * along with CaveCAD.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "RCave3dPanel.h"
+
+namespace {
+/** Ticks the camera takes to run its animation once through. */
+const int CAMERA_TICKS = 600;
+}
 #include "RCave3dView.h"
 
 #include <QAction>
@@ -29,7 +34,8 @@
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
-      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL),
+      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL), flyAction(NULL),
+      spinAction(NULL), settingCameraMode(false),
       inkLabel(NULL), inkSlider(NULL), inkLabelAction(NULL),
       inkSliderAction(NULL), fillingInk(false),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
@@ -69,6 +75,16 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     refresh->setStatusTip(tr("Rebuild the passage from the drawing as it "
                              "stands now"));
     connect(refresh, SIGNAL(triggered()), this, SLOT(onRefresh()));
+
+    row1->addSeparator();
+
+    // EXPORT IS A REQUEST, not something the panel carries out: where
+    // the frames go is a question about the caver's cave folder, and
+    // the script side is the only thing that knows about those.
+    QAction* exportAction = row1->addAction(tr("Export..."));
+    exportAction->setStatusTip(tr("Write the running animation out as a "
+                                  "numbered image per frame"));
+    connect(exportAction, SIGNAL(triggered()), this, SIGNAL(exportRequested()));
 
     row1->addSeparator();
 
@@ -195,6 +211,32 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
 
     row2->addSeparator();
 
+    // TWO WAYS THE CAMERA MOVES ON ITS OWN, and the Play button drives
+    // whichever is on -- one animation control rather than three, and
+    // the slider scrubs whatever Play would run.
+    //
+    // Fly goes down the centreline from inside the passage, which is
+    // what tells a caver what the cave is LIKE. Spin turns the whole
+    // cave slowly in front of them, which is what shows its shape.
+    flyAction = row2->addAction(tr("Fly"));
+    flyAction->setCheckable(true);
+    flyAction->setStatusTip(tr("Fly down the surveyed passage, from "
+                               "inside it -- drag to look around"));
+    connect(flyAction, &QAction::toggled, [this](bool on) {
+        if (settingCameraMode) { return; }
+        setCameraMode(on ? QString("fly") : QString("manual"));
+        emit cameraModeChanged(on ? QString("fly") : QString("manual"));
+    });
+
+    spinAction = row2->addAction(tr("Spin"));
+    spinAction->setCheckable(true);
+    spinAction->setStatusTip(tr("Turn the cave slowly in front of you"));
+    connect(spinAction, &QAction::toggled, [this](bool on) {
+        if (settingCameraMode) { return; }
+        setCameraMode(on ? QString("spin") : QString("manual"));
+        emit cameraModeChanged(on ? QString("spin") : QString("manual"));
+    });
+
     playAction = row2->addAction(tr("Play"));
     playAction->setCheckable(true);
     playAction->setStatusTip(tr("Build the cave one shot at a time, in "
@@ -211,6 +253,10 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
 
     playTimer = new QTimer(this);
     playTimer->setInterval(40);
+    // SLOW ENOUGH TO WATCH. At forty milliseconds a tick, this many
+    // ticks carries the camera from one end to the other in about
+    // twenty-four seconds -- a pace a caver can follow down a passage,
+    // where the build animation's one-shot-per-tick would be a blur.
     connect(playTimer, SIGNAL(timeout()), this, SLOT(onPlayTick()));
 
     setLayout(layout);
@@ -341,6 +387,51 @@ void RCave3dPanel::onScanInkChanged(int value) {
     emit scanInkChanged(value / 100.0);
 }
 
+void RCave3dPanel::setCameraMode(const QString& mode) {
+    if (view == NULL) {
+        return;
+    }
+    RCave3dView::CameraMode want = RCave3dView::CameraManual;
+    if (mode == "fly") { want = RCave3dView::CameraFly; }
+    if (mode == "spin") { want = RCave3dView::CameraSpin; }
+    view->setCameraMode(want);
+    // The view may have refused Fly for want of a path, so the buttons
+    // follow what it actually did rather than what was asked for.
+    RCave3dView::CameraMode now = view->getCameraMode();
+    settingCameraMode = true;
+    if (flyAction != NULL) {
+        flyAction->setChecked(now == RCave3dView::CameraFly);
+    }
+    if (spinAction != NULL) {
+        spinAction->setChecked(now == RCave3dView::CameraSpin);
+    }
+    settingCameraMode = false;
+
+    // The slider means something different in each mode, so it starts
+    // again rather than carrying a position from the last one.
+    if (progressSlider != NULL && now != RCave3dView::CameraManual) {
+        progressSlider->setRange(0, 1000);
+        progressSlider->setValue(0);
+    }
+    view->setCameraProgress(0.0);
+}
+
+void RCave3dPanel::setCameraProgress(double t) {
+    if (view != NULL) {
+        view->setCameraProgress(t);
+    }
+}
+
+void RCave3dPanel::setFlyAvailable(bool available) {
+    if (flyAction == NULL) {
+        return;
+    }
+    flyAction->setEnabled(available);
+    if (!available && flyAction->isChecked()) {
+        flyAction->setChecked(false);
+    }
+}
+
 void RCave3dPanel::setShowStations(bool on) {
     if (stationsAction != NULL && stationsAction->isEnabled()) {
         stationsAction->setChecked(on);
@@ -390,6 +481,13 @@ void RCave3dPanel::onPlayToggled(bool on) {
         playTimer->stop();
         return;
     }
+    if (view != NULL && view->getCameraMode() != RCave3dView::CameraManual) {
+        if (progressSlider->value() >= progressSlider->maximum()) {
+            progressSlider->setValue(0);
+        }
+        playTimer->start();
+        return;
+    }
     if (steps.size() < 2) {
         playAction->setChecked(false);
         return;
@@ -402,6 +500,23 @@ void RCave3dPanel::onPlayToggled(bool on) {
 }
 
 void RCave3dPanel::onPlayTick() {
+    if (view != NULL && view->getCameraMode() != RCave3dView::CameraManual) {
+        int step = qMax(1, progressSlider->maximum() / CAMERA_TICKS);
+        int nextCam = progressSlider->value() + step;
+        if (nextCam > progressSlider->maximum()) {
+            if (view->getCameraMode() == RCave3dView::CameraSpin) {
+                // A spin has no end: it comes round again.
+                nextCam = 0;
+            } else {
+                progressSlider->setValue(progressSlider->maximum());
+                playTimer->stop();
+                playAction->setChecked(false);
+                return;
+            }
+        }
+        progressSlider->setValue(nextCam);
+        return;
+    }
     int next = progressSlider->value() + 1;
     if (next >= steps.size()) {
         playTimer->stop();
@@ -416,7 +531,18 @@ void RCave3dPanel::onPlayTick() {
 }
 
 void RCave3dPanel::onProgressChanged(int value) {
-    if (view == NULL || steps.isEmpty()) {
+    if (view == NULL) {
+        return;
+    }
+    // IN A CAMERA MODE THE SLIDER IS THE CAMERA. One control, whose
+    // meaning follows what it is set to run: where along the flight, or
+    // how far round the spin.
+    if (view->getCameraMode() != RCave3dView::CameraManual) {
+        int span = qMax(1, progressSlider->maximum());
+        view->setCameraProgress(double(value) / double(span));
+        return;
+    }
+    if (steps.isEmpty()) {
         return;
     }
     if (value >= steps.size() - 1) {
