@@ -94,6 +94,25 @@ public:
                   const QStringList& paths,
                   const QVector<int>& runs);
     void setShowScans(bool on);
+
+    /** Where a draped scan stops being pencil and starts being paper.
+     *
+     *  Luminance, 0 (black) to 1 (white): anything lighter is dropped,
+     *  and the last stretch below it fades out rather than ending on a
+     *  hard edge. Scanners disagree wildly about how grey a pencil line
+     *  on white paper is, and there is no threshold that suits every
+     *  book, so this is the caver's to set. Clamped to a range that
+     *  always leaves SOMETHING on screen -- a slider that can wind the
+     *  sketches away to nothing looks like a bug. */
+    void setScanInk(double value);
+    double getScanInk() const { return scanInk; }
+
+    /** The threshold a panel starts at, so its slider can be built
+     *  showing what the view is actually doing. */
+    static const double DEFAULT_SCAN_INK;
+    static const double MIN_SCAN_INK;
+    static const double MAX_SCAN_INK;
+
     void setBounds(const QVector3D& min, const QVector3D& max);
     void clearGeometry();
 
@@ -182,6 +201,7 @@ private:
     QVector<int> scanRuns;
     QList<RCave3dTexture*> scanTextures;
     bool showScans;
+    double scanInk;
     /** Set when paths change, cleared once uploaded against a live
      *  context -- which is also how a context remade by a dock float
      *  gets its textures back. */

@@ -95,6 +95,11 @@ public:
     /** Greys the Scans toggle when the drawing holds none. */
     void setScansAvailable(bool available);
 
+    /** Where the ink slider sits, as the view's own luminance
+     *  threshold. Setting it does NOT emit scanInkChanged: filling a
+     *  control in is not the caver moving it. */
+    void setScanInk(double value);
+
 signals:
     /** The user asked for the mesh to be rebuilt from the drawing. */
     void refreshRequested();
@@ -105,12 +110,23 @@ signals:
     /** An overlay was toggled: "ghost" or "leads". */
     void overlayToggled(const QString& which, bool on);
 
+    /** The caver moved the ink slider, in the view's own units. Emitted
+     *  so the script side can remember the setting between sessions;
+     *  the view is already showing it by the time this arrives. */
+    void scanInkChanged(double value);
+
 private slots:
     void onRefresh();
     void onModeChanged(int index);
     void onPlayToggled(bool on);
     void onPlayTick();
     void onProgressChanged(int value);
+    void onScanInkChanged(int value);
+
+private:
+    void syncInkVisible();
+
+private slots:
 
 private:
     RCave3dView* view;
@@ -126,6 +142,11 @@ private:
     QAction* leadsAction;
     QAction* sectionsAction;
     QAction* scansAction;
+    QLabel* inkLabel;
+    QSlider* inkSlider;
+    /** True while setScanInk is moving the slider, so a programmatic
+     *  fill is not mistaken for the caver dragging it. */
+    bool fillingInk;
     QAction* playAction;
     QSlider* progressSlider;
     QTimer* playTimer;

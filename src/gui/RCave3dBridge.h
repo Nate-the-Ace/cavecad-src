@@ -111,6 +111,12 @@ public:
     Q_INVOKABLE void setShowSections(int handle, bool on);
     Q_INVOKABLE void setShowScans(int handle, bool on);
 
+    /** Where a draped scan stops being pencil and starts being paper,
+     *  as a luminance 0 to 1. Clamped by the view; setting it does not
+     *  come back as scanInkChanged. */
+    Q_INVOKABLE void setScanInk(int handle, double value);
+    Q_INVOKABLE double getScanInk(int handle);
+
     /**
      * Fills the colour-mode dropdown. `keys` are CsMesh3d colorBy
      * values and `labels` what the caver reads; they are parallel.
@@ -133,6 +139,10 @@ signals:
      */
     void refreshRequested(int handle);
 
+    /** The caver moved the ink slider. The view is already showing it;
+     *  this is so the add-on can remember the setting. */
+    void scanInkChanged(int handle, double value);
+
     /** The caver picked a different colour mode. The script side
      *  rebuilds the mesh with it; nothing here knows what any of them
      *  mean. */
@@ -146,6 +156,7 @@ private slots:
     void onWindowRefresh();
     void onPanelModeChanged(const QString& mode);
     void onPanelOverlayToggled(const QString& which, bool on);
+    void onPanelScanInkChanged(double value);
 
 private:
     RCave3dPanel* panelFor(int handle) const;

@@ -74,6 +74,7 @@ const char* SCAN_FRAGMENT =
     "uniform sampler2D uTex;\n"
     "uniform highp float uInkMax;\n"
     "uniform highp float uInkChroma;\n"
+    "uniform highp float uInkFade;\n"
     "void main() {\n"
     "    lowp vec4 c = texture2D(uTex, vUv);\n"
     // PAPER IS NOT INK. A scan is mostly white page, and drawn whole it
@@ -82,6 +83,13 @@ const char* SCAN_FRAGMENT =
     // is the only way the sketch and the geometry can be read together.
     "    highp float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));\n"
     "    if (lum > uInkMax) { discard; }\n"
+    // A SOFT EDGE, NOT A CLIFF. Scanned pencil does not stop at one
+    // grey: a stroke shades off into the paper, and a hard cut turns
+    // that into a ragged fringe of speckle that reads as noise. Fading
+    // the last stretch before the threshold lets the caver wind the
+    // slider down until the grey the scanner invented goes quiet while
+    // the stroke itself is still solid.
+    "    highp float aInk = clamp((uInkMax - lum) / uInkFade, 0.0, 1.0);\n"
     // NOR IS THE PRINTED GRID. Survey books are printed with a grid --
     // blue on the ones this was written for -- and its lines are dark
     // enough to pass the luminance test, so the sheets came through
@@ -93,7 +101,7 @@ const char* SCAN_FRAGMENT =
     "    highp float hi = max(c.r, max(c.g, c.b));\n"
     "    highp float lo = min(c.r, min(c.g, c.b));\n"
     "    if (hi - lo > uInkChroma) { discard; }\n"
-    "    gl_FragColor = vec4(c.rgb, 1.0);\n"
+    "    gl_FragColor = vec4(c.rgb, aInk);\n"
     "}\n";
 
 const char* LINE_VERTEX =
@@ -131,6 +139,7 @@ RCave3dView::RCave3dView(QWidget* parent)
       showLeads(false),
       showSections(false),
       showScans(false),
+      scanInk(RCave3dView::DEFAULT_SCAN_INK),
       scansNeedUpload(false),
       progressTriangles(-1),
       progressLines(-1),
@@ -433,7 +442,11 @@ void RCave3dView::drawScans(const QMatrix4x4& mvp) {
 
     scanProgram->bind();
     scanProgram->setUniformValue("uMvp", mvp);
-    scanProgram->setUniformValue("uInkMax", GLfloat(0.62f));
+    scanProgram->setUniformValue("uInkMax", GLfloat(scanInk));
+    // How wide the fade below the threshold is. Fixed rather than a
+    // second slider: one control the caver can turn until the sheet
+    // looks right is worth more than two that interact.
+    scanProgram->setUniformValue("uInkFade", GLfloat(0.25f));
     // How far the colour channels may drift apart before a pixel counts
     // as printed ruling rather than pencil. Loose enough to keep pencil
     // that a warm scanner has tinted, tight enough to drop the grid.
@@ -482,6 +495,21 @@ void RCave3dView::setScans(const QVector<float>& positions,
 
 void RCave3dView::setShowScans(bool on) {
     showScans = on;
+    update();
+}
+
+const double RCave3dView::DEFAULT_SCAN_INK = 0.62;
+const double RCave3dView::MIN_SCAN_INK = 0.20;
+const double RCave3dView::MAX_SCAN_INK = 0.95;
+
+void RCave3dView::setScanInk(double value) {
+    double v = value;
+    if (v < MIN_SCAN_INK) { v = MIN_SCAN_INK; }
+    if (v > MAX_SCAN_INK) { v = MAX_SCAN_INK; }
+    if (v == scanInk) {
+        return;
+    }
+    scanInk = v;
     update();
 }
 

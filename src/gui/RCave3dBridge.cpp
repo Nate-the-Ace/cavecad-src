@@ -101,6 +101,8 @@ int RCave3dBridge::open(const QString& caveName) {
                 this, SLOT(onPanelModeChanged(QString)));
         connect(panel, SIGNAL(overlayToggled(QString, bool)),
                 this, SLOT(onPanelOverlayToggled(QString, bool)));
+        connect(panel, SIGNAL(scanInkChanged(double)),
+                this, SLOT(onPanelScanInkChanged(double)));
 
         dock = new RDockWidget(title, appWin);
         // The object name is what Qt saves and restores window state
@@ -321,6 +323,21 @@ void RCave3dBridge::setShowScans(int h, bool on) {
     }
 }
 
+void RCave3dBridge::setScanInk(int h, double value) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setScanInk(value);
+    }
+}
+
+double RCave3dBridge::getScanInk(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return RCave3dView::DEFAULT_SCAN_INK;
+    }
+    return p->getView()->getScanInk();
+}
+
 void RCave3dBridge::setColorModes(int h, const QStringList& keys,
                                   const QStringList& labels,
                                   const QString& current) {
@@ -339,6 +356,12 @@ void RCave3dBridge::onPanelModeChanged(const QString& mode) {
 void RCave3dBridge::onPanelOverlayToggled(const QString& which, bool on) {
     if (handle != 0) {
         emit overlayToggled(handle, which, on);
+    }
+}
+
+void RCave3dBridge::onPanelScanInkChanged(double value) {
+    if (handle != 0) {
+        emit scanInkChanged(handle, value);
     }
 }
 

@@ -30,6 +30,7 @@
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
       fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL),
+      inkLabel(NULL), inkSlider(NULL), fillingInk(false),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -143,8 +144,41 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
                                  "passage they were drawn of"));
     connect(scansAction, &QAction::toggled, [this](bool on) {
         view->setShowScans(on);
+        if (inkLabel != NULL) { inkLabel->setVisible(on); }
+        if (inkSlider != NULL) { inkSlider->setVisible(on); }
         emit overlayToggled(QString("scans"), on);
     });
+
+    // HOW MUCH OF THE PENCIL COUNTS AS PENCIL. Scanners disagree wildly
+    // about how grey a graphite line on white paper comes out, and a
+    // book photographed in a cave entrance is not the same as one run
+    // through a flatbed at home. One fixed threshold therefore leaves
+    // some sheets with a haze of scanner grey around every stroke and
+    // others with the faint lines missing altogether. This is the
+    // caver's to wind until the sheet in front of them reads.
+    //
+    // ONLY WHILE SCANS ARE ON. It tunes nothing otherwise, and a dead
+    // slider in a crowded toolbar is a question the caver has to answer
+    // every time they look at it.
+    inkLabel = new QLabel(tr("Ink"), this);
+    inkLabel->setContentsMargins(6, 0, 2, 0);
+    inkLabel->setVisible(false);
+    row2->addWidget(inkLabel);
+
+    inkSlider = new QSlider(Qt::Horizontal, this);
+    inkSlider->setObjectName("Cave3dInkSlider");
+    inkSlider->setStatusTip(tr("Drag left to keep only the darkest "
+                               "pencil, right to bring faint lines back"));
+    // Whole percent of luminance. Finer than the eye can judge on a
+    // scanned sketch, and it keeps the slider an integer control.
+    inkSlider->setRange(int(RCave3dView::MIN_SCAN_INK * 100.0),
+                        int(RCave3dView::MAX_SCAN_INK * 100.0));
+    inkSlider->setValue(int(RCave3dView::DEFAULT_SCAN_INK * 100.0));
+    inkSlider->setMaximumWidth(110);
+    inkSlider->setVisible(false);
+    connect(inkSlider, SIGNAL(valueChanged(int)),
+            this, SLOT(onScanInkChanged(int)));
+    row2->addWidget(inkSlider);
 
     row2->addSeparator();
 
@@ -274,6 +308,26 @@ void RCave3dPanel::setShowSections(bool on) {
     }
 }
 
+void RCave3dPanel::setScanInk(double value) {
+    if (inkSlider == NULL) {
+        return;
+    }
+    fillingInk = true;
+    inkSlider->setValue(int(value * 100.0 + 0.5));
+    fillingInk = false;
+    // Straight to the view as well: the slider may have clamped the
+    // value into its own range, and the two must not disagree.
+    view->setScanInk(inkSlider->value() / 100.0);
+}
+
+void RCave3dPanel::onScanInkChanged(int value) {
+    view->setScanInk(value / 100.0);
+    if (fillingInk) {
+        return;
+    }
+    emit scanInkChanged(value / 100.0);
+}
+
 void RCave3dPanel::setScansAvailable(bool available) {
     if (scansAction == NULL) {
         return;
@@ -282,12 +336,24 @@ void RCave3dPanel::setScansAvailable(bool available) {
     if (!available && scansAction->isChecked()) {
         scansAction->setChecked(false);
     }
+    syncInkVisible();
 }
 
 void RCave3dPanel::setShowScans(bool on) {
     if (scansAction != NULL && scansAction->isEnabled()) {
         scansAction->setChecked(on);
     }
+    syncInkVisible();
+}
+
+/** The ink slider belongs to the scans, so it appears and goes with
+ *  them. Called as well as the toggle's own handler because setChecked
+ *  on an already-checked action emits nothing. */
+void RCave3dPanel::syncInkVisible() {
+    bool on = (scansAction != NULL && scansAction->isEnabled()
+               && scansAction->isChecked());
+    if (inkLabel != NULL) { inkLabel->setVisible(on); }
+    if (inkSlider != NULL) { inkSlider->setVisible(on); }
 }
 
 void RCave3dPanel::onPlayToggled(bool on) {
