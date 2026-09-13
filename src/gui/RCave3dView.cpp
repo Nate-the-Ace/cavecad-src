@@ -619,6 +619,33 @@ void RCave3dView::setBounds(const QVector3D& min, const QVector3D& max) {
     update();
 }
 
+void RCave3dView::frameToBounds(const QVector3D& min, const QVector3D& max) {
+    QVector3D oldMin = boundsMin;
+    QVector3D oldMax = boundsMax;
+    bool hadBounds = (oldMax - oldMin).lengthSquared() > 1e-12f;
+
+    setBounds(min, max);
+
+    if (cameraUntouched || !hadBounds) {
+        viewAll();
+        return;
+    }
+
+    // Somewhere else entirely? Compare the two boxes: if they do not
+    // overlap on any axis, this is a different cave and the old camera
+    // is aimed at nothing.
+    bool overlaps = (min.x() <= oldMax.x() && max.x() >= oldMin.x()) &&
+                    (min.y() <= oldMax.y() && max.y() >= oldMin.y()) &&
+                    (min.z() <= oldMax.z() && max.z() >= oldMin.z());
+    if (!overlaps) {
+        viewAll();
+        return;
+    }
+
+    // The caver's own view, kept. Only the geometry under it changed.
+    update();
+}
+
 void RCave3dView::clearGeometry() {
     trianglePositions.clear();
     triangleNormals.clear();

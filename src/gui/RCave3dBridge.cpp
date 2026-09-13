@@ -238,10 +238,13 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     }
     p->setSteps(steps);
 
+    // KEEPS THE CAVER'S VIEWPOINT. This used to end in an outright
+    // viewAll, so every rebuild of the mesh threw away wherever they
+    // had put the camera -- and since viewAll also marks the camera
+    // untouched, the next resize refitted it again for good measure.
     QVariantMap bounds = mesh.value("bounds").toMap();
-    view->setBounds(toVector(bounds.value("min"), QVector3D(-1, -1, -1)),
-                    toVector(bounds.value("max"), QVector3D(1, 1, 1)));
-    view->viewAll();
+    view->frameToBounds(toVector(bounds.value("min"), QVector3D(-1, -1, -1)),
+                        toVector(bounds.value("max"), QVector3D(1, 1, 1)));
 }
 
 void RCave3dBridge::clear(int handle) {
@@ -336,6 +339,23 @@ double RCave3dBridge::getScanInk(int h) {
         return RCave3dView::DEFAULT_SCAN_INK;
     }
     return p->getView()->getScanInk();
+}
+
+QVariantMap RCave3dBridge::getCamera(int h) {
+    QVariantMap out;
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return out;
+    }
+    RCave3dView* v = p->getView();
+    out["yaw"] = double(v->getYaw());
+    out["pitch"] = double(v->getPitch());
+    out["distance"] = double(v->getDistance());
+    out["targetX"] = double(v->getTarget().x());
+    out["targetY"] = double(v->getTarget().y());
+    out["targetZ"] = double(v->getTarget().z());
+    out["untouched"] = v->isCameraUntouched();
+    return out;
 }
 
 void RCave3dBridge::setColorModes(int h, const QStringList& keys,

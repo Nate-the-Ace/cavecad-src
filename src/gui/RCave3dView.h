@@ -114,6 +114,27 @@ public:
     static const double MAX_SCAN_INK;
 
     void setBounds(const QVector3D& min, const QVector3D& max);
+
+    /** New geometry's extent, and the camera moved to suit it ONLY if
+     *  the caver has not placed it themselves.
+     *
+     *  A rebuild must not cost someone the viewpoint they arranged: the
+     *  usual reason to press Refresh is to see a change in the place
+     *  you are already looking at. A cave that is genuinely somewhere
+     *  else -- a different drawing, whose new extent does not overlap
+     *  the old at all -- is refitted anyway, because keeping a camera
+     *  aimed at where the last cave was would show nothing but dark. */
+    void frameToBounds(const QVector3D& min, const QVector3D& max);
+
+    /** Where the camera is, and whether the caver put it there. Read
+     *  only, and exposed so that "a rebuild keeps your viewpoint" is a
+     *  thing a test can assert rather than a thing someone has to
+     *  notice going wrong. */
+    float getYaw() const { return yaw; }
+    float getPitch() const { return pitch; }
+    float getDistance() const { return distance; }
+    QVector3D getTarget() const { return target; }
+    bool isCameraUntouched() const { return cameraUntouched; }
     void clearGeometry();
 
     void setLegend(const QString& title, const QString& note,

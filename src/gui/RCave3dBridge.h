@@ -117,6 +117,10 @@ public:
     Q_INVOKABLE void setScanInk(int handle, double value);
     Q_INVOKABLE double getScanInk(int handle);
 
+    /** Where the camera is: yaw, pitch, distance, target and whether
+     *  the caver has moved it. Read only. */
+    Q_INVOKABLE QVariantMap getCamera(int handle);
+
     /**
      * Fills the colour-mode dropdown. `keys` are CsMesh3d colorBy
      * values and `labels` what the caver reads; they are parallel.
