@@ -73,6 +73,7 @@ const char* SCAN_FRAGMENT =
     "varying highp vec2 vUv;\n"
     "uniform sampler2D uTex;\n"
     "uniform highp float uInkMax;\n"
+    "uniform highp float uInkChroma;\n"
     "void main() {\n"
     "    lowp vec4 c = texture2D(uTex, vUv);\n"
     // PAPER IS NOT INK. A scan is mostly white page, and drawn whole it
@@ -81,6 +82,17 @@ const char* SCAN_FRAGMENT =
     // is the only way the sketch and the geometry can be read together.
     "    highp float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));\n"
     "    if (lum > uInkMax) { discard; }\n"
+    // NOR IS THE PRINTED GRID. Survey books are printed with a grid --
+    // blue on the ones this was written for -- and its lines are dark
+    // enough to pass the luminance test, so the sheets came through
+    // carrying a mesh of paper ruling over the passage. Pencil is
+    // GREY: its red, green and blue stay close together whatever the
+    // exposure. Printed ruling is not, so the distance between the
+    // channels tells the two apart without caring what colour the
+    // ruling is, which keeps green and orange books working too.
+    "    highp float hi = max(c.r, max(c.g, c.b));\n"
+    "    highp float lo = min(c.r, min(c.g, c.b));\n"
+    "    if (hi - lo > uInkChroma) { discard; }\n"
     "    gl_FragColor = vec4(c.rgb, 1.0);\n"
     "}\n";
 
@@ -422,6 +434,10 @@ void RCave3dView::drawScans(const QMatrix4x4& mvp) {
     scanProgram->bind();
     scanProgram->setUniformValue("uMvp", mvp);
     scanProgram->setUniformValue("uInkMax", GLfloat(0.62f));
+    // How far the colour channels may drift apart before a pixel counts
+    // as printed ruling rather than pencil. Loose enough to keep pencil
+    // that a warm scanner has tinted, tight enough to drop the grid.
+    scanProgram->setUniformValue("uInkChroma", GLfloat(0.16f));
     scanProgram->setUniformValue("uTex", 0);
     scanProgram->enableAttributeArray(0);
     scanProgram->enableAttributeArray(1);
