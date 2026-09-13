@@ -18,6 +18,7 @@
  */
 #include "RCave3dBridge.h"
 #include "RCave3dView.h"
+#include "RCave3dEncoder.h"
 #include "RCave3dPanel.h"
 #include "RCave3dView.h"
 #include "RDockWidget.h"
@@ -509,6 +510,83 @@ void RCave3dBridge::setCameraProgress(int h, double t) {
     if (p != NULL) {
         p->setCameraProgress(t);
     }
+}
+
+bool RCave3dBridge::canEncode() {
+    return RCave3dEncoder::available();
+}
+
+QString RCave3dBridge::exportFilm(int h, const QString& outFile, int frames,
+                                  int fps) {
+    encodeError.clear();
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        encodeError = tr("there is no 3D view to film");
+        return QString();
+    }
+    RCave3dView* v = p->getView();
+
+    // One frame first, to learn the size every other one must match:
+    // the film's dimensions are fixed when it opens.
+    double was = v->getCameraProgress();
+    v->setCameraProgress(0.0);
+    QImage first = v->renderFrame(v->width(), v->height());
+    if (first.isNull()) {
+        v->setCameraProgress(was);
+        encodeError = tr("the view would not give up a picture");
+        return QString();
+    }
+    QSize size((first.width() / 2) * 2, (first.height() / 2) * 2);
+
+    QString why;
+    RCave3dEncoder* enc = RCave3dEncoder::create(outFile, size, fps, why);
+    if (enc == NULL) {
+        v->setCameraProgress(was);
+        encodeError = why;
+        return QString();
+    }
+
+    int count = qBound(2, frames, 3600);
+    bool ok = true;
+    for (int i = 0; i < count && ok; i++) {
+        // The last frame lands ONE STEP SHORT of the start for a spin,
+        // so an exported loop does not show the same frame twice where
+        // it joins; a flight is not a loop and should reach the far end.
+        double t = (v->getCameraMode() == RCave3dView::CameraFly)
+            ? double(i) / double(count - 1)
+            : double(i) / double(count);
+        v->setCameraProgress(t);
+        QImage frame = v->renderFrame(v->width(), v->height());
+        if (frame.isNull()) {
+            encodeError = tr("the view stopped giving up pictures");
+            ok = false;
+            break;
+        }
+        if (frame.size() != size) {
+            frame = frame.copy(QRect(QPoint(0, 0), size));
+        }
+        if (!enc->addFrame(frame)) {
+            encodeError = enc->error();
+            ok = false;
+        }
+    }
+    if (ok && !enc->finish()) {
+        encodeError = enc->error();
+        ok = false;
+    }
+    delete enc;
+    v->setCameraProgress(was);
+
+    if (!ok) {
+        QFile::remove(outFile);     // no half a film left behind
+        return QString();
+    }
+    QFileInfo made(outFile);
+    if (!made.exists() || made.size() < 1024) {
+        encodeError = tr("the encoder wrote nothing worth keeping");
+        return QString();
+    }
+    return outFile;
 }
 
 QString RCave3dBridge::findEncoder() {

@@ -184,6 +184,24 @@ public:
      * at all on a machine that is otherwise perfectly able to fly a
      * cave.
      */
+    /**
+     * Films the running animation straight to one file.
+     *
+     * NO FRAMES ON DISK. The system's own encoder takes the pictures as
+     * they are made, so six hundred PNGs are never written and never
+     * have to be cleared away.
+     *
+     * \return the film's path, or empty with the reason in
+     *         lastEncodeError() -- including on a platform whose own
+     *         encoder is not wired up, where the caller should fall
+     *         back to writing frames.
+     */
+    Q_INVOKABLE QString exportFilm(int handle, const QString& outFile,
+                                   int frames, int fps);
+
+    /** True when this build can write a film at all. */
+    Q_INVOKABLE bool canEncode();
+
     Q_INVOKABLE QString findEncoder();
 
     /**

@@ -26,6 +26,7 @@ add_library(cavecadgui SHARED
     RCave3dBridge.cpp RCave3dBridge.h
     RCave3dLegend.cpp RCave3dLegend.h
     RCave3dLabels.cpp RCave3dLabels.h
+    RCave3dEncoder.h
     RCave3dTexture.cpp RCave3dTexture.h
     RCave3dView.cpp RCave3dView.h
     RCave3dPanel.cpp RCave3dPanel.h
@@ -89,6 +90,27 @@ else()
     set_target_properties(cavecadgui PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../debug)
     set_target_properties(cavecadgui PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../debug)
     set_target_properties(cavecadgui PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../debug)
+endif()
+
+# The system's own H.264 encoder: no encoder to ship, none to license.
+if(APPLE)
+    # Compiled as Objective-C++ by FLAG rather than by enabling the
+    # OBJCXX language: enable_language() in a subdirectory leaves
+    # CMAKE_OBJCXX_COMPILE_OBJECT unset and the generate step fails,
+    # and adding the language to the top-level project would touch
+    # every target in the tree for the sake of one file.
+    set_source_files_properties(RCave3dEncoderMac.mm PROPERTIES
+        LANGUAGE CXX
+        COMPILE_FLAGS "-x objective-c++ -fno-objc-arc")
+    target_sources(cavecadgui PRIVATE RCave3dEncoderMac.mm)
+    target_link_libraries(cavecadgui PRIVATE
+        "-framework AVFoundation"
+        "-framework CoreMedia"
+        "-framework CoreVideo"
+        "-framework Foundation"
+    )
+else()
+    target_sources(cavecadgui PRIVATE RCave3dEncoderNone.cpp)
 endif()
 
 target_link_libraries(cavecadgui PUBLIC
