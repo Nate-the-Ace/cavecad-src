@@ -145,6 +145,9 @@ private slots:
     void onPlayTick();
     void onProgressChanged(int value);
     void onScanInkChanged(int value);
+    void showCameraT();
+
+private slots:
     void onScrubStarted();
     void onScrubFinished();
 
@@ -177,6 +180,15 @@ private:
     /** True while the caver has hold of the progress slider. The
      *  animation must not write to a control someone is dragging. */
     bool scrubbing;
+    /** How far through the flight the animation is, as a fraction.
+     *
+     *  KEPT AS A REAL NUMBER. Counting in slider steps instead means
+     *  the smallest move is one step in a thousand, and every speed
+     *  under about two thirds asks for less than that and is rounded up
+     *  to it -- so a quarter pace and full pace ran at exactly the same
+     *  forty seconds, and the slow half of the speed slider did
+     *  nothing at all. */
+    double cameraT;
     /** True while a camera-mode button is being set from code, so the
      *  two exclusive toggles do not fight each other. */
     bool settingCameraMode;

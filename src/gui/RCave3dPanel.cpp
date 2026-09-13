@@ -37,6 +37,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
       fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL), flyAction(NULL),
       spinAction(NULL), speedLabel(NULL), speedSlider(NULL),
       speedLabelAction(NULL), speedSliderAction(NULL), scrubbing(false),
+      cameraT(0.0),
       settingCameraMode(false),
       inkLabel(NULL), inkSlider(NULL), inkLabelAction(NULL),
       inkSliderAction(NULL), fillingInk(false),
@@ -273,7 +274,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     speedSlider->setStatusTip(tr("How fast the camera runs: left is "
                                  "slower, right is faster"));
     // Tenths of the usual pace, from a quarter speed to four times.
-    speedSlider->setRange(25, 400);
+    speedSlider->setRange(10, 400);
     speedSlider->setValue(100);
     speedSlider->setMaximumWidth(90);
     connect(speedSlider, &QSlider::valueChanged, [this](int value) {
@@ -464,6 +465,7 @@ void RCave3dPanel::setCameraMode(const QString& mode) {
         progressSlider->setRange(0, 1000);
         progressSlider->setValue(0);
     }
+    cameraT = 0.0;
     view->setCameraProgress(0.0);
 }
 
@@ -495,6 +497,26 @@ double RCave3dPanel::getCameraSpeed() const {
         return 1.0;
     }
     return double(speedSlider->value()) / 100.0;
+}
+
+/**
+ * The camera to where cameraT says, and the slider to match.
+ *
+ * The VIEW is driven by the fraction, not by the slider: a thousand
+ * steps is coarse enough to show at a crawl, and the slider is only
+ * there to say where in the flight this is.
+ */
+void RCave3dPanel::showCameraT() {
+    if (view != NULL) {
+        view->setCameraProgress(cameraT);
+    }
+    if (progressSlider == NULL) {
+        return;
+    }
+    progressSlider->blockSignals(true);
+    progressSlider->setValue(int(cameraT * double(progressSlider->maximum())
+                                 + 0.5));
+    progressSlider->blockSignals(false);
 }
 
 void RCave3dPanel::onScrubStarted() {
@@ -573,8 +595,9 @@ void RCave3dPanel::onPlayToggled(bool on) {
         return;
     }
     if (view != NULL && view->getCameraMode() != RCave3dView::CameraManual) {
-        if (progressSlider->value() >= progressSlider->maximum()) {
-            progressSlider->setValue(0);
+        if (cameraT >= 1.0) {
+            cameraT = 0.0;
+            showCameraT();
         }
         playTimer->start();
         return;
@@ -598,21 +621,21 @@ void RCave3dPanel::onPlayTick() {
         if (scrubbing) {
             return;             // the caver has hold of it
         }
-        double ticks = double(CAMERA_TICKS) / qMax(0.05, getCameraSpeed());
-        int step = qMax(1, int(double(progressSlider->maximum()) / ticks));
-        int nextCam = progressSlider->value() + step;
-        if (nextCam > progressSlider->maximum()) {
+        double ticks = double(CAMERA_TICKS) / qMax(0.01, getCameraSpeed());
+        cameraT += 1.0 / qMax(1.0, ticks);
+        if (cameraT >= 1.0) {
             if (view->getCameraMode() == RCave3dView::CameraSpin) {
                 // A spin has no end: it comes round again.
-                nextCam = 0;
+                cameraT -= 1.0;
             } else {
-                progressSlider->setValue(progressSlider->maximum());
+                cameraT = 1.0;
+                showCameraT();
                 playTimer->stop();
                 playAction->setChecked(false);
                 return;
             }
         }
-        progressSlider->setValue(nextCam);
+        showCameraT();
         return;
     }
     int next = progressSlider->value() + 1;
@@ -637,7 +660,8 @@ void RCave3dPanel::onProgressChanged(int value) {
     // how far round the spin.
     if (view->getCameraMode() != RCave3dView::CameraManual) {
         int span = qMax(1, progressSlider->maximum());
-        view->setCameraProgress(double(value) / double(span));
+        cameraT = double(value) / double(span);
+        view->setCameraProgress(cameraT);
         return;
     }
     if (steps.isEmpty()) {
