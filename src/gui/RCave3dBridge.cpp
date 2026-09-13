@@ -82,7 +82,8 @@ RCave3dBridge* RCave3dBridge::getInstance() {
 }
 
 RCave3dBridge::RCave3dBridge(QObject* parent)
-    : QObject(parent), askedForFirstMesh(false), docked(false),
+    : QObject(parent), askedForFirstMesh(false), signalsClaimed(false),
+      docked(false),
       dock(NULL), panel(NULL), handle(0) {
 }
 
@@ -92,6 +93,14 @@ RCave3dBridge::~RCave3dBridge() {
     dock = NULL;
     panel = NULL;
     docked = false;
+}
+
+bool RCave3dBridge::claimSignals() {
+    if (signalsClaimed) {
+        return false;
+    }
+    signalsClaimed = true;
+    return true;
 }
 
 RCave3dPanel* RCave3dBridge::panelFor(int h) const {

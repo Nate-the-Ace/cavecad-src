@@ -64,6 +64,20 @@ public:
      */
     static RCave3dBridge* getInstance();
 
+    /**
+     * Asks to be the one script engine listening to this panel.
+     *
+     * TRUE ONCE, FALSE EVER AFTER. There is one bridge and one panel,
+     * but SEVERAL script engines -- the one that loads the add-ons and
+     * one per menu action -- and each has its own copy of the add-on
+     * with its own "have I connected yet" flag. Every one of them
+     * connected, so a single press of Export ran the export once per
+     * engine: two folder dialogs, two films.
+     *
+     * The flag has to live where the panel lives, which is here.
+     */
+    Q_INVOKABLE bool claimSignals();
+
     RCave3dBridge(QObject* parent = NULL);
     virtual ~RCave3dBridge();
 
@@ -278,6 +292,7 @@ private:
      *  visible with none -- so it asks once, not on every show. */
     bool askedForFirstMesh;
     QString encodeError;
+    bool signalsClaimed;
 
     /** Whether the dock is currently in the main window's layout.
      *  prewarm() takes it out; open() puts it back. */
