@@ -24,6 +24,10 @@
 #include <QDebug>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QWindow>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QOpenGLFramebufferObject>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -571,8 +575,6 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
 }
 
 void RCave3dView::paintGL() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     QMatrix4x4 mvp = cameraMatrix();
 
     // The one place that knows the camera has moved. The labels are a
@@ -581,6 +583,19 @@ void RCave3dView::paintGL() {
     if (labels != NULL) {
         labels->setCamera(mvp);
     }
+    drawScene(mvp);
+}
+
+/**
+ * Everything in the cave, into whatever is currently bound.
+ *
+ * SEPARATE FROM paintGL so an export can draw the same scene into an
+ * offscreen buffer. Reading the on-screen one back does not work: both
+ * grabFramebuffer() and a widget grab came back the colour of the
+ * background, the right size and nothing in them.
+ */
+void RCave3dView::drawScene(const QMatrix4x4& mvp) {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (showSurface && !trianglePositions.isEmpty() &&
             surfaceProgram != NULL && surfaceProgram->isLinked()) {
@@ -987,41 +1002,41 @@ bool RCave3dView::hasStations() const {
 }
 
 QImage RCave3dView::renderFrame(int w, int h) {
-    if (w < 16 || h < 16) {
-        return QImage();
-    }
-    // THE FRAME AS THE SCREEN SHOWS IT, overlays and all. The GL
-    // framebuffer carries the cave; the station names and the legend
-    // are child widgets and are not in it, and a flight with no station
-    // names on it is the one thing this animation is for.
-    //
-    // Rendered at the widget's own size rather than a chosen one: an
-    // offscreen surface at another size would need its own context, and
-    // the overlays lay themselves out for THIS geometry.
     Q_UNUSED(w)
     Q_UNUSED(h)
-    makeCurrent();
-    QImage shot = grabFramebuffer();
-    doneCurrent();
+    if (width() < 16 || height() < 16) {
+        return QImage();
+    }
+    // GRAB THE PARENT AND CUT THIS VIEW OUT OF IT.
+    //
+    // Asking this widget for its own pixels does not work, by any of
+    // the three routes tried: grabFramebuffer(), its own QWidget::grab()
+    // and drawing the scene again into a framebuffer object all came
+    // back the colour of the background with nothing in them. Grabbing
+    // the PARENT does work -- the GL child is composited into it the
+    // same way the screen gets it -- and it brings the station names
+    // and the legend along, which are child widgets and are not in the
+    // GL at all.
+    QWidget* from = parentWidget();
+    if (from == NULL) {
+        from = this;
+    }
+    QPixmap shot = from->grab();
     if (shot.isNull()) {
-        return shot;
+        return QImage();
     }
-    QPainter painter(&shot);
-    // The widgets paint at device pixels; the grab is at device pixels
-    // too, so the overlay is scaled to match rather than assumed equal.
-    qreal sx = qreal(shot.width()) / qreal(qMax(1, width()));
-    qreal sy = qreal(shot.height()) / qreal(qMax(1, height()));
-    painter.scale(sx, sy);
-    if (labels != NULL && labels->isShowing()) {
-        labels->render(&painter, QPoint(0, 0), QRegion(),
-                       QWidget::DrawChildren);
+    qreal ratio = shot.devicePixelRatio();
+    if (ratio <= 0.0) {
+        ratio = 1.0;
     }
-    if (legend != NULL && legend->isVisible()) {
-        legend->render(&painter, legend->pos(), QRegion(),
-                       QWidget::DrawChildren);
+    QPoint at = mapTo(from, QPoint(0, 0));
+    QRect mine(int(at.x() * ratio), int(at.y() * ratio),
+               int(width() * ratio), int(height() * ratio));
+    mine = mine.intersected(QRect(QPoint(0, 0), shot.size()));
+    if (mine.width() < 8 || mine.height() < 8) {
+        return shot.toImage();
     }
-    painter.end();
-    return shot;
+    return shot.copy(mine).toImage();
 }
 
 void RCave3dView::layOutLegend() {

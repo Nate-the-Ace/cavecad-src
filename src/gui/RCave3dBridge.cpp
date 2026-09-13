@@ -27,6 +27,9 @@
 #include <QVariantList>
 #include <QVector3D>
 #include <QDir>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QFileInfo>
 #include <QImage>
 
 namespace {
@@ -506,6 +509,83 @@ void RCave3dBridge::setCameraProgress(int h, double t) {
     if (p != NULL) {
         p->setCameraProgress(t);
     }
+}
+
+QString RCave3dBridge::findEncoder() {
+    // On the PATH first, which is where a caver who installed it will
+    // have it. Then the places the usual installers put it, because a
+    // GUI application launched from the Finder does not inherit the
+    // shell's PATH and would otherwise not find a perfectly good
+    // ffmpeg sitting in /opt/homebrew/bin.
+    QString found = QStandardPaths::findExecutable("ffmpeg");
+    if (!found.isEmpty()) {
+        return found;
+    }
+    QStringList tries;
+    tries << "/opt/homebrew/bin" << "/usr/local/bin" << "/usr/bin"
+          << "/opt/local/bin"
+          << "C:/Program Files/ffmpeg/bin"
+          << "C:/ffmpeg/bin";
+    found = QStandardPaths::findExecutable("ffmpeg", tries);
+    return found;
+}
+
+QString RCave3dBridge::encodeFrames(const QString& framesDir,
+                                    const QString& outFile, int fps) {
+    encodeError.clear();
+    QString ffmpeg = findEncoder();
+    if (ffmpeg.isEmpty()) {
+        encodeError = tr("no encoder found");
+        return QString();
+    }
+    QDir d(framesDir);
+    if (!d.exists()) {
+        encodeError = tr("the frames are not there");
+        return QString();
+    }
+
+    QStringList args;
+    args << "-y"
+         << "-framerate" << QString::number(qBound(1, fps, 120))
+         << "-i" << d.filePath("frame_%05d.png")
+         // EVEN DIMENSIONS OR H.264 REFUSES. The frames are the size of
+         // the panel, which is whatever the caver dragged it to, and an
+         // odd width fails the encode with a message about yuv420p that
+         // says nothing about the real cause.
+         << "-vf" << "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+         << "-c:v" << "libx264"
+         << "-pix_fmt" << "yuv420p"
+         << "-crf" << "20"
+         << outFile;
+
+    QProcess run;
+    run.start(ffmpeg, args);
+    if (!run.waitForStarted(10000)) {
+        encodeError = tr("the encoder would not start");
+        return QString();
+    }
+    // Long enough for a few hundred frames on a slow machine, and
+    // bounded so a wedged encoder cannot hang the application.
+    if (!run.waitForFinished(300000)) {
+        run.kill();
+        encodeError = tr("the encoder took too long and was stopped");
+        return QString();
+    }
+    if (run.exitStatus() != QProcess::NormalExit || run.exitCode() != 0) {
+        QString said = QString::fromLocal8Bit(run.readAllStandardError());
+        // The last line is the one that says what went wrong; the rest
+        // is ffmpeg telling us about itself.
+        QStringList lines = said.split("\n", Qt::SkipEmptyParts);
+        encodeError = lines.isEmpty() ? tr("the encoder failed")
+                                      : lines.last().trimmed();
+        return QString();
+    }
+    QFileInfo made(outFile);
+    if (!made.exists() || made.size() < 1024) {
+        encodeError = tr("the encoder wrote nothing worth keeping");
+        return QString();
+    }
+    return outFile;
 }
 
 int RCave3dBridge::exportFrames(int h, const QString& dir, int frames) {

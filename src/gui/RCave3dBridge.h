@@ -175,6 +175,29 @@ public:
     Q_INVOKABLE int exportFrames(int handle, const QString& dir,
                                  int frames);
 
+    /**
+     * Where an encoder is, or empty when there is none to be had.
+     *
+     * Looked for rather than depended on: a caver who has ffmpeg gets a
+     * film, one who has not gets the frames and is told how to make one
+     * from them. Requiring it would mean the 3D view could not export
+     * at all on a machine that is otherwise perfectly able to fly a
+     * cave.
+     */
+    Q_INVOKABLE QString findEncoder();
+
+    /**
+     * Turns a folder of numbered frames into a film beside it.
+     *
+     * \return the film's path, or an empty string with the reason in
+     *         `error`.
+     */
+    Q_INVOKABLE QString encodeFrames(const QString& framesDir,
+                                     const QString& outFile, int fps);
+
+    /** Why the last encode failed, for the message the caver sees. */
+    Q_INVOKABLE QString lastEncodeError() { return encodeError; }
+
     /** Where a draped scan stops being pencil and starts being paper,
      *  as a luminance 0 to 1. Clamped by the view; setting it does not
      *  come back as scanInkChanged. */
@@ -236,6 +259,7 @@ private:
     /** Set once the panel has asked for a mesh because it came back
      *  visible with none -- so it asks once, not on every show. */
     bool askedForFirstMesh;
+    QString encodeError;
 
     /** Whether the dock is currently in the main window's layout.
      *  prewarm() takes it out; open() puts it back. */

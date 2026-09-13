@@ -259,6 +259,7 @@ private:
     void uploadScanTextures();
     void forgetScanTextures();
     void dropScanTextures();
+    void drawScene(const QMatrix4x4& mvp);
     void drawScans(const QMatrix4x4& mvp);
     void drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
                      const QVector3D& look);
