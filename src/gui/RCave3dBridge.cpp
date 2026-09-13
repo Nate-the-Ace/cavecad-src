@@ -96,7 +96,26 @@ int RCave3dBridge::open(const QString& caveName) {
         : tr("3D View -- %1").arg(caveName);
 
     if (dock == NULL) {
-        panel = new RCave3dPanel();
+        // THE DOCK FIRST, AND DOCKED, BEFORE THE PANEL IS BUILT INSIDE
+        // IT. Built the other way round, the panel -- and the
+        // QOpenGLWidget in it -- exists for a moment as its own
+        // top-level window and is then reparented into the main window.
+        // Reparenting a GL widget rebuilds its context, and on macOS
+        // that takes the whole window's view tree with it: the drawing
+        // blanks and the layout re-flows in front of the caver, every
+        // first open.
+        dock = new RDockWidget(title, appWin);
+        // The object name is what Qt saves and restores window state
+        // by. Without it the panel forgets where the caver put it every
+        // time the application restarts, and Qt says so on stderr.
+        dock->setObjectName("Cave3dDock");
+        dock->setAllowedAreas(Qt::AllDockWidgetAreas);
+        appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
+
+        panel = new RCave3dPanel(dock);
+        dock->setWidget(panel);
+        handle = 1;
+
         connect(panel, SIGNAL(refreshRequested()),
                 this, SLOT(onWindowRefresh()));
         connect(panel, SIGNAL(modeChanged(QString)),
@@ -109,16 +128,6 @@ int RCave3dBridge::open(const QString& caveName) {
                 this, SLOT(onPanelCameraModeChanged(QString)));
         connect(panel, SIGNAL(exportRequested()),
                 this, SLOT(onPanelExportRequested()));
-
-        dock = new RDockWidget(title, appWin);
-        // The object name is what Qt saves and restores window state
-        // by. Without it the panel forgets where the caver put it every
-        // time the application restarts, and Qt says so on stderr.
-        dock->setObjectName("Cave3dDock");
-        dock->setWidget(panel);
-        dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-        appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
-        handle = 1;
     } else {
         dock->setWindowTitle(title);
     }

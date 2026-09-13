@@ -25,6 +25,7 @@
 #endif
 
 #include <QApplication>
+#include <QSurfaceFormat>
 #include <QDebug>
 #include <QDir>
 #include <QLoggingCategory>
@@ -304,6 +305,39 @@ int main(int argc, char *argv[]) {
         if (!strcmp(argv[i], "-no-gui") || !strcmp(argv[i], "-help")) {
             guiEnabled = false;
         }
+    }
+
+    // SET BEFORE THE APPLICATION EXISTS, which is the only time it can
+    // be. The 3D view is a QOpenGLWidget, and without shared contexts
+    // Qt destroys and rebuilds its context every time the widget is
+    // reparented -- which on macOS makes the whole window switch to a
+    // layer-backed view tree, so the drawing blanks and the layout
+    // visibly re-flows the first time the panel is opened.
+    if (guiEnabled) {
+        // THE FORMAT THE 3D VIEW ASKS FOR, MADE THE DEFAULT, and set
+        // before anything exists to use it.
+        //
+        // AA_ShareOpenGLContexts builds one global context at startup
+        // out of the DEFAULT format. RCave3dView then asks for its own
+        // (2.1 compatibility, 24-bit depth) -- and a widget whose format
+        // does not match the global one makes macOS reconfigure the
+        // window's surface when it appears. On a Retina display that
+        // reconfiguration blanks the whole screen for about a second
+        // and slides the desktop, in the middle of a caver's session,
+        // every time the 3D panel is first opened. Measured from a
+        // screen recording: eight frames of pure black at 60fps.
+        //
+        // Matching them means whatever the display has to renegotiate
+        // happens once, during launch, when the screen is changing
+        // anyway. RCave3dView still states its format for the reason
+        // its own comment gives; the two must be kept the same.
+        QSurfaceFormat fmt;
+        fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+        fmt.setVersion(2, 1);
+        fmt.setDepthBufferSize(24);
+        QSurfaceFormat::setDefaultFormat(fmt);
+
+        QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     }
 
     RSingleApplication* app = new RSingleApplication(appId, argc, argv, guiEnabled);
