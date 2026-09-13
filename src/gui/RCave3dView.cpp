@@ -313,17 +313,48 @@ void RCave3dView::cameraBasis(QVector3D& forward, QVector3D& right,
     up = QVector3D::crossProduct(right, forward).normalized();
 }
 
+/**
+ * How much world a pixel covers at the distance being looked at.
+ *
+ * THE ONE NUMBER A PAN NEEDS. Dragging should carry the cave along
+ * under the cursor, and that is true only when a pixel of mouse buys
+ * exactly a pixel of world -- which depends on the field of view and on
+ * HOW TALL THE VIEW IS, not on a constant. The constant this replaced
+ * (distance * 0.002) happens to be right at a view 414 pixels tall and
+ * nowhere else: in a docked panel it ran about half again too fast, and
+ * in a full-screen window nearly three times, so the cave shot out from
+ * under the cursor exactly when a caver had zoomed in to place it
+ * carefully.
+ */
+float RCave3dView::worldPerPixel() const {
+    float tanHalf = std::tan(qDegreesToRadians(FOV_DEGREES * 0.5f));
+    return 2.0f * tanHalf * distance / float(qMax(1, height()));
+}
+
 QMatrix4x4 RCave3dView::cameraMatrix() const {
     float aspect = float(width()) / float(qMax(1, height()));
 
-    // Near and far track the model, so a cave a mile long and a chamber
-    // ten feet across both get usable depth precision.
     float span = (boundsMax - boundsMin).length();
     if (span < 1e-3f) {
         span = 1.0f;
     }
+    // NEAR TRACKS THE CAMERA, not the model. Tied to the model it was
+    // fixed at a thousandth of the cave's own size -- on a cave 788
+    // units across that is a near plane at 0.79, so zooming closer than
+    // about a foot and a half of passage put the passage INSIDE it and
+    // the front of what the caver was looking at simply went away.
+    //
+    // Far still reaches past the model, so the rest of the cave is
+    // behind whatever is being examined rather than cut off. The floor
+    // under near keeps the near:far ratio inside what a depth buffer
+    // can hold when the camera is right up against the wall.
+    float near = qMax(distance * 0.01f, span * 1e-4f);
+    float far = distance + span * 3.0f;
+    if (far <= near) {
+        far = near * 1000.0f;
+    }
     QMatrix4x4 projection;
-    projection.perspective(45.0f, aspect, span * 0.001f, span * 20.0f);
+    projection.perspective(FOV_DEGREES, aspect, near, far);
 
     float yawRad = qDegreesToRadians(yaw);
     float pitchRad = qDegreesToRadians(pitch);
@@ -518,6 +549,8 @@ void RCave3dView::setShowScans(bool on) {
     showScans = on;
     update();
 }
+
+const float RCave3dView::FOV_DEGREES = 45.0f;
 
 const double RCave3dView::DEFAULT_SCAN_INK = 0.62;
 const double RCave3dView::MIN_SCAN_INK = 0.20;
@@ -745,7 +778,7 @@ void RCave3dView::viewAll() {
     cameraBasis(forward, right, up);
 
     float aspect = float(width()) / float(qMax(1, height()));
-    float tanY = std::tan(qDegreesToRadians(45.0f * 0.5f));
+    float tanY = std::tan(qDegreesToRadians(FOV_DEGREES * 0.5f));
     float tanX = tanY * aspect;
 
     float needed = 0.0f;
@@ -807,9 +840,9 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
         // camera and appear to do nothing.
         QVector3D forward, right, up;
         cameraBasis(forward, right, up);
-        // Scaled by how far away we are, so a drag moves the same
-        // amount of SCREEN whatever the zoom.
-        float scale = distance * 0.002f;
+        // Exactly a pixel of world per pixel of mouse, so the cave
+        // stays under the cursor at any zoom and any window size.
+        float scale = worldPerPixel();
         target -= right * (delta.x() * scale);
         target += up * (delta.y() * scale);
         cameraUntouched = false;

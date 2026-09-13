@@ -117,6 +117,15 @@ public:
 
     /** The threshold a panel starts at, so its slider can be built
      *  showing what the view is actually doing. */
+    /** How much world one pixel covers at the distance being looked
+     *  at: what a pan needs so the cave stays under the cursor. */
+    float worldPerPixel() const;
+
+    /** The vertical field of view. One number, used by the projection,
+     *  by View All's framing and by the pan -- they disagree the moment
+     *  there are two of them. */
+    static const float FOV_DEGREES;
+
     static const double DEFAULT_SCAN_INK;
     static const double MIN_SCAN_INK;
     static const double MAX_SCAN_INK;

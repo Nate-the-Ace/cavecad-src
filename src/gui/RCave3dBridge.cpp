@@ -378,6 +378,11 @@ QVariantMap RCave3dBridge::getCamera(int h) {
     out["targetY"] = double(v->getTarget().y());
     out["targetZ"] = double(v->getTarget().z());
     out["untouched"] = v->isCameraUntouched();
+    // What a pan moves per pixel of mouse. Exposed so "a drag carries
+    // the cave under the cursor" is something a test can state.
+    out["worldPerPixel"] = double(v->worldPerPixel());
+    out["viewHeight"] = v->height();
+    out["fov"] = double(RCave3dView::FOV_DEGREES);
     return out;
 }
 
