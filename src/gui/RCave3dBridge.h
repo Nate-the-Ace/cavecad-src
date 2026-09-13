@@ -61,6 +61,23 @@ public:
      * front of the caver. Calling open again re-titles and re-shows the
      * panel that already exists rather than stacking a second.
      */
+    /**
+     * Builds the panel now and leaves it hidden.
+     *
+     * WHY THIS EXISTS. A QOpenGLWidget appearing in a window makes Qt
+     * REBUILD that window natively, and macOS then reshuffles its
+     * Spaces around the new one -- measured from the log: the old
+     * windows go visible->hidden, a new one hidden->visible, and
+     * spacesDidChange follows. What the caver sees is the desktop
+     * sliding and the display going black for about a second, in the
+     * middle of their session, the first time they open the 3D view.
+     *
+     * The rebuild cannot be avoided, so it is paid at STARTUP instead,
+     * while the window is being put together anyway and nobody is
+     * working. open() then only has to show what is already there.
+     */
+    Q_INVOKABLE void prewarm();
+
     Q_INVOKABLE int open(const QString& caveName);
 
     /** Hides the panel. Unknown handles are ignored. */
@@ -189,6 +206,14 @@ signals:
     /** An overlay was toggled: "ghost" or "leads". Carried out so the
      *  script side can remember it between sessions. */
     void overlayToggled(int handle, const QString& which, bool on);
+
+private:
+    /** Makes the dock and the panel, once. */
+    void build(const QString& title);
+
+    /** Whether the dock is currently in the main window's layout.
+     *  prewarm() takes it out; open() puts it back. */
+    bool docked;
 
 private slots:
     void onWindowRefresh();

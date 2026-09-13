@@ -68,7 +68,7 @@ QVector3D toVector(const QVariant& value, const QVector3D& fallback) {
 } // namespace
 
 RCave3dBridge::RCave3dBridge(QObject* parent)
-    : QObject(parent), dock(NULL), panel(NULL), handle(0) {
+    : QObject(parent), docked(false), dock(NULL), panel(NULL), handle(0) {
 }
 
 RCave3dBridge::~RCave3dBridge() {
@@ -76,6 +76,7 @@ RCave3dBridge::~RCave3dBridge() {
     // it down from here would be a double delete on shutdown.
     dock = NULL;
     panel = NULL;
+    docked = false;
 }
 
 RCave3dPanel* RCave3dBridge::panelFor(int h) const {
@@ -83,6 +84,29 @@ RCave3dPanel* RCave3dBridge::panelFor(int h) const {
         return NULL;
     }
     return panel;
+}
+
+void RCave3dBridge::prewarm() {
+    if (dock != NULL) {
+        return;
+    }
+    if (RMainWindowQt::getMainWindow() == NULL) {
+        return;             // headless, or too early to have a window
+    }
+    build(QString());
+    if (dock != NULL) {
+        // TAKEN BACK OUT OF THE LAYOUT, not merely hidden. This runs
+        // while the add-ons load, BEFORE the main window is shown, and
+        // showing a window shows the children that are in it -- so a
+        // plain hide() here is undone a moment later and the caver
+        // finds an empty 3D panel already open. removeDockWidget takes
+        // it out and hides it; open() puts it back.
+        RMainWindowQt* appWin = RMainWindowQt::getMainWindow();
+        if (appWin != NULL) {
+            appWin->removeDockWidget(dock);
+        }
+        docked = false;
+    }
 }
 
 int RCave3dBridge::open(const QString& caveName) {
@@ -95,6 +119,27 @@ int RCave3dBridge::open(const QString& caveName) {
         ? tr("3D View")
         : tr("3D View -- %1").arg(caveName);
 
+    build(title);
+    if (dock == NULL) {
+        return 0;
+    }
+    if (!docked) {
+        // Put back what prewarm took out.
+        appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
+        docked = true;
+    }
+    dock->setWindowTitle(title);
+    dock->show();
+    dock->raise();
+    return handle;
+}
+
+/** Makes the dock and the panel, once. */
+void RCave3dBridge::build(const QString& title) {
+    RMainWindowQt* appWin = RMainWindowQt::getMainWindow();
+    if (appWin == NULL) {
+        return;
+    }
     if (dock == NULL) {
         // THE DOCK FIRST, AND DOCKED, BEFORE THE PANEL IS BUILT INSIDE
         // IT. Built the other way round, the panel -- and the
@@ -104,13 +149,15 @@ int RCave3dBridge::open(const QString& caveName) {
         // that takes the whole window's view tree with it: the drawing
         // blanks and the layout re-flows in front of the caver, every
         // first open.
-        dock = new RDockWidget(title, appWin);
+        dock = new RDockWidget(title.isEmpty() ? tr("3D View") : title,
+                               appWin);
         // The object name is what Qt saves and restores window state
         // by. Without it the panel forgets where the caver put it every
         // time the application restarts, and Qt says so on stderr.
         dock->setObjectName("Cave3dDock");
         dock->setAllowedAreas(Qt::AllDockWidgetAreas);
         appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
+        docked = true;
 
         panel = new RCave3dPanel(dock);
         dock->setWidget(panel);
@@ -128,13 +175,7 @@ int RCave3dBridge::open(const QString& caveName) {
                 this, SLOT(onPanelCameraModeChanged(QString)));
         connect(panel, SIGNAL(exportRequested()),
                 this, SLOT(onPanelExportRequested()));
-    } else {
-        dock->setWindowTitle(title);
     }
-
-    dock->show();
-    dock->raise();
-    return handle;
 }
 
 void RCave3dBridge::close(int h) {
