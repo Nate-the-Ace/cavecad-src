@@ -37,6 +37,8 @@
 #include <cstdio>
 #include <cassert>
 #include <cmath>
+#include <cstring>
+#include <limits>
 
 #include "dl_attributes.h"
 #include "dl_codes.h"
@@ -266,6 +268,15 @@ bool DL_Dxf::getStrippedLine(std::string& s, FILE *fp, bool stripSpace) {
             // line == wholeLine at this point.
             // Both guaranteed to be NULL terminated.
 
+            // If the line was longer than the buffer, fgets left the rest of
+            // it (including the newline) in the stream. Discard the remainder,
+            // or the next read would return a fragment and every group code /
+            // value pair after this point would be off by one line.
+            if (strchr(line, '\n')==NULL) {
+                int c;
+                while ((c=fgetc(fp))!='\n' && c!=EOF) {}
+            }
+
             // Strip leading whitespace and trailing CR/LF.
             stripWhiteSpace(&line, stripSpace);
 
@@ -293,6 +304,13 @@ bool DL_Dxf::getStrippedLine(std::string &s, unsigned int size,
         char* line = new char[size+1];
         char* oriLine = line;
         stream.getline(line, size);
+        // Over-long line: getline stopped early and set failbit without
+        // consuming the newline. Clear it and skip the rest of the line,
+        // otherwise the group code / value pairing desyncs from here on.
+        if (stream.fail() && !stream.eof()) {
+            stream.clear();
+            stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
         stripWhiteSpace(&line, stripSpace);
         s = line;
         assert(size > s.length());
