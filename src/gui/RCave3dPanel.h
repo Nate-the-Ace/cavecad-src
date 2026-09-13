@@ -144,6 +144,12 @@ private:
     QAction* scansAction;
     QLabel* inkLabel;
     QSlider* inkSlider;
+    /** What QToolBar::addWidget handed back. A widget put into a
+     *  toolbar is shown and hidden through ITS ACTION, not through the
+     *  widget: calling setVisible on the widget itself is overridden by
+     *  the toolbar's layout, and the control simply never appears. */
+    QAction* inkLabelAction;
+    QAction* inkSliderAction;
     /** True while setScanInk is moving the slider, so a programmatic
      *  fill is not mistaken for the caver dragging it. */
     bool fillingInk;

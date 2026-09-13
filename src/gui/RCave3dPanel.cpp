@@ -30,7 +30,8 @@
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
       fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL),
-      inkLabel(NULL), inkSlider(NULL), fillingInk(false),
+      inkLabel(NULL), inkSlider(NULL), inkLabelAction(NULL),
+      inkSliderAction(NULL), fillingInk(false),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -144,8 +145,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
                                  "passage they were drawn of"));
     connect(scansAction, &QAction::toggled, [this](bool on) {
         view->setShowScans(on);
-        if (inkLabel != NULL) { inkLabel->setVisible(on); }
-        if (inkSlider != NULL) { inkSlider->setVisible(on); }
+        syncInkVisible();
         emit overlayToggled(QString("scans"), on);
     });
 
@@ -162,8 +162,8 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     // every time they look at it.
     inkLabel = new QLabel(tr("Ink"), this);
     inkLabel->setContentsMargins(6, 0, 2, 0);
-    inkLabel->setVisible(false);
-    row2->addWidget(inkLabel);
+    inkLabelAction = row2->addWidget(inkLabel);
+    inkLabelAction->setVisible(false);
 
     inkSlider = new QSlider(Qt::Horizontal, this);
     inkSlider->setObjectName("Cave3dInkSlider");
@@ -175,10 +175,10 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
                         int(RCave3dView::MAX_SCAN_INK * 100.0));
     inkSlider->setValue(int(RCave3dView::DEFAULT_SCAN_INK * 100.0));
     inkSlider->setMaximumWidth(110);
-    inkSlider->setVisible(false);
     connect(inkSlider, SIGNAL(valueChanged(int)),
             this, SLOT(onScanInkChanged(int)));
-    row2->addWidget(inkSlider);
+    inkSliderAction = row2->addWidget(inkSlider);
+    inkSliderAction->setVisible(false);
 
     row2->addSeparator();
 
@@ -352,8 +352,8 @@ void RCave3dPanel::setShowScans(bool on) {
 void RCave3dPanel::syncInkVisible() {
     bool on = (scansAction != NULL && scansAction->isEnabled()
                && scansAction->isChecked());
-    if (inkLabel != NULL) { inkLabel->setVisible(on); }
-    if (inkSlider != NULL) { inkSlider->setVisible(on); }
+    if (inkLabelAction != NULL) { inkLabelAction->setVisible(on); }
+    if (inkSliderAction != NULL) { inkSliderAction->setVisible(on); }
 }
 
 void RCave3dPanel::onPlayToggled(bool on) {
