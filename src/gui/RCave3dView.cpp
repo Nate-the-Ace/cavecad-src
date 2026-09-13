@@ -1029,15 +1029,26 @@ void RCave3dView::layOutLegend() {
     // the stations land, not by a corner.
     if (labels != NULL) {
         labels->setGeometry(0, 0, width(), height());
-        labels->raise();
     }
     if (legend == NULL) {
+        if (labels != NULL) {
+            labels->raise();
+        }
         return;
     }
     QSize want = legend->sizeHint();
-    legend->setGeometry(8, height() - want.height() - 8,
-                        want.width(), want.height());
+    QRect box(8, height() - want.height() - 8, want.width(), want.height());
+    legend->setGeometry(box);
     legend->setVisible(want.height() > 0);
+
+    // THE LEGEND WINS. It is a fixed thing in a corner that the caver
+    // reads on purpose; a station name is one of dozens and there is
+    // always another. So the legend goes on top, and the names keep out
+    // of its rectangle rather than being sliced in half by its edge.
+    if (labels != NULL) {
+        labels->setAvoid(legend->isVisible() ? box : QRect());
+    }
+    legend->raise();
 }
 
 void RCave3dView::setTriangles(const QVector<float>& positions,

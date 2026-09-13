@@ -76,6 +76,16 @@ void RCave3dLabels::setCamera(const QMatrix4x4& m) {
     }
 }
 
+void RCave3dLabels::setAvoid(const QRect& box) {
+    if (avoid == box) {
+        return;
+    }
+    avoid = box;
+    if (show) {
+        update();
+    }
+}
+
 void RCave3dLabels::setShow(bool on) {
     show = on;
     setVisible(on);
@@ -155,6 +165,20 @@ void RCave3dLabels::paintEvent(QPaintEvent* event) {
         if (clash) {
             continue;
         }
+
+        // OUT OF THE LEGEND'S WAY. The legend is drawn over this, so a
+        // name underneath it comes out sliced in half by its edge --
+        // which reads as a rendering fault rather than as a label that
+        // happens to be behind something.
+        if (!avoid.isNull()) {
+            QRect box = fm.boundingRect(wanted.at(i).text);
+            box.moveTo(int(at.x() + 6.0), int(at.y() - 5.0) - box.height());
+            box.adjust(-3, -3, 3, 3);
+            if (avoid.intersects(box)) {
+                continue;
+            }
+        }
+
         taken.append(at);
 
         // A mark on the station itself, then the name beside it: the

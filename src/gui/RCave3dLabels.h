@@ -22,6 +22,7 @@
 #include "gui_global.h"
 
 #include <QMatrix4x4>
+#include <QRect>
 #include <QString>
 #include <QVector>
 #include <QVector3D>
@@ -58,6 +59,10 @@ public:
      *  moved. */
     void setCamera(const QMatrix4x4& mvp);
 
+    /** A rectangle the names must keep out of: the legend sits there,
+     *  and a name half behind it is worse than no name. */
+    void setAvoid(const QRect& box);
+
     void setShow(bool on);
     bool isShowing() const { return show; }
 
@@ -72,6 +77,7 @@ private:
     QVector<QVector3D> positions;
     QStringList names;
     QMatrix4x4 mvp;
+    QRect avoid;
     bool show;
 };
 
