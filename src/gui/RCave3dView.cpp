@@ -77,6 +77,13 @@ const char* SCAN_FRAGMENT =
     "uniform highp float uInkFade;\n"
     "void main() {\n"
     "    lowp vec4 c = texture2D(uTex, vUv);\n"
+    // NOTHING AT ALL IS NOT INK EITHER. A scan trimmed to a traced
+    // outline is a rectangle with everything outside the line made
+    // transparent, and a transparent pixel carries RGB 0,0,0 -- the
+    // darkest possible pencil as far as the test below is concerned.
+    // Without this the masked-away corners come back as solid black
+    // sheets hanging over the passage.
+    "    if (c.a < 0.5) { discard; }\n"
     // PAPER IS NOT INK. A scan is mostly white page, and drawn whole it
     // is a wall in front of the cave. Discarding everything lighter than
     // the threshold leaves the pencil floating over the passage, which
