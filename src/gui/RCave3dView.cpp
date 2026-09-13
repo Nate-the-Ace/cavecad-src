@@ -334,9 +334,11 @@ float RCave3dView::worldPerPixel() const {
 }
 
 void RCave3dView::setFlyPath(const QVector<float>& points,
-                             const QVector<int>& breaks) {
+                             const QVector<int>& breaks,
+                             const QVector<int>& turns) {
     flyPoints = points;
     flyBreaks = breaks;
+    flyTurns = turns;
     if (!hasFlyPath() && cameraMode == CameraFly) {
         setCameraMode(CameraManual);
     }
@@ -374,27 +376,138 @@ void RCave3dView::setCameraProgress(double t) {
     update();
 }
 
-/** Where on the flight path progress `t` sits, and which way it faces. */
-static void flySample(const QVector<float>& pts, double t,
-                      QVector3D& eye, QVector3D& ahead) {
+/** The point on the path at sample index i, clamped to the ends. */
+static QVector3D flyPointAt(const QVector<float>& pts, int i) {
+    int count = pts.size() / 3;
+    if (count <= 0) {
+        return QVector3D(0, 0, 0);
+    }
+    if (i < 0) { i = 0; }
+    if (i > count - 1) { i = count - 1; }
+    return QVector3D(pts.at(i * 3), pts.at(i * 3 + 1), pts.at(i * 3 + 2));
+}
+
+/**
+ * A CATMULL-ROM point along the path, rather than a corner of it.
+ *
+ * The samples are evenly spaced points ON the centreline, and a camera
+ * put straight onto them travels in straight lines and turns all at
+ * once at each station -- which is the jerk. A spline through the same
+ * points passes through every one of them and curves between, so the
+ * camera leans into a bend the way a caver's head does.
+ */
+static QVector3D flyCurve(const QVector<float>& pts, double at) {
+    int count = pts.size() / 3;
+    if (count < 2) {
+        return flyPointAt(pts, 0);
+    }
+    if (at < 0.0) { at = 0.0; }
+    if (at > double(count - 1)) { at = double(count - 1); }
+    int i = int(at);
+    if (i > count - 2) { i = count - 2; }
+    float f = float(at - double(i));
+    QVector3D p0 = flyPointAt(pts, i - 1);
+    QVector3D p1 = flyPointAt(pts, i);
+    QVector3D p2 = flyPointAt(pts, i + 1);
+    QVector3D p3 = flyPointAt(pts, i + 2);
+    float f2 = f * f;
+    float f3 = f2 * f;
+    return 0.5f * ((2.0f * p1) +
+                   (-p0 + p2) * f +
+                   (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * f2 +
+                   (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * f3);
+}
+
+/** How far ahead the camera looks, in samples. */
+static const double LOOK_AHEAD = 3.0;
+
+/** Samples' worth of time spent standing still and turning round at a
+ *  dead end. At the animation's pace this is a little under a second --
+ *  long enough to read as turning to look back, short enough not to
+ *  feel like a stall. */
+static const double TURN_PAUSE = 14.0;
+
+/** The way the path runs at `at`, looking forward but not past `stop`. */
+static QVector3D flyHeading(const QVector<float>& pts, double at,
+                            double stop) {
+    double to = qMin(at + LOOK_AHEAD, stop);
+    QVector3D dir = flyCurve(pts, to) - flyCurve(pts, at);
+    if (dir.lengthSquared() < 1e-12f) {
+        dir = flyCurve(pts, at) - flyCurve(pts, qMax(0.0, at - LOOK_AHEAD));
+    }
+    if (dir.lengthSquared() < 1e-12f) {
+        return QVector3D(0, 1, 0);
+    }
+    return dir.normalized();
+}
+
+/**
+ * Where on the flight progress `t` sits, and which way it faces.
+ *
+ * IT STOPS AND TURNS ROUND AT A DEAD END. The tour walks out to the end
+ * of a branch and back the way it came, so the path reverses on itself
+ * there -- and a camera carried straight through reverses with it,
+ * flipping a hundred and eighty degrees between one frame and the next.
+ * Measured before this: eighteen degrees of turn in a typical step and
+ * a hundred and eighty in the worst.
+ *
+ * So the flight spends TURN_PAUSE of its time standing at each of those
+ * stations, swinging its view from the way it came to the way it is
+ * going, which is what a caver does at the end of a lead.
+ */
+static void flySample(const QVector<float>& pts, const QVector<int>& turns,
+                      double t, QVector3D& eye, QVector3D& ahead) {
     int count = pts.size() / 3;
     if (count < 2) {
         eye = QVector3D(0, 0, 0);
         ahead = QVector3D(0, 1, 0);
         return;
     }
-    double at = t * double(count - 1);
-    int i = int(at);
-    if (i > count - 2) { i = count - 2; }
-    double f = at - double(i);
-    QVector3D a(pts.at(i * 3), pts.at(i * 3 + 1), pts.at(i * 3 + 2));
-    QVector3D b(pts.at(i * 3 + 3), pts.at(i * 3 + 4), pts.at(i * 3 + 5));
-    eye = a + (b - a) * float(f);
-    QVector3D dir = b - a;
-    if (dir.lengthSquared() < 1e-12f) {
-        dir = QVector3D(0, 1, 0);
+
+    double last = double(count - 1);
+    double total = last + double(turns.size()) * TURN_PAUSE;
+    double left = qBound(0.0, t, 1.0) * total;
+
+    double from = 0.0;
+    for (int i = 0; i <= turns.size(); i++) {
+        double next = (i < turns.size()) ? double(turns.at(i)) : last;
+        double travel = next - from;
+        if (left <= travel || i == turns.size()) {
+            double at = qMin(from + left, last);
+            eye = flyCurve(pts, at);
+            ahead = flyHeading(pts, at, next);
+            return;
+        }
+        left -= travel;
+        if (left <= TURN_PAUSE) {
+            // Standing at the turn, looking round.
+            eye = flyCurve(pts, next);
+            QVector3D came = flyHeading(pts, qMax(0.0, next - LOOK_AHEAD),
+                                        next);
+            QVector3D going = flyHeading(pts, next, last);
+            float u = float(left / TURN_PAUSE);
+            // Eased, so the head starts and finishes the turn gently
+            // rather than snapping into it.
+            u = u * u * (3.0f - 2.0f * u);
+            QVector3D mix = came * (1.0f - u) + going * u;
+            if (mix.lengthSquared() < 1e-6f) {
+                // Exactly opposite: pick a way round rather than
+                // dividing by nothing.
+                QVector3D side = QVector3D::crossProduct(came,
+                    QVector3D(0.0f, 0.0f, 1.0f));
+                if (side.lengthSquared() < 1e-9f) {
+                    side = QVector3D(1.0f, 0.0f, 0.0f);
+                }
+                mix = side;
+            }
+            ahead = mix.normalized();
+            return;
+        }
+        left -= TURN_PAUSE;
+        from = next;
     }
-    ahead = dir.normalized();
+    eye = flyCurve(pts, last);
+    ahead = flyHeading(pts, last, last);
 }
 
 QMatrix4x4 RCave3dView::cameraMatrix() const {
@@ -435,7 +548,7 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         // centreline and looks along it, with whatever the caver has
         // dragged added on top so they can look about without stopping.
         QVector3D eyeAt, ahead;
-        flySample(flyPoints, cameraProgress, eyeAt, ahead);
+        flySample(flyPoints, flyTurns, cameraProgress, eyeAt, ahead);
         QMatrix4x4 turn;
         turn.rotate(flyYaw, QVector3D(0.0f, 0.0f, 1.0f));
         QVector3D look = turn.map(ahead);
@@ -449,6 +562,8 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         look = tilt.map(look).normalized();
         QMatrix4x4 flyView;
         flyView.lookAt(eyeAt, eyeAt + look, QVector3D(0.0f, 0.0f, 1.0f));
+        lastEye = eyeAt;
+        lastLook = look;
         return projection * flyView;
     }
 
@@ -459,6 +574,8 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         target.y() - distance * std::cos(pitchRad) * std::cos(yawRad),
         target.z() + distance * std::sin(pitchRad));
 
+    lastEye = eye;
+    lastLook = (target - eye).normalized();
     QMatrix4x4 view;
     view.lookAt(eye, target, QVector3D(0.0f, 0.0f, 1.0f));
     return projection * view;

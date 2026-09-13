@@ -50,6 +50,20 @@ class QCADGUI_EXPORT RCave3dBridge : public QObject {
     Q_OBJECT
 
 public:
+    /**
+     * The one bridge, shared by every script engine.
+     *
+     * THERE IS ONE 3D PANEL IN ONE MAIN WINDOW, so there must be one
+     * object holding it. A bridge per engine -- which is what handing
+     * out `new RCave3dBridge()` produced -- gives each engine its own
+     * idea of whether the panel exists: the engine that loads the
+     * add-ons builds one dock, the engine that runs the menu action
+     * builds a second, and the caver ends up with two 3D views, the
+     * signals from each going to whichever engine happened to create
+     * it.
+     */
+    static RCave3dBridge* getInstance();
+
     RCave3dBridge(QObject* parent = NULL);
     virtual ~RCave3dBridge();
 
@@ -76,7 +90,7 @@ public:
      * while the window is being put together anyway and nobody is
      * working. open() then only has to show what is already there.
      */
-    Q_INVOKABLE void prewarm();
+    Q_INVOKABLE int prewarm();
 
     Q_INVOKABLE int open(const QString& caveName);
 
@@ -134,7 +148,8 @@ public:
     /** The flight path down the passage, as a flat [x,y,z,...] list
      *  with the indices where one surveyed run gives way to another. */
     Q_INVOKABLE void setFlyPath(int handle, const QVariantList& points,
-                                const QVariantList& breaks);
+                                const QVariantList& breaks,
+                                const QVariantList& turns);
 
     /** "manual", "fly" or "spin". */
     Q_INVOKABLE void setCameraMode(int handle, const QString& mode);
@@ -211,6 +226,10 @@ private:
     /** Makes the dock and the panel, once. */
     void build(const QString& title);
 
+    /** Set once the panel has asked for a mesh because it came back
+     *  visible with none -- so it asks once, not on every show. */
+    bool askedForFirstMesh;
+
     /** Whether the dock is currently in the main window's layout.
      *  prewarm() takes it out; open() puts it back. */
     bool docked;
@@ -222,6 +241,7 @@ private slots:
     void onPanelScanInkChanged(double value);
     void onPanelCameraModeChanged(const QString& mode);
     void onPanelExportRequested();
+    void onDockVisibilityChanged(bool visible);
 
 private:
     RCave3dPanel* panelFor(int handle) const;

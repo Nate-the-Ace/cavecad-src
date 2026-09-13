@@ -67,8 +67,19 @@ QVector3D toVector(const QVariant& value, const QVector3D& fallback) {
 
 } // namespace
 
+RCave3dBridge* RCave3dBridge::getInstance() {
+    // Never deleted: it holds a dock owned by the main window and
+    // outlives every script engine that asks for it.
+    static RCave3dBridge* instance = NULL;
+    if (instance == NULL) {
+        instance = new RCave3dBridge();
+    }
+    return instance;
+}
+
 RCave3dBridge::RCave3dBridge(QObject* parent)
-    : QObject(parent), docked(false), dock(NULL), panel(NULL), handle(0) {
+    : QObject(parent), askedForFirstMesh(false), docked(false),
+      dock(NULL), panel(NULL), handle(0) {
 }
 
 RCave3dBridge::~RCave3dBridge() {
@@ -86,12 +97,12 @@ RCave3dPanel* RCave3dBridge::panelFor(int h) const {
     return panel;
 }
 
-void RCave3dBridge::prewarm() {
+int RCave3dBridge::prewarm() {
     if (dock != NULL) {
-        return;
+        return handle;
     }
     if (RMainWindowQt::getMainWindow() == NULL) {
-        return;             // headless, or too early to have a window
+        return 0;           // headless, or too early to have a window
     }
     build(QString());
     if (dock != NULL) {
@@ -107,6 +118,26 @@ void RCave3dBridge::prewarm() {
         }
         docked = false;
     }
+    return handle;
+}
+
+void RCave3dBridge::onDockVisibilityChanged(bool visible) {
+    // A PANEL RESTORED BY THE WINDOW'S SAVED LAYOUT HAS NO MESH.
+    //
+    // The dock carries an objectName so Qt remembers where the caver
+    // put it, and Qt therefore also puts it BACK -- visible, before the
+    // tool has ever run. What they get is an empty 3D view that looks
+    // broken. So a panel that comes up visible with nothing in it asks
+    // for a mesh, once.
+    if (!visible || handle == 0 || askedForFirstMesh) {
+        return;
+    }
+    if (panel != NULL && panel->getView() != NULL &&
+            panel->getView()->hasGeometry()) {
+        return;             // already showing a cave
+    }
+    askedForFirstMesh = true;
+    emit refreshRequested(handle);
 }
 
 int RCave3dBridge::open(const QString& caveName) {
@@ -158,6 +189,8 @@ void RCave3dBridge::build(const QString& title) {
         dock->setAllowedAreas(Qt::AllDockWidgetAreas);
         appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
         docked = true;
+        connect(dock, SIGNAL(visibilityChanged(bool)),
+                this, SLOT(onDockVisibilityChanged(bool)));
 
         panel = new RCave3dPanel(dock);
         dock->setWidget(panel);
@@ -399,7 +432,8 @@ void RCave3dBridge::setShowScans(int h, bool on) {
 }
 
 void RCave3dBridge::setFlyPath(int h, const QVariantList& points,
-                               const QVariantList& breaks) {
+                               const QVariantList& breaks,
+                               const QVariantList& turns) {
     RCave3dPanel* p = panelFor(h);
     if (p == NULL || p->getView() == NULL) {
         return;
@@ -413,7 +447,11 @@ void RCave3dBridge::setFlyPath(int h, const QVariantList& points,
     for (int i = 0; i < breaks.size(); i++) {
         brk.append(breaks.at(i).toInt());
     }
-    p->getView()->setFlyPath(pts, brk);
+    QVector<int> trn;
+    for (int i = 0; i < turns.size(); i++) {
+        trn.append(turns.at(i).toInt());
+    }
+    p->getView()->setFlyPath(pts, brk, trn);
     p->setFlyAvailable(pts.size() >= 6);
 }
 
@@ -521,6 +559,12 @@ QVariantMap RCave3dBridge::getCamera(int h) {
     out["untouched"] = v->isCameraUntouched();
     // What a pan moves per pixel of mouse. Exposed so "a drag carries
     // the cave under the cursor" is something a test can state.
+    out["eyeX"] = double(v->getEye().x());
+    out["eyeY"] = double(v->getEye().y());
+    out["eyeZ"] = double(v->getEye().z());
+    out["lookX"] = double(v->getLook().x());
+    out["lookY"] = double(v->getLook().y());
+    out["lookZ"] = double(v->getLook().z());
     out["worldPerPixel"] = double(v->worldPerPixel());
     out["viewHeight"] = v->height();
     out["fov"] = double(RCave3dView::FOV_DEGREES);

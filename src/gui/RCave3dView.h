@@ -110,8 +110,16 @@ public:
     /** The flight path, as [x,y,z,...] in world coordinates, with the
      *  indices where one surveyed run gives way to another. */
     void setFlyPath(const QVector<float>& points,
-                    const QVector<int>& breaks);
+                    const QVector<int>& breaks,
+                    const QVector<int>& turns);
     bool hasFlyPath() const { return flyPoints.size() >= 6; }
+
+    /** True once a mesh has been put in. A panel restored by the
+     *  window's saved layout has none, and looks broken until
+     *  something asks for one. */
+    bool hasGeometry() const {
+        return !trianglePositions.isEmpty() || !linePositions.isEmpty();
+    }
 
     void setCameraMode(CameraMode mode);
     CameraMode getCameraMode() const { return cameraMode; }
@@ -174,6 +182,12 @@ public:
     float getDistance() const { return distance; }
     QVector3D getTarget() const { return target; }
     bool isCameraUntouched() const { return cameraUntouched; }
+
+    /** Where the eye actually ended up last time the camera was built,
+     *  and which way it looked. In fly mode neither comes from `target`
+     *  and `yaw`, so this is the only way to ask. */
+    QVector3D getEye() const { return lastEye; }
+    QVector3D getLook() const { return lastLook; }
     void clearGeometry();
 
     void setLegend(const QString& title, const QString& note,
@@ -264,6 +278,7 @@ private:
     double scanInk;
     QVector<float> flyPoints;
     QVector<int> flyBreaks;
+    QVector<int> flyTurns;
     CameraMode cameraMode;
     double cameraProgress;
     /** Where the caver has dragged the view while the camera is flying:
@@ -274,6 +289,10 @@ private:
     /** The yaw the spin started from, so it turns from where the caver
      *  left the camera rather than snapping to north. */
     float spinFromYaw;
+    /** Set by cameraMatrix, which is const, so that anything can ask
+     *  where the camera really is. */
+    mutable QVector3D lastEye;
+    mutable QVector3D lastLook;
     /** Set when paths change, cleared once uploaded against a live
      *  context -- which is also how a context remade by a dock float
      *  gets its textures back. */
