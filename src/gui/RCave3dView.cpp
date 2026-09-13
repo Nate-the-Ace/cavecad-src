@@ -18,6 +18,7 @@
  */
 #include "RCave3dView.h"
 #include "RCave3dLegend.h"
+#include "RCave3dLabels.h"
 #include "RCave3dTexture.h"
 
 #include <QDebug>
@@ -190,6 +191,12 @@ RCave3dView::RCave3dView(QWidget* parent)
     // over the cave, taking no layout space.
     legend = new RCave3dLegend(this);
     legend->show();
+
+    // OVER THE LEGEND'S HEAD, and over the cave: the station names have
+    // to be readable against whatever is behind them, which is why they
+    // are painted rather than drawn in GL. Hidden until asked for.
+    labels = new RCave3dLabels(this);
+    labels->setShow(false);
 }
 
 RCave3dView::~RCave3dView() {
@@ -334,6 +341,13 @@ void RCave3dView::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     QMatrix4x4 mvp = cameraMatrix();
+
+    // The one place that knows the camera has moved. The labels are a
+    // child widget and repaint themselves; this only tells them where
+    // the cave is now.
+    if (labels != NULL) {
+        labels->setCamera(mvp);
+    }
 
     if (showSurface && !trianglePositions.isEmpty() &&
             surfaceProgram != NULL && surfaceProgram->isLinked()) {
@@ -542,7 +556,32 @@ void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
 
 /** Puts the legend in the bottom-left corner, at whatever size its
  *  contents need. */
+void RCave3dView::setStations(const QVector<QVector3D>& positions,
+                              const QStringList& names) {
+    if (labels != NULL) {
+        labels->setStations(positions, names);
+    }
+    update();
+}
+
+void RCave3dView::setShowStations(bool on) {
+    if (labels != NULL) {
+        labels->setShow(on);
+    }
+    update();
+}
+
+bool RCave3dView::hasStations() const {
+    return labels != NULL && labels->hasStations();
+}
+
 void RCave3dView::layOutLegend() {
+    // The labels cover the whole view: they place themselves by where
+    // the stations land, not by a corner.
+    if (labels != NULL) {
+        labels->setGeometry(0, 0, width(), height());
+        labels->raise();
+    }
     if (legend == NULL) {
         return;
     }

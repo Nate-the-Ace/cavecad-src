@@ -29,7 +29,7 @@
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
-      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL),
+      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL),
       inkLabel(NULL), inkSlider(NULL), inkLabelAction(NULL),
       inkSliderAction(NULL), fillingInk(false),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
@@ -180,6 +180,19 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     inkSliderAction = row2->addWidget(inkSlider);
     inkSliderAction->setVisible(false);
 
+    // WHERE AM I? A passage seen in three dimensions is a shape without
+    // a name on it, and the question a cartographer asks of it first is
+    // which bend they are looking at. The names are painted over the
+    // view rather than drawn in it: see RCave3dLabels.
+    stationsAction = row2->addAction(tr("Stations"));
+    stationsAction->setCheckable(true);
+    stationsAction->setStatusTip(tr("Write the station names over the "
+                                    "passage"));
+    connect(stationsAction, &QAction::toggled, [this](bool on) {
+        view->setShowStations(on);
+        emit overlayToggled(QString("stations"), on);
+    });
+
     row2->addSeparator();
 
     playAction = row2->addAction(tr("Play"));
@@ -326,6 +339,22 @@ void RCave3dPanel::onScanInkChanged(int value) {
         return;
     }
     emit scanInkChanged(value / 100.0);
+}
+
+void RCave3dPanel::setShowStations(bool on) {
+    if (stationsAction != NULL && stationsAction->isEnabled()) {
+        stationsAction->setChecked(on);
+    }
+}
+
+void RCave3dPanel::setStationsAvailable(bool available) {
+    if (stationsAction == NULL) {
+        return;
+    }
+    stationsAction->setEnabled(available);
+    if (!available && stationsAction->isChecked()) {
+        stationsAction->setChecked(false);
+    }
 }
 
 void RCave3dPanel::setScansAvailable(bool available) {

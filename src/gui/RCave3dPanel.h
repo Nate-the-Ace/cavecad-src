@@ -95,6 +95,10 @@ public:
     /** Greys the Scans toggle when the drawing holds none. */
     void setScansAvailable(bool available);
 
+    void setShowStations(bool on);
+    /** Greys the Stations toggle when the mesh carried no names. */
+    void setStationsAvailable(bool available);
+
     /** Where the ink slider sits, as the view's own luminance
      *  threshold. Setting it does NOT emit scanInkChanged: filling a
      *  control in is not the caver moving it. */
@@ -142,6 +146,7 @@ private:
     QAction* leadsAction;
     QAction* sectionsAction;
     QAction* scansAction;
+    QAction* stationsAction;
     QLabel* inkLabel;
     QSlider* inkSlider;
     /** What QToolBar::addWidget handed back. A widget put into a

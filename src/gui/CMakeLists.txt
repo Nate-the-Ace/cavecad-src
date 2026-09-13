@@ -25,6 +25,7 @@ add_library(cavecadgui SHARED
     RCadToolBar.cpp RCadToolBar.h
     RCave3dBridge.cpp RCave3dBridge.h
     RCave3dLegend.cpp RCave3dLegend.h
+    RCave3dLabels.cpp RCave3dLabels.h
     RCave3dTexture.cpp RCave3dTexture.h
     RCave3dView.cpp RCave3dView.h
     RCave3dPanel.cpp RCave3dPanel.h

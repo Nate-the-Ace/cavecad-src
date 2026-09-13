@@ -212,6 +212,22 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
                    scanPaths, scanRuns);
     p->setScansAvailable(!scanPaths.isEmpty());
 
+    // The station names, for the labels over the passage.
+    QVariantMap stations = mesh.value("stations").toMap();
+    QVector<float> stationPos = toFloats(stations.value("positions"));
+    QStringList stationNames;
+    QVariantList nameList = stations.value("names").toList();
+    for (int i = 0; i < nameList.size(); i++) {
+        stationNames.append(nameList.at(i).toString());
+    }
+    QVector<QVector3D> stationPoints;
+    for (int i = 0; i + 2 < stationPos.size(); i += 3) {
+        stationPoints.append(QVector3D(stationPos.at(i), stationPos.at(i + 1),
+                                       stationPos.at(i + 2)));
+    }
+    view->setStations(stationPoints, stationNames);
+    p->setStationsAvailable(!stationPoints.isEmpty());
+
     QVariantMap legend = mesh.value("legend").toMap();
     QVector<RCave3dView::LegendStop> stops;
     QVariantList stopList = legend.value("stops").toList();
@@ -323,6 +339,13 @@ void RCave3dBridge::setShowScans(int h, bool on) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
         p->setShowScans(on);
+    }
+}
+
+void RCave3dBridge::setShowStations(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowStations(on);
     }
 }
 

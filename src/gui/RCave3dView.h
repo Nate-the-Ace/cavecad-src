@@ -27,6 +27,7 @@
 #include <QColor>
 
 class RCave3dLegend;
+class RCave3dLabels;
 class RCave3dTexture;
 class QOpenGLShaderProgram;
 #include <QMatrix4x4>
@@ -94,6 +95,13 @@ public:
                   const QStringList& paths,
                   const QVector<int>& runs);
     void setShowScans(bool on);
+
+    /** Station names written over the passage. Positions are world
+     *  coordinates; the two lists run together. */
+    void setStations(const QVector<QVector3D>& positions,
+                     const QStringList& names);
+    void setShowStations(bool on);
+    bool hasStations() const;
 
     /** Where a draped scan stops being pencil and starts being paper.
      *
@@ -247,6 +255,7 @@ private:
     int progressLines;
 
     RCave3dLegend* legend;
+    RCave3dLabels* labels;
 
     /** True while the camera is still where a framing command put it.
      *  A docked panel is resized constantly, and a view that fitted

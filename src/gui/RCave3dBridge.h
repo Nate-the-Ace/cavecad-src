@@ -111,6 +111,9 @@ public:
     Q_INVOKABLE void setShowSections(int handle, bool on);
     Q_INVOKABLE void setShowScans(int handle, bool on);
 
+    /** Station names written over the passage. */
+    Q_INVOKABLE void setShowStations(int handle, bool on);
+
     /** Where a draped scan stops being pencil and starts being paper,
      *  as a luminance 0 to 1. Clamped by the view; setting it does not
      *  come back as scanInkChanged. */
