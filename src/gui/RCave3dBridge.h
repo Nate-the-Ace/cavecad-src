@@ -156,6 +156,10 @@ public:
     Q_INVOKABLE QString getCameraMode(int handle);
     Q_INVOKABLE void setCameraProgress(int handle, double t);
 
+    /** How fast the camera runs, as a multiple of its usual pace. */
+    Q_INVOKABLE void setCameraSpeed(int handle, double factor);
+    Q_INVOKABLE double getCameraSpeed(int handle);
+
     /**
      * Writes an animation out as a numbered PNG per frame.
      *
@@ -210,6 +214,9 @@ signals:
     /** The caver chose how the camera moves: "manual", "fly" or "spin". */
     void cameraModeChanged(int handle, const QString& mode);
 
+    /** The caver moved the speed slider. */
+    void cameraSpeedChanged(int handle, double factor);
+
     /** The caver pressed Export. The script side chooses where. */
     void exportRequested(int handle);
 
@@ -240,6 +247,7 @@ private slots:
     void onPanelOverlayToggled(const QString& which, bool on);
     void onPanelScanInkChanged(double value);
     void onPanelCameraModeChanged(const QString& mode);
+    void onPanelCameraSpeedChanged(double factor);
     void onPanelExportRequested();
     void onDockVisibilityChanged(bool visible);
 

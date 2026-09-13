@@ -35,7 +35,9 @@ const int CAMERA_TICKS = 600;
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
       fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL), flyAction(NULL),
-      spinAction(NULL), settingCameraMode(false),
+      spinAction(NULL), speedLabel(NULL), speedSlider(NULL),
+      speedLabelAction(NULL), speedSliderAction(NULL), scrubbing(false),
+      settingCameraMode(false),
       inkLabel(NULL), inkSlider(NULL), inkLabelAction(NULL),
       inkSliderAction(NULL), fillingInk(false),
       playAction(NULL), progressSlider(NULL), playTimer(NULL) {
@@ -249,7 +251,36 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     progressSlider->setRange(0, 0);
     connect(progressSlider, SIGNAL(valueChanged(int)),
             this, SLOT(onProgressChanged(int)));
+    // TAKING HOLD OF IT STOPS THE ANIMATION WRITING TO IT. Otherwise
+    // the timer goes on setting the value under the caver's hand and
+    // the slider fights them for it.
+    connect(progressSlider, SIGNAL(sliderPressed()),
+            this, SLOT(onScrubStarted()));
+    connect(progressSlider, SIGNAL(sliderReleased()),
+            this, SLOT(onScrubFinished()));
     row2->addWidget(progressSlider);
+
+    // HOW FAST, and only while something is running. A passage worth
+    // looking at closely wants half pace; a long walk between two bits
+    // of interest wants three times it.
+    speedLabel = new QLabel(tr("Speed"), this);
+    speedLabel->setContentsMargins(6, 0, 2, 0);
+    speedLabelAction = row2->addWidget(speedLabel);
+    speedLabelAction->setVisible(false);
+
+    speedSlider = new QSlider(Qt::Horizontal, this);
+    speedSlider->setObjectName("Cave3dSpeedSlider");
+    speedSlider->setStatusTip(tr("How fast the camera runs: left is "
+                                 "slower, right is faster"));
+    // Tenths of the usual pace, from a quarter speed to four times.
+    speedSlider->setRange(25, 400);
+    speedSlider->setValue(100);
+    speedSlider->setMaximumWidth(90);
+    connect(speedSlider, &QSlider::valueChanged, [this](int value) {
+        emit cameraSpeedChanged(double(value) / 100.0);
+    });
+    speedSliderAction = row2->addWidget(speedSlider);
+    speedSliderAction->setVisible(false);
 
     playTimer = new QTimer(this);
     playTimer->setInterval(40);
@@ -313,20 +344,36 @@ void RCave3dPanel::setSteps(const QVector<QPair<int, int> >& s) {
     if (progressSlider == NULL) {
         return;
     }
-    progressSlider->blockSignals(true);
-    progressSlider->setRange(0, qMax(0, steps.size() - 1));
-    progressSlider->setValue(qMax(0, steps.size() - 1));
-    progressSlider->blockSignals(false);
-    progressSlider->setEnabled(steps.size() > 1);
-    playAction->setEnabled(steps.size() > 1);
+    // THE SLIDER IS SHARED, so a rebuild must not take it back off the
+    // camera. In a camera mode it runs the flight, in one step per
+    // thousand; the build animation wants one step per shot. A refresh
+    // while flying was resetting it to the shots and the flight went
+    // from a thousand steps to sixty.
+    bool camera = (view != NULL &&
+                   view->getCameraMode() != RCave3dView::CameraManual);
+    if (!camera) {
+        progressSlider->blockSignals(true);
+        progressSlider->setRange(0, qMax(0, steps.size() - 1));
+        progressSlider->setValue(qMax(0, steps.size() - 1));
+        progressSlider->blockSignals(false);
+        progressSlider->setEnabled(steps.size() > 1);
+        playAction->setEnabled(steps.size() > 1);
+    } else {
+        progressSlider->setEnabled(true);
+        playAction->setEnabled(true);
+    }
     // A NEW MESH SHOWS THE WHOLE CAVE. The animation is a thing you do,
     // never a state the panel is left sitting in -- a half-built cave
     // restored on a rebuild would read as a bug.
     if (view != NULL) {
         view->setProgress(-1, -1);
     }
-    playTimer->stop();
-    playAction->setChecked(false);
+    if (!camera) {
+        // A camera that was running goes on running: the mesh changed
+        // under it, not the flight.
+        playTimer->stop();
+        playAction->setChecked(false);
+    }
 }
 
 void RCave3dPanel::setGhostAvailable(bool available) {
@@ -407,6 +454,10 @@ void RCave3dPanel::setCameraMode(const QString& mode) {
     }
     settingCameraMode = false;
 
+    bool running = (now != RCave3dView::CameraManual);
+    if (speedLabelAction != NULL) { speedLabelAction->setVisible(running); }
+    if (speedSliderAction != NULL) { speedSliderAction->setVisible(running); }
+
     // The slider means something different in each mode, so it starts
     // again rather than carrying a position from the last one.
     if (progressSlider != NULL && now != RCave3dView::CameraManual) {
@@ -419,6 +470,46 @@ void RCave3dPanel::setCameraMode(const QString& mode) {
 void RCave3dPanel::setCameraProgress(double t) {
     if (view != NULL) {
         view->setCameraProgress(t);
+    }
+}
+
+void RCave3dPanel::setCameraSpeed(double factor) {
+    if (speedSlider == NULL) {
+        return;
+    }
+    // A MEANINGLESS SPEED IS NOT A SLOW ONE. Clamping a zero -- which
+    // is what an unset or unreadable setting hands over -- pins the
+    // slider at its slowest, and the slider then saves that back as
+    // the caver's preference. Nought is "no answer", so the answer is
+    // the usual pace.
+    if (!(factor > 0.0) || factor != factor) {
+        factor = 1.0;
+    }
+    int want = int(factor * 100.0 + 0.5);
+    speedSlider->setValue(qBound(speedSlider->minimum(), want,
+                                 speedSlider->maximum()));
+}
+
+double RCave3dPanel::getCameraSpeed() const {
+    if (speedSlider == NULL) {
+        return 1.0;
+    }
+    return double(speedSlider->value()) / 100.0;
+}
+
+void RCave3dPanel::onScrubStarted() {
+    scrubbing = true;
+    // The animation keeps its button pressed, so letting go carries on
+    // from wherever the caver put it.
+    if (playTimer != NULL) {
+        playTimer->stop();
+    }
+}
+
+void RCave3dPanel::onScrubFinished() {
+    scrubbing = false;
+    if (playAction != NULL && playAction->isChecked() && playTimer != NULL) {
+        playTimer->start();
     }
 }
 
@@ -500,8 +591,15 @@ void RCave3dPanel::onPlayToggled(bool on) {
 }
 
 void RCave3dPanel::onPlayTick() {
+    if (scrubbing) {
+        return;
+    }
     if (view != NULL && view->getCameraMode() != RCave3dView::CameraManual) {
-        int step = qMax(1, progressSlider->maximum() / CAMERA_TICKS);
+        if (scrubbing) {
+            return;             // the caver has hold of it
+        }
+        double ticks = double(CAMERA_TICKS) / qMax(0.05, getCameraSpeed());
+        int step = qMax(1, int(double(progressSlider->maximum()) / ticks));
         int nextCam = progressSlider->value() + step;
         if (nextCam > progressSlider->maximum()) {
             if (view->getCameraMode() == RCave3dView::CameraSpin) {

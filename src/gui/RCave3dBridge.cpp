@@ -206,6 +206,8 @@ void RCave3dBridge::build(const QString& title) {
                 this, SLOT(onPanelScanInkChanged(double)));
         connect(panel, SIGNAL(cameraModeChanged(QString)),
                 this, SLOT(onPanelCameraModeChanged(QString)));
+        connect(panel, SIGNAL(cameraSpeedChanged(double)),
+                this, SLOT(onPanelCameraSpeedChanged(double)));
         connect(panel, SIGNAL(exportRequested()),
                 this, SLOT(onPanelExportRequested()));
     }
@@ -487,6 +489,18 @@ QString RCave3dBridge::getCameraMode(int h) {
     return QString("manual");
 }
 
+void RCave3dBridge::setCameraSpeed(int h, double factor) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setCameraSpeed(factor);
+    }
+}
+
+double RCave3dBridge::getCameraSpeed(int h) {
+    RCave3dPanel* p = panelFor(h);
+    return (p == NULL) ? 1.0 : p->getCameraSpeed();
+}
+
 void RCave3dBridge::setCameraProgress(int h, double t) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
@@ -612,6 +626,12 @@ void RCave3dBridge::onPanelScanInkChanged(double value) {
 void RCave3dBridge::onPanelCameraModeChanged(const QString& mode) {
     if (handle != 0) {
         emit cameraModeChanged(handle, mode);
+    }
+}
+
+void RCave3dBridge::onPanelCameraSpeedChanged(double factor) {
+    if (handle != 0) {
+        emit cameraSpeedChanged(handle, factor);
     }
 }
 

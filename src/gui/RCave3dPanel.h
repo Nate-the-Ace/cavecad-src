@@ -103,6 +103,8 @@ public:
      *  chosen, so there is one animation control rather than three. */
     void setCameraMode(const QString& mode);
     void setCameraProgress(double t);
+    void setCameraSpeed(double factor);
+    double getCameraSpeed() const;
     /** Greys Fly when the drawing holds no surveyed passage to fly. */
     void setFlyAvailable(bool available);
 
@@ -129,6 +131,10 @@ signals:
     /** The caver picked a way for the camera to move on its own. */
     void cameraModeChanged(const QString& mode);
 
+    /** The caver moved the speed slider: how fast the camera runs, as
+     *  a multiple of its usual pace. */
+    void cameraSpeedChanged(double factor);
+
     /** The caver asked for the animation to be written out. */
     void exportRequested();
 
@@ -139,6 +145,8 @@ private slots:
     void onPlayTick();
     void onProgressChanged(int value);
     void onScanInkChanged(int value);
+    void onScrubStarted();
+    void onScrubFinished();
 
 private:
     void syncInkVisible();
@@ -162,6 +170,13 @@ private:
     QAction* stationsAction;
     QAction* flyAction;
     QAction* spinAction;
+    QLabel* speedLabel;
+    QSlider* speedSlider;
+    QAction* speedLabelAction;
+    QAction* speedSliderAction;
+    /** True while the caver has hold of the progress slider. The
+     *  animation must not write to a control someone is dragging. */
+    bool scrubbing;
     /** True while a camera-mode button is being set from code, so the
      *  two exclusive toggles do not fight each other. */
     bool settingCameraMode;
