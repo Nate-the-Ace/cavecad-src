@@ -543,27 +543,18 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         useYaw = spinFromYaw + float(cameraProgress) * 360.0f;
     }
 
+    QVector3D eyeNow, lookNow;
+    computeCamera(eyeNow, lookNow);
+    lastEye = eyeNow;
+    lastLook = lookNow;
+
     if (cameraMode == CameraFly && hasFlyPath()) {
         // DOWN THE PASSAGE, from inside it. The eye rides the
         // centreline and looks along it, with whatever the caver has
         // dragged added on top so they can look about without stopping.
-        QVector3D eyeAt, ahead;
-        flySample(flyPoints, flyTurns, cameraProgress, eyeAt, ahead);
-        QMatrix4x4 turn;
-        turn.rotate(flyYaw, QVector3D(0.0f, 0.0f, 1.0f));
-        QVector3D look = turn.map(ahead);
-        QVector3D side = QVector3D::crossProduct(look,
-            QVector3D(0.0f, 0.0f, 1.0f));
-        if (side.lengthSquared() < 1e-12f) {
-            side = QVector3D(1.0f, 0.0f, 0.0f);
-        }
-        QMatrix4x4 tilt;
-        tilt.rotate(flyPitch, side.normalized());
-        look = tilt.map(look).normalized();
         QMatrix4x4 flyView;
-        flyView.lookAt(eyeAt, eyeAt + look, QVector3D(0.0f, 0.0f, 1.0f));
-        lastEye = eyeAt;
-        lastLook = look;
+        flyView.lookAt(eyeNow, eyeNow + lookNow,
+                       QVector3D(0.0f, 0.0f, 1.0f));
         return projection * flyView;
     }
 
@@ -574,8 +565,6 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         target.y() - distance * std::cos(pitchRad) * std::cos(yawRad),
         target.z() + distance * std::sin(pitchRad));
 
-    lastEye = eye;
-    lastLook = (target - eye).normalized();
     QMatrix4x4 view;
     view.lookAt(eye, target, QVector3D(0.0f, 0.0f, 1.0f));
     return projection * view;
@@ -647,6 +636,14 @@ void RCave3dView::paintGL() {
     drawFlatLines(mvp, sectionPositions, sectionColors, showSections);
 
     drawScans(mvp);
+
+    // WHILE FLYING ONLY. Orbiting the cave from outside, a ring round
+    // one station is a hoop in mid air that says nothing.
+    if (cameraMode == CameraFly) {
+        QVector3D outlineEye, outlineLook;
+        computeCamera(outlineEye, outlineLook);
+        drawOutline(mvp, outlineEye, outlineLook);
+    }
 }
 
 void RCave3dView::onContextAboutToBeDestroyed() {
@@ -802,6 +799,174 @@ void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
 
 /** Puts the legend in the bottom-left corner, at whatever size its
  *  contents need. */
+void RCave3dView::setOutlines(const QVector<float>& positions,
+                              const QVector<int>& counts,
+                              const QVector<float>& centres) {
+    outlinePositions = positions;
+    outlineCounts = counts;
+    outlineCentres = centres;
+    update();
+}
+
+/**
+ * The cross section the camera is standing in, drawn white.
+ *
+ * ONE RING, THE NEAREST. Drawing them all would be a tunnel of hoops
+ * and would tell a caver nothing about where they are; drawing the one
+ * they are inside says how wide and how high the passage is around
+ * them, which is the thing a tube seen from within cannot show.
+ *
+ * OVER EVERYTHING, depth test off: the ring sits on the wall by
+ * definition, so half of it is always inside the geometry and would
+ * otherwise be eaten by it.
+ */
+void RCave3dView::drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
+                              const QVector3D& look) {
+    if (outlineCounts.isEmpty() || lineProgram == NULL ||
+            !lineProgram->isLinked()) {
+        return;
+    }
+    // A SHORT WAY AHEAD, not at the eye and not at the very next
+    // station.
+    //
+    // At the eye the ring surrounds the view and is mostly off the
+    // edges of it -- there is nothing to see. At the next station it is
+    // often a couple of feet away and spills off the edges just the
+    // same. A section some way down the passage reads as a hoop the
+    // camera is about to fly through, which is what says how wide and
+    // how high the passage is there.
+    //
+    // The distance comes from the CAVE's own size, so a big system and
+    // a single chamber both put it somewhere useful.
+    float span = (boundsMax - boundsMin).length();
+    if (span < 1e-3f) {
+        span = 1.0f;
+    }
+    QVector3D want = eye + look * (span * 0.03f);
+
+    int best = -1;
+    float bestDist = 0.0f;
+    for (int i = 0; i < outlineCounts.size(); i++) {
+        if (i * 3 + 2 >= outlineCentres.size()) { break; }
+        QVector3D c(outlineCentres.at(i * 3), outlineCentres.at(i * 3 + 1),
+                    outlineCentres.at(i * 3 + 2));
+        if (QVector3D::dotProduct(c - eye, look) <= 0.0f) {
+            continue;               // behind, or level with, the camera
+        }
+        float d = (c - want).lengthSquared();
+        if (best < 0 || d < bestDist) {
+            best = i;
+            bestDist = d;
+        }
+    }
+    if (best < 0) {
+        // Nothing ahead: at the very end of a passage, show the one the
+        // camera is in rather than nothing at all.
+        bestDist = 0.0f;
+        for (int i = 0; i < outlineCounts.size(); i++) {
+            if (i * 3 + 2 >= outlineCentres.size()) { break; }
+            QVector3D c(outlineCentres.at(i * 3),
+                        outlineCentres.at(i * 3 + 1),
+                        outlineCentres.at(i * 3 + 2));
+            float d = (c - eye).lengthSquared();
+            if (best < 0 || d < bestDist) {
+                best = i;
+                bestDist = d;
+            }
+        }
+    }
+    if (best < 0) {
+        return;
+    }
+    int at = 0;
+    for (int i = 0; i < best; i++) {
+        at += outlineCounts.at(i);
+    }
+    int n = outlineCounts.at(best);
+    if (n < 3 || (at + n) * 3 > outlinePositions.size()) {
+        return;
+    }
+
+    // A closed loop, as pairs.
+    QVector<float> pos;
+    QVector<float> col;
+    pos.reserve(n * 6);
+    col.reserve(n * 6);
+    for (int k = 0; k < n; k++) {
+        int a = (at + k) * 3;
+        int b = (at + ((k + 1) % n)) * 3;
+        pos.append(outlinePositions.at(a));
+        pos.append(outlinePositions.at(a + 1));
+        pos.append(outlinePositions.at(a + 2));
+        pos.append(outlinePositions.at(b));
+        pos.append(outlinePositions.at(b + 1));
+        pos.append(outlinePositions.at(b + 2));
+        for (int c = 0; c < 6; c++) {
+            col.append(1.0f);
+        }
+    }
+
+    glDisable(GL_DEPTH_TEST);
+    glLineWidth(2.0f);
+    lineProgram->bind();
+    lineProgram->setUniformValue("uMvp", mvp);
+    lineProgram->enableAttributeArray(0);
+    lineProgram->enableAttributeArray(1);
+    lineProgram->setAttributeArray(0, pos.constData(), 3);
+    lineProgram->setAttributeArray(1, col.constData(), 3);
+    glDrawArrays(GL_LINES, 0, pos.size() / 3);
+    lineProgram->disableAttributeArray(0);
+    lineProgram->disableAttributeArray(1);
+    lineProgram->release();
+    glLineWidth(1.0f);
+    glEnable(GL_DEPTH_TEST);
+}
+
+void RCave3dView::computeCamera(QVector3D& eye, QVector3D& look) const {
+    if (cameraMode == CameraFly && hasFlyPath()) {
+        QVector3D at, ahead;
+        flySample(flyPoints, flyTurns, cameraProgress, at, ahead);
+        QMatrix4x4 turn;
+        turn.rotate(flyYaw, QVector3D(0.0f, 0.0f, 1.0f));
+        QVector3D dir = turn.map(ahead);
+        QVector3D side = QVector3D::crossProduct(dir,
+            QVector3D(0.0f, 0.0f, 1.0f));
+        if (side.lengthSquared() < 1e-12f) {
+            side = QVector3D(1.0f, 0.0f, 0.0f);
+        }
+        QMatrix4x4 tilt;
+        tilt.rotate(flyPitch, side.normalized());
+        eye = at;
+        look = tilt.map(dir).normalized();
+        return;
+    }
+    float useYaw = yaw;
+    if (cameraMode == CameraSpin) {
+        useYaw = spinFromYaw + float(cameraProgress) * 360.0f;
+    }
+    float yawRad = qDegreesToRadians(useYaw);
+    float pitchRad = qDegreesToRadians(pitch);
+    eye = QVector3D(
+        target.x() + distance * std::cos(pitchRad) * std::sin(yawRad),
+        target.y() - distance * std::cos(pitchRad) * std::cos(yawRad),
+        target.z() + distance * std::sin(pitchRad));
+    QVector3D dir = target - eye;
+    look = (dir.lengthSquared() < 1e-12f)
+        ? QVector3D(0.0f, 1.0f, 0.0f) : dir.normalized();
+}
+
+QVector3D RCave3dView::getEye() const {
+    QVector3D eye, look;
+    computeCamera(eye, look);
+    return eye;
+}
+
+QVector3D RCave3dView::getLook() const {
+    QVector3D eye, look;
+    computeCamera(eye, look);
+    return look;
+}
+
 void RCave3dView::setStations(const QVector<QVector3D>& positions,
                               const QStringList& names) {
     if (labels != NULL) {

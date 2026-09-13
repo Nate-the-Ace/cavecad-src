@@ -317,6 +317,17 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     view->setStations(stationPoints, stationNames);
     p->setStationsAvailable(!stationPoints.isEmpty());
 
+    // The passage's cross section at each station, for the white ring
+    // the fly camera draws around itself.
+    QVariantMap outlines = mesh.value("outlines").toMap();
+    QVector<int> outlineCounts;
+    QVariantList countList = outlines.value("counts").toList();
+    for (int i = 0; i < countList.size(); i++) {
+        outlineCounts.append(countList.at(i).toInt());
+    }
+    view->setOutlines(toFloats(outlines.value("positions")), outlineCounts,
+                      toFloats(outlines.value("centres")));
+
     QVariantMap legend = mesh.value("legend").toMap();
     QVector<RCave3dView::LegendStop> stops;
     QVariantList stopList = legend.value("stops").toList();

@@ -121,6 +121,18 @@ public:
         return !trianglePositions.isEmpty() || !linePositions.isEmpty();
     }
 
+    /**
+     * The passage's cross section at each station: one closed loop per
+     * station, with the middle of each.
+     *
+     * The view draws the loop NEAREST THE CAMERA while flying, so a
+     * caver going down the passage can see its shape around them --
+     * which a tube seen from inside cannot show, being all wall.
+     */
+    void setOutlines(const QVector<float>& positions,
+                     const QVector<int>& counts,
+                     const QVector<float>& centres);
+
     void setCameraMode(CameraMode mode);
     CameraMode getCameraMode() const { return cameraMode; }
 
@@ -186,8 +198,15 @@ public:
     /** Where the eye actually ended up last time the camera was built,
      *  and which way it looked. In fly mode neither comes from `target`
      *  and `yaw`, so this is the only way to ask. */
-    QVector3D getEye() const { return lastEye; }
-    QVector3D getLook() const { return lastLook; }
+    QVector3D getEye() const;
+    QVector3D getLook() const;
+
+    /** Where the camera is and what it faces for the state as it
+     *  stands, WITHOUT waiting for a paint. An unfocused window does
+     *  not repaint, so anything that asks after setting the progress --
+     *  a test, or an export -- would otherwise read the last frame
+     *  drawn rather than the one it just asked for. */
+    void computeCamera(QVector3D& eye, QVector3D& look) const;
     void clearGeometry();
 
     void setLegend(const QString& title, const QString& note,
@@ -241,6 +260,8 @@ private:
     void forgetScanTextures();
     void dropScanTextures();
     void drawScans(const QMatrix4x4& mvp);
+    void drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
+                     const QVector3D& look);
 
     /** The camera's own axes at the current yaw and pitch. One source
      *  for framing and for panning: they were derived separately once,
@@ -279,6 +300,9 @@ private:
     QVector<float> flyPoints;
     QVector<int> flyBreaks;
     QVector<int> flyTurns;
+    QVector<float> outlinePositions;
+    QVector<int> outlineCounts;
+    QVector<float> outlineCentres;
     CameraMode cameraMode;
     double cameraProgress;
     /** Where the caver has dragged the view while the camera is flying:
