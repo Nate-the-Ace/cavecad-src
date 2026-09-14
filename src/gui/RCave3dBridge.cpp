@@ -217,6 +217,8 @@ void RCave3dBridge::build(const QString& title) {
                 this, SLOT(onPanelOverlayToggled(QString, bool)));
         connect(panel, SIGNAL(scanInkChanged(double)),
                 this, SLOT(onPanelScanInkChanged(double)));
+        connect(panel, SIGNAL(terrainOpacityChanged(double)),
+                this, SLOT(onPanelTerrainOpacityChanged(double)));
         connect(panel, SIGNAL(cameraModeChanged(QString)),
                 this, SLOT(onPanelCameraModeChanged(QString)));
         connect(panel, SIGNAL(cameraSpeedChanged(double)),
@@ -315,6 +317,25 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     view->setScans(scanPos, toFloats(scans.value("uvs")), scanIdx,
                    scanPaths, scanRuns);
     p->setScansAvailable(!scanPaths.isEmpty());
+
+    // The surface above the cave. Indexed, unlike the passage: a
+    // terrain grid's vertices really are shared, so the indices are
+    // carried across rather than thrown away as the triangles' are.
+    QVariantMap terrain = mesh.value("terrain").toMap();
+    QVector<float> terrainPos = toFloats(terrain.value("positions"));
+    QVector<int> terrainIdx;
+    QVariantList tIdxList = terrain.value("indices").toList();
+    terrainIdx.reserve(tIdxList.size());
+    for (int i = 0; i < tIdxList.size(); i++) {
+        terrainIdx.append(tIdxList.at(i).toInt());
+    }
+    view->setTerrain(terrainPos, toFloats(terrain.value("normals")),
+                     toFloats(terrain.value("uvs")), terrainIdx,
+                     terrain.value("texture").toString());
+    QVariantMap terrainLines = terrain.value("lines").toMap();
+    view->setTerrainLines(toFloats(terrainLines.value("positions")),
+                          toFloats(terrainLines.value("colors")));
+    p->setTerrainAvailable(!terrainIdx.isEmpty());
 
     // The station names, for the labels over the passage.
     QVariantMap stations = mesh.value("stations").toMap();
@@ -727,6 +748,35 @@ void RCave3dBridge::setScanInk(int h, double value) {
     }
 }
 
+void RCave3dBridge::setShowTerrain(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowTerrain(on);
+    }
+}
+
+void RCave3dBridge::setShowTerrainContours(int h, bool on) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setShowTerrainContours(on);
+    }
+}
+
+void RCave3dBridge::setTerrainOpacity(int h, double value) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL) {
+        p->setTerrainOpacity(value);
+    }
+}
+
+double RCave3dBridge::getTerrainOpacity(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return RCave3dView::DEFAULT_TERRAIN_OPACITY;
+    }
+    return p->getView()->getTerrainOpacity();
+}
+
 double RCave3dBridge::getScanInk(int h) {
     RCave3dPanel* p = panelFor(h);
     if (p == NULL || p->getView() == NULL) {
@@ -787,6 +837,12 @@ void RCave3dBridge::onPanelOverlayToggled(const QString& which, bool on) {
 void RCave3dBridge::onPanelScanInkChanged(double value) {
     if (handle != 0) {
         emit scanInkChanged(handle, value);
+    }
+}
+
+void RCave3dBridge::onPanelTerrainOpacityChanged(double value) {
+    if (handle != 0) {
+        emit terrainOpacityChanged(handle, value);
     }
 }
 

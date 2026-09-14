@@ -236,6 +236,15 @@ public:
     Q_INVOKABLE void setScanInk(int handle, double value);
     Q_INVOKABLE double getScanInk(int handle);
 
+    /** The surface above the cave, and its contour lines. */
+    Q_INVOKABLE void setShowTerrain(int handle, bool on);
+    Q_INVOKABLE void setShowTerrainContours(int handle, bool on);
+
+    /** How solid the surface is, 0 to 1. Half by default: an opaque
+     *  hillside hides the cave it is there to relate. */
+    Q_INVOKABLE void setTerrainOpacity(int handle, double value);
+    Q_INVOKABLE double getTerrainOpacity(int handle);
+
     /** Where the camera is: yaw, pitch, distance, target and whether
      *  the caver has moved it. Read only. */
     Q_INVOKABLE QVariantMap getCamera(int handle);
@@ -265,6 +274,9 @@ signals:
     /** The caver moved the ink slider. The view is already showing it;
      *  this is so the add-on can remember the setting. */
     void scanInkChanged(int handle, double value);
+
+    /** The caver moved the surface opacity slider, 0 to 1. */
+    void terrainOpacityChanged(int handle, double value);
 
     /** The caver chose how the camera moves: "manual", "fly" or "spin". */
     void cameraModeChanged(int handle, const QString& mode);
@@ -303,6 +315,7 @@ private slots:
     void onPanelModeChanged(const QString& mode);
     void onPanelOverlayToggled(const QString& which, bool on);
     void onPanelScanInkChanged(double value);
+    void onPanelTerrainOpacityChanged(double value);
     void onPanelCameraModeChanged(const QString& mode);
     void onPanelCameraSpeedChanged(double factor);
     void onPanelExportRequested();

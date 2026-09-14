@@ -34,7 +34,10 @@ const int CAMERA_TICKS = 600;
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
     : QWidget(parent), view(NULL), status(NULL), modeCombo(NULL),
-      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), stationsAction(NULL), flyAction(NULL),
+      fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), terrainAction(NULL),
+      terrainContoursAction(NULL), terrainLabel(NULL), terrainSlider(NULL),
+      terrainLabelAction(NULL), terrainSliderAction(NULL),
+      fillingTerrain(false), stationsAction(NULL), flyAction(NULL),
       spinAction(NULL), speedLabel(NULL), speedSlider(NULL),
       speedLabelAction(NULL), speedSliderAction(NULL), scrubbing(false),
       cameraT(0.0),
@@ -198,6 +201,58 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
             this, SLOT(onScanInkChanged(int)));
     inkSliderAction = row2->addWidget(inkSlider);
     inkSliderAction->setVisible(false);
+
+    // WHAT IS ABOVE THE CAVE. A passage drawn in the dark is a shape
+    // with no place: whether it runs under a ridge, a road or the
+    // valley floor is the first thing anyone asks of it, and the
+    // survey alone cannot say. The surface answers it -- the ground
+    // from 3DEP with the aerial photograph draped over it, standing
+    // where the cave's own datum anchor says it stands.
+    terrainAction = row2->addAction(tr("Terrain"));
+    terrainAction->setCheckable(true);
+    terrainAction->setStatusTip(tr("Show the ground above the cave, with "
+                                   "the aerial photograph draped over it"));
+    connect(terrainAction, &QAction::toggled, [this](bool on) {
+        view->setShowTerrain(on);
+        syncTerrainVisible();
+        emit overlayToggled(QString("terrain"), on);
+    });
+
+    terrainContoursAction = row2->addAction(tr("Contours"));
+    terrainContoursAction->setCheckable(true);
+    terrainContoursAction->setStatusTip(tr("Draw the surface contour lines "
+                                           "on the ground above the cave"));
+    connect(terrainContoursAction, &QAction::toggled, [this](bool on) {
+        view->setShowTerrainContours(on);
+        emit overlayToggled(QString("terraincontours"), on);
+    });
+
+    // HOW SOLID THE HILL IS. The whole point of the surface is relating
+    // the cave to what is over it, and an opaque hillside hides the
+    // cave completely -- so this is not a decoration. How far it has to
+    // come down depends on the photograph: bare rock reads through at
+    // a glance, dark forest needs winding well back.
+    //
+    // ONLY WHILE TERRAIN IS ON, for the reason the ink slider is: a
+    // dead control in a crowded toolbar is a question the caver has to
+    // answer every time they look at it.
+    terrainLabel = new QLabel(tr("Surface"), this);
+    terrainLabel->setContentsMargins(6, 0, 2, 0);
+    terrainLabelAction = row2->addWidget(terrainLabel);
+    terrainLabelAction->setVisible(false);
+
+    terrainSlider = new QSlider(Qt::Horizontal, this);
+    terrainSlider->setObjectName("Cave3dTerrainSlider");
+    terrainSlider->setStatusTip(tr("Drag left to see the cave through the "
+                                   "hill, right to read the ground"));
+    terrainSlider->setRange(0, 100);
+    terrainSlider->setValue(int(RCave3dView::DEFAULT_TERRAIN_OPACITY
+                                * 100.0));
+    terrainSlider->setMaximumWidth(110);
+    connect(terrainSlider, SIGNAL(valueChanged(int)),
+            this, SLOT(onTerrainOpacityChanged(int)));
+    terrainSliderAction = row2->addWidget(terrainSlider);
+    terrainSliderAction->setVisible(false);
 
     // WHERE AM I? A passage seen in three dimensions is a shape without
     // a name on it, and the question a cartographer asks of it first is
@@ -587,6 +642,70 @@ void RCave3dPanel::syncInkVisible() {
                && scansAction->isChecked());
     if (inkLabelAction != NULL) { inkLabelAction->setVisible(on); }
     if (inkSliderAction != NULL) { inkSliderAction->setVisible(on); }
+}
+
+void RCave3dPanel::setTerrainAvailable(bool available) {
+    if (terrainAction == NULL) {
+        return;
+    }
+    terrainAction->setEnabled(available);
+    if (terrainContoursAction != NULL) {
+        terrainContoursAction->setEnabled(available);
+    }
+    if (!available) {
+        if (terrainAction->isChecked()) {
+            terrainAction->setChecked(false);
+        }
+        if (terrainContoursAction != NULL &&
+                terrainContoursAction->isChecked()) {
+            terrainContoursAction->setChecked(false);
+        }
+    }
+    syncTerrainVisible();
+}
+
+void RCave3dPanel::setShowTerrain(bool on) {
+    if (terrainAction != NULL && terrainAction->isEnabled()) {
+        terrainAction->setChecked(on);
+    }
+    syncTerrainVisible();
+}
+
+void RCave3dPanel::setShowTerrainContours(bool on) {
+    if (terrainContoursAction != NULL &&
+            terrainContoursAction->isEnabled()) {
+        terrainContoursAction->setChecked(on);
+    }
+}
+
+void RCave3dPanel::setTerrainOpacity(double value) {
+    if (terrainSlider == NULL) {
+        return;
+    }
+    fillingTerrain = true;
+    terrainSlider->setValue(int(value * 100.0 + 0.5));
+    fillingTerrain = false;
+    // Straight to the view as well: the slider clamps into its own
+    // range, and the two must not disagree.
+    view->setTerrainOpacity(terrainSlider->value() / 100.0);
+}
+
+void RCave3dPanel::onTerrainOpacityChanged(int value) {
+    view->setTerrainOpacity(value / 100.0);
+    if (fillingTerrain) {
+        return;
+    }
+    emit terrainOpacityChanged(value / 100.0);
+}
+
+/** The opacity slider belongs to the terrain, so it appears and goes
+ *  with it -- and, like the ink slider, is synced as well as connected,
+ *  because setChecked on an already-checked action emits nothing. */
+void RCave3dPanel::syncTerrainVisible() {
+    bool on = (terrainAction != NULL && terrainAction->isEnabled()
+               && terrainAction->isChecked());
+    if (terrainLabelAction != NULL) { terrainLabelAction->setVisible(on); }
+    if (terrainSliderAction != NULL) { terrainSliderAction->setVisible(on); }
 }
 
 void RCave3dPanel::onPlayToggled(bool on) {

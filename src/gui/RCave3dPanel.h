@@ -95,6 +95,17 @@ public:
     /** Greys the Scans toggle when the drawing holds none. */
     void setScansAvailable(bool available);
 
+    void setShowTerrain(bool on);
+    void setShowTerrainContours(bool on);
+    /** Greys both terrain toggles when the drawing has no elevation
+     *  grid beside it -- which means Surface Data has not been run,
+     *  not that anything failed here. */
+    void setTerrainAvailable(bool available);
+    /** Where the opacity slider sits, 0 to 1. Does NOT emit
+     *  terrainOpacityChanged: filling a control in is not the caver
+     *  moving it. */
+    void setTerrainOpacity(double value);
+
     void setShowStations(bool on);
     /** Greys the Stations toggle when the mesh carried no names. */
     void setStationsAvailable(bool available);
@@ -128,6 +139,11 @@ signals:
      *  the view is already showing it by the time this arrives. */
     void scanInkChanged(double value);
 
+    /** The caver moved the terrain opacity slider, 0 to 1. Emitted so
+     *  the script side can remember it; the view is already showing it
+     *  by the time this arrives. */
+    void terrainOpacityChanged(double value);
+
     /** The caver picked a way for the camera to move on its own. */
     void cameraModeChanged(const QString& mode);
 
@@ -145,6 +161,7 @@ private slots:
     void onPlayTick();
     void onProgressChanged(int value);
     void onScanInkChanged(int value);
+    void onTerrainOpacityChanged(int value);
     void showCameraT();
 
 private slots:
@@ -153,6 +170,7 @@ private slots:
 
 private:
     void syncInkVisible();
+    void syncTerrainVisible();
 
 private slots:
 
@@ -170,6 +188,17 @@ private:
     QAction* leadsAction;
     QAction* sectionsAction;
     QAction* scansAction;
+    QAction* terrainAction;
+    QAction* terrainContoursAction;
+    QLabel* terrainLabel;
+    QSlider* terrainSlider;
+    /** What QToolBar::addWidget handed back: a widget in a toolbar is
+     *  shown and hidden through ITS ACTION, never through the widget. */
+    QAction* terrainLabelAction;
+    QAction* terrainSliderAction;
+    /** True while setTerrainOpacity is moving the slider, so a
+     *  programmatic fill is not mistaken for the caver dragging it. */
+    bool fillingTerrain;
     QAction* stationsAction;
     QAction* flyAction;
     QAction* spinAction;

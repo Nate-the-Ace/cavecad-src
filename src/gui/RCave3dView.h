@@ -96,6 +96,44 @@ public:
                   const QVector<int>& runs);
     void setShowScans(bool on);
 
+    /**
+     * The surface above the cave: a 3DEP elevation grid as an indexed
+     * triangle mesh, with the aerial photograph draped over it.
+     *
+     * INDEXED, unlike everything else here. A passage mesh shares no
+     * vertices (flat normals need one per corner); a terrain grid's
+     * interior vertices belong to six triangles each and carry one
+     * smooth normal, so sharing them is a six-fold saving on the
+     * buffer that crosses the script bridge.
+     *
+     * `texture` may be empty -- a drawing with an elevation grid but no
+     * aerial photograph still gets a shaded surface.
+     */
+    void setTerrain(const QVector<float>& positions,
+                    const QVector<float>& normals,
+                    const QVector<float>& uvs,
+                    const QVector<int>& indices,
+                    const QString& texture);
+
+    /** The surface contour lines, as GL_LINES pairs already sitting at
+     *  their own elevation on the mesh. */
+    void setTerrainLines(const QVector<float>& positions,
+                         const QVector<float>& colors);
+
+    void setShowTerrain(bool on);
+    void setShowTerrainContours(bool on);
+    bool hasTerrain() const { return !terrainIndices.isEmpty(); }
+
+    /** How solid the surface is, 0 (invisible) to 1 (opaque).
+     *
+     *  The whole point of the terrain is relating the cave to what is
+     *  above it, and an opaque hillside hides the cave completely. The
+     *  right value depends on the photograph -- bare rock reads at a
+     *  glance, dark forest needs more -- so it is the caver's to set. */
+    void setTerrainOpacity(double value);
+    double getTerrainOpacity() const { return terrainOpacity; }
+    static const double DEFAULT_TERRAIN_OPACITY;
+
     /** Station names written over the passage. Positions are world
      *  coordinates; the two lists run together. */
     void setStations(const QVector<QVector3D>& positions,
@@ -261,6 +299,10 @@ private:
     void dropScanTextures();
     void drawScene(const QMatrix4x4& mvp);
     void drawScans(const QMatrix4x4& mvp);
+    void drawTerrain(const QMatrix4x4& mvp);
+    void uploadTerrainTexture();
+    void forgetTerrainTexture();
+    void dropTerrainTexture();
     void drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
                      const QVector3D& look);
 
@@ -274,6 +316,7 @@ private:
     QOpenGLShaderProgram* surfaceProgram;
     QOpenGLShaderProgram* lineProgram;
     QOpenGLShaderProgram* scanProgram;
+    QOpenGLShaderProgram* terrainProgram;
 
     // Interleaved-free, one array per attribute: this is what the
     // script side already produces, and repacking it here would cost a
@@ -298,6 +341,19 @@ private:
     QList<RCave3dTexture*> scanTextures;
     bool showScans;
     double scanInk;
+
+    QVector<float> terrainPositions;
+    QVector<float> terrainNormals;
+    QVector<float> terrainUvs;
+    QVector<int> terrainIndices;
+    QVector<float> terrainLinePositions;
+    QVector<float> terrainLineColors;
+    QString terrainTexturePath;
+    RCave3dTexture* terrainTexture;
+    bool terrainNeedsUpload;
+    bool showTerrain;
+    bool showTerrainContours;
+    double terrainOpacity;
     QVector<float> flyPoints;
     QVector<int> flyBreaks;
     QVector<int> flyTurns;

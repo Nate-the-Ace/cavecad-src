@@ -116,6 +116,42 @@ const char* SCAN_FRAGMENT =
     "    gl_FragColor = vec4(c.rgb, aInk);\n"
     "}\n";
 
+// The surface above the cave: lit like the passage, textured with the
+// aerial photograph where there is one, and blended so the cave reads
+// through it.
+const char* TERRAIN_VERTEX =
+    "attribute highp vec3 aPos;\n"
+    "attribute highp vec3 aNormal;\n"
+    "attribute highp vec2 aUv;\n"
+    "uniform highp mat4 uMvp;\n"
+    "varying highp vec2 vUv;\n"
+    "varying highp vec3 vNormal;\n"
+    "void main() {\n"
+    "    vUv = aUv;\n"
+    "    vNormal = aNormal;\n"
+    "    gl_Position = uMvp * vec4(aPos, 1.0);\n"
+    "}\n";
+
+const char* TERRAIN_FRAGMENT =
+    "varying highp vec2 vUv;\n"
+    "varying highp vec3 vNormal;\n"
+    "uniform sampler2D uTex;\n"
+    "uniform highp float uHasTex;\n"
+    "uniform highp float uOpacity;\n"
+    "uniform highp vec3 uLightDir;\n"
+    "uniform highp vec3 uFlatColor;\n"
+    "void main() {\n"
+    "    lowp vec3 base = uFlatColor;\n"
+    "    if (uHasTex > 0.5) { base = texture2D(uTex, vUv).rgb; }\n"
+    // Shaded even under a photograph. An aerial is lit from wherever
+    // the sun was that day, which is rarely where the relief reads --
+    // a hillside flat-lit by its own texture looks like a rug. The
+    // shading is kept gentle so it does not fight the photograph.
+    "    highp float shade = 0.60 + 0.40 *\n"
+    "        max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);\n"
+    "    gl_FragColor = vec4(base * shade, uOpacity);\n"
+    "}\n";
+
 const char* LINE_VERTEX =
     "attribute highp vec3 aPos;\n"
     "attribute lowp vec3 aColor;\n"
@@ -139,6 +175,7 @@ RCave3dView::RCave3dView(QWidget* parent)
       surfaceProgram(NULL),
       lineProgram(NULL),
       scanProgram(NULL),
+      terrainProgram(NULL),
       boundsMin(-1.0f, -1.0f, -1.0f),
       boundsMax(1.0f, 1.0f, 1.0f),
       yaw(0.0f),
@@ -152,6 +189,11 @@ RCave3dView::RCave3dView(QWidget* parent)
       showSections(false),
       showScans(false),
       scanInk(RCave3dView::DEFAULT_SCAN_INK),
+      terrainTexture(NULL),
+      terrainNeedsUpload(false),
+      showTerrain(false),
+      showTerrainContours(false),
+      terrainOpacity(RCave3dView::DEFAULT_TERRAIN_OPACITY),
       cameraMode(RCave3dView::CameraManual), cameraProgress(0.0),
       flyYaw(0.0f), flyPitch(0.0f), spinFromYaw(0.0f),
       scansNeedUpload(false),
@@ -232,8 +274,11 @@ void RCave3dView::initializeGL() {
     surfaceProgram = NULL;
     lineProgram = NULL;
     scanProgram = NULL;
+    terrainProgram = NULL;
     forgetScanTextures();
+    forgetTerrainTexture();
     scansNeedUpload = !scanPaths.isEmpty();
+    terrainNeedsUpload = !terrainTexturePath.isEmpty();
 
     if (context() != NULL) {
         connect(context(), SIGNAL(aboutToBeDestroyed()),
@@ -286,7 +331,21 @@ void RCave3dView::initializeGL() {
                    << scanProgram->log();
     }
 
+    terrainProgram = new QOpenGLShaderProgram();
+    terrainProgram->addShaderFromSourceCode(QOpenGLShader::Vertex,
+                                            TERRAIN_VERTEX);
+    terrainProgram->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                            TERRAIN_FRAGMENT);
+    terrainProgram->bindAttributeLocation("aPos", 0);
+    terrainProgram->bindAttributeLocation("aNormal", 1);
+    terrainProgram->bindAttributeLocation("aUv", 2);
+    if (!terrainProgram->link()) {
+        qWarning() << "RCave3dView: terrain shader did not link:"
+                   << terrainProgram->log();
+    }
+
     uploadScanTextures();
+    uploadTerrainTexture();
 }
 
 void RCave3dView::resizeGL(int w, int h) {
@@ -652,6 +711,11 @@ void RCave3dView::drawScene(const QMatrix4x4& mvp) {
 
     drawScans(mvp);
 
+    // LAST, AND OVER EVERYTHING. The surface is transparent, so it has
+    // to be blended against a scene that is already drawn -- and it is
+    // the one thing here that is genuinely above the cave.
+    drawTerrain(mvp);
+
     // WHILE FLYING ONLY. Orbiting the cave from outside, a ring round
     // one station is a hoop in mid air that says nothing.
     if (cameraMode == CameraFly) {
@@ -670,7 +734,10 @@ void RCave3dView::onContextAboutToBeDestroyed() {
     lineProgram = NULL;
     delete scanProgram;
     scanProgram = NULL;
+    delete terrainProgram;
+    terrainProgram = NULL;
     dropScanTextures();
+    dropTerrainTexture();
     doneCurrent();
 }
 
@@ -756,6 +823,133 @@ void RCave3dView::drawScans(const QMatrix4x4& mvp) {
     glDisable(GL_BLEND);
 }
 
+/** See initializeGL: a texture whose context has gone is forgotten,
+ *  never deleted. */
+void RCave3dView::forgetTerrainTexture() {
+    terrainTexture = NULL;
+}
+
+void RCave3dView::dropTerrainTexture() {
+    delete terrainTexture;
+    terrainTexture = NULL;
+}
+
+void RCave3dView::uploadTerrainTexture() {
+    dropTerrainTexture();
+    terrainNeedsUpload = false;
+    if (terrainTexturePath.isEmpty()) {
+        return;
+    }
+    terrainTexture = new RCave3dTexture(terrainTexturePath);
+    if (!terrainTexture->upload()) {
+        // Not fatal: the mesh still draws, shaded, with no photograph
+        // on it. Say which of the two the caver is looking at.
+        qWarning() << "RCave3dView: could not load the aerial photograph"
+                   << terrainTexturePath;
+    }
+}
+
+void RCave3dView::drawTerrain(const QMatrix4x4& mvp) {
+    if (!showTerrain || terrainIndices.isEmpty()) {
+        return;
+    }
+    if (terrainNeedsUpload) {
+        uploadTerrainTexture();
+    }
+
+    if (terrainProgram != NULL && terrainProgram->isLinked()) {
+        // BLENDED, AND NOT WRITING DEPTH. Depth TESTING stays on, so
+        // anything genuinely in front of the hillside still covers it --
+        // but a transparent surface that wrote depth would stop the
+        // cave behind it from ever being drawn, which is the whole
+        // reason the surface is transparent.
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+
+        bool textured = (terrainTexture != NULL && terrainTexture->bind());
+        terrainProgram->bind();
+        terrainProgram->setUniformValue("uMvp", mvp);
+        terrainProgram->setUniformValue("uLightDir",
+                                        QVector3D(0.3f, 0.4f, 0.87f));
+        terrainProgram->setUniformValue("uOpacity",
+                                        GLfloat(terrainOpacity));
+        terrainProgram->setUniformValue("uHasTex",
+                                        GLfloat(textured ? 1.0f : 0.0f));
+        // The ground with no photograph over it: a dry, pale earth that
+        // reads as surface rather than as more cave.
+        terrainProgram->setUniformValue("uFlatColor",
+                                        QVector3D(0.55f, 0.50f, 0.42f));
+        terrainProgram->setUniformValue("uTex", 0);
+        terrainProgram->enableAttributeArray(0);
+        terrainProgram->enableAttributeArray(1);
+        terrainProgram->enableAttributeArray(2);
+        terrainProgram->setAttributeArray(0, terrainPositions.constData(), 3);
+        terrainProgram->setAttributeArray(1, terrainNormals.constData(), 3);
+        terrainProgram->setAttributeArray(2, terrainUvs.constData(), 2);
+        glDrawElements(GL_TRIANGLES, terrainIndices.size(),
+                       GL_UNSIGNED_INT, terrainIndices.constData());
+        terrainProgram->disableAttributeArray(0);
+        terrainProgram->disableAttributeArray(1);
+        terrainProgram->disableAttributeArray(2);
+        terrainProgram->release();
+
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+
+    // The contour lines go on at full strength, after the surface and
+    // writing depth like any other line: they are the one part of the
+    // terrain that has to stay readable at every opacity, including
+    // zero, where they are all that is left of the hillside.
+    drawFlatLines(mvp, terrainLinePositions, terrainLineColors,
+                  showTerrainContours);
+}
+
+void RCave3dView::setTerrain(const QVector<float>& positions,
+                             const QVector<float>& normals,
+                             const QVector<float>& uvs,
+                             const QVector<int>& indices,
+                             const QString& texture) {
+    terrainPositions = positions;
+    terrainNormals = normals;
+    terrainUvs = uvs;
+    terrainIndices = indices;
+    if (texture != terrainTexturePath) {
+        terrainTexturePath = texture;
+        terrainNeedsUpload = true;
+    }
+    update();
+}
+
+void RCave3dView::setTerrainLines(const QVector<float>& positions,
+                                  const QVector<float>& colors) {
+    terrainLinePositions = positions;
+    terrainLineColors = colors;
+    update();
+}
+
+void RCave3dView::setShowTerrain(bool on) {
+    showTerrain = on;
+    update();
+}
+
+void RCave3dView::setShowTerrainContours(bool on) {
+    showTerrainContours = on;
+    update();
+}
+
+void RCave3dView::setTerrainOpacity(double value) {
+    if (value < 0.0) {
+        value = 0.0;
+    }
+    if (value > 1.0) {
+        value = 1.0;
+    }
+    terrainOpacity = value;
+    update();
+}
+
 void RCave3dView::setScans(const QVector<float>& positions,
                            const QVector<float>& uvs,
                            const QVector<int>& indices,
@@ -778,6 +972,11 @@ void RCave3dView::setShowScans(bool on) {
 const float RCave3dView::FOV_DEGREES = 45.0f;
 
 const double RCave3dView::DEFAULT_SCAN_INK = 0.62;
+
+// Half solid: enough of the photograph to recognise the ground, enough
+// through it to see the cave under the hill. The caver changes it; this
+// is only where the slider starts.
+const double RCave3dView::DEFAULT_TERRAIN_OPACITY = 0.5;
 const double RCave3dView::MIN_SCAN_INK = 0.20;
 const double RCave3dView::MAX_SCAN_INK = 0.95;
 
