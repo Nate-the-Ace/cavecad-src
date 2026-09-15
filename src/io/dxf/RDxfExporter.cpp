@@ -630,10 +630,15 @@ void RDxfExporter::writeLinetype(const RLinetypePattern& lt) {
 void RDxfExporter::writeLayer(const RLayer& l) {
     qDebug() << "RDxfExporter::writeLayer: " << l.getName();
 
-    int colorSign = 1;
-    if (l.isOff()) {
-        colorSign = -1;
-    }
+    // NOTE (CaveCAD, 2026-09-15): the colour is NOT negated here.
+    // DXF says a layer is off by writing its colour negative, and
+    // dxflib's DL_Dxf::writeLayer already does exactly that when
+    // DL_LayerData::off is set -- so negating it here as well flipped
+    // it back to positive and every OFF layer was written as ON.
+    // Measured: a layer switched off, exported and re-imported came
+    // back on, while FROZEN and LOCKED survived. It also skipped
+    // dxflib's own "colour must be < 256" clamp, which cannot fire on
+    // a negative number.
 
     QSharedPointer<RLinetype> lt = document->queryLinetype(l.getLinetypeId());
     if (lt.isNull()) {
@@ -646,7 +651,7 @@ void RDxfExporter::writeLayer(const RLayer& l) {
         DL_LayerData((const char*)RDxfExporter::escapeUnicode(l.getName()),
                      l.isFrozen() + (l.isLocked()<<2), l.isOff()),
         DL_Attributes(std::string(""),
-                      colorSign * RDxfServices::colorToNumber(l.getColor(), dxfColors),
+                      RDxfServices::colorToNumber(l.getColor(), dxfColors),
                       RDxfServices::colorToNumber24(l.getColor()),
                       RDxfServices::widthToNumber(l.getLineweight()),
                       (const char*)RDxfExporter::escapeUnicode(lt->getName())));

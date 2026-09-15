@@ -259,11 +259,21 @@ void RDxfImporter::addLayer(const DL_LayerData& data) {
     }
 
     QSharedPointer<RLayer> layer(
+                // OFF AND FROZEN ARE KEPT APART (CaveCAD, 2026-09-15).
+                // This used to pass `frozen || off` as the frozen flag
+                // -- the upstream comment said "only support one flag
+                // for visibility for CE" -- so a layer somebody had
+                // merely switched OFF came back FROZEN as well. The two
+                // are not the same thing here: both hide a layer
+                // (visibility goes through RStorage::isLayerOffOrFrozen,
+                // which honours off on its own), but a FROZEN layer
+                // also refuses edits in silence, and the Cave Survey
+                // tools have been bitten by exactly that -- a delete
+                // that quietly does nothing.
                 new RLayer(
                     document,
                     layerName,
-                    // only support one flag for visibility for CE:
-                    frozen || off,
+                    frozen,
                     false,
                     color,
                     linetypeId,
