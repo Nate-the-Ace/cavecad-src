@@ -64,42 +64,84 @@ Manager follows that precedent exactly, so the entire feature is JavaScript.
 
 ## Storage
 
-Membership and per-state flags live **on the layer object**, in QCAD custom
-properties (`RObject::setCustomProperty`, already used by `BlockList` for
-`QCAD`/`ResourceFlag`, so the mechanism is proven to round-trip).
+Everything lives in **one document-level blob**, chunked across document
+variables. That is a measurement, not a preference.
 
+The design this spec originally called for put a layer's memberships on the
+layer, in QCAD custom properties, so a deleted layer took its memberships
+with it and no repair pass could ever be forgotten. It does not survive a
+save. `RDxfExporter::writeLayer` (`RDxfExporter.cpp:630`) writes a layer's
+name, flags, colour, lineweight and linetype and nothing else, so layer
+XDATA never reaches the file. Measured 2026-09-16: exported a drawing with
+two groups filed, re-imported it, and read the memberships back empty while
+the document variables came through untouched. The alternative was teaching
+the exporter and dxflib to carry layer XDATA — C++ in a 3rdparty vendor
+library, a rebuild of both ninja trees, a re-sign, and a private DXF
+extension no other CAD would read — against a JavaScript change that is
+already proven to persist.
+
+Stored shape, terse because it is written into a DXF:
+
+```json
+{"v":1,
+ "l":["0","CTRL-SHOTS"],
+ "g":[{"n":"Plan work","m":[1]}],
+ "s":[{"n":"Plan only","c":"000110"}]}
 ```
-layer.setCustomProperty("CaveCAD", "Groups", "Plan work|Trip 3 edits")
-layer.setCustomProperty("CaveCAD", "State:Plan only", "010")   // off, frozen, locked
+
+`l` is a layer name table; groups reference it by index; a state is one
+string of three characters per table entry (`---` where the state has no
+entry for that layer). The table travels inside the same blob as the
+indices that reference it, written and read in one go, so the two cannot
+drift apart. A state of 300 layers costs 900 characters instead of the
+~8 KB an explicit name-to-code map would.
+
+Callers never see indices. In memory:
+
+```js
+{ groups: [ { name: "Plan work", members: ["CTRL-SHOTS"] } ],
+  states: [ { name: "Plan only", flags: { "CTRL-SHOTS": "110" } } ] }
 ```
 
-Consequences, all of them wanted:
+**The price is a sweep.** Membership is keyed by layer name, so a layer
+renamed or deleted through QCAD's own layer list leaves its name behind.
+`readRegistry` sweeps against the document's real layer names on every
+read, so a stale entry never reaches the tree and there is no repair
+command to forget to run. The sweep is not written back — a read is not the
+place to modify a document, and stale names are invisible until the next
+write drops them. Verified live: renaming a layer behind the palette's back
+took it out of its group on the next refresh.
 
-- Deleting a layer deletes its memberships and its state entries with it.
-  There is no orphan sweep to write and none to forget to run.
-- Renaming a layer keeps them, because it is the same `RLayer` object.
-- Group and state names may not contain `|`. The New/Rename dialogs reject it.
+**Chunking is mandatory, not cautious.** `RDxfExporter` writes document
+variables as XRecords into `QCAD_OBJECTS` (`RDxfExporter.cpp:409`) and
+dxflib's reader dies at 1024 characters on one line, silently dropping the
+rest of that section — the bug that made image xrefs vanish on save. This
+blob holds every layer name a group or state mentions, so on a real cave it
+is guaranteed to pass the limit. Chunks are capped at 800 characters. A
+real drawing measured seven chunks.
 
-The document registry holds only what a layer cannot: the ordered list of
-group names (so an emptied group survives), the ordered list of state names,
-and per-group collapsed flags. It is serialized to JSON and written to
-document variables **chunked into pieces of at most 800 characters**
-(`CaveCADLayerManager0..N`, plus a count variable).
-
-The chunking is not caution for its own sake. `RDxfExporter` writes document
-variables as XRecords into the `QCAD_OBJECTS` section (`RDxfExporter.cpp:409`),
-and a single DXF line longer than 1023 characters desynchronises dxflib and
-silently drops the remainder of that very section — the bug that made image xrefs vanish on save. Group names are
-user-typed text of unbounded length, so the registry is exactly the kind of
-value that would reach that limit and fail quietly.
+**Group edits are not undoable.** Document variables are not transactional.
+Filing a layer changes no geometry, and an undo of an unrelated drawing edit
+that silently unfiled a layer would be the more surprising of the two
+behaviours. The modified flag is set explicitly, so a drawing whose only
+change was a renamed group still offers to save.
 
 ## The tree
 
-Three columns: **name | eye | lock**.
+Three columns: **name | eye | lock**, in that order, name first.
 
 This replaces the stock list's single 32×16 composite icon and its
 `x < iconSize/2` hit test. `itemColumnClicked` reports the column directly,
 so the hit test disappears rather than being ported.
+
+Name first is forced, not stylistic. A tree draws its indentation and
+expand arrow inside column 0: with an icon there, every child row's icon
+was squeezed out of the 22px column and simply did not appear, while the
+group rows at depth 0 drew theirs fine. Measured in the running GUI —
+widening column 0 to 60px brought the missing icons back. Putting the text
+in column 0 lets the indentation eat text, which is what indentation is
+for. (`BlockList` puts its icons first because it is a flat list with
+`indentation = 0`.)
 
 - Top level is your groups, in registry order, then `Ungrouped` last.
 - `Ungrouped` holds every layer with no membership. It cannot be renamed or
@@ -139,11 +181,14 @@ Context menu on the tree, mirrored by buttons in the `.ui`:
 - Add Selected Layers To ▸ (submenu of existing groups, plus New Group…)
 - Remove From This Group
 
-Dragging selected layers onto a group row files them there. This is a
-convenience, not the mechanism: it is unclear whether `dropEvent` can be
-overridden through QCAD's JS bindings, and that question is answered during
-implementation rather than assumed. If it cannot, drag and drop is dropped
-and the context menu carries the feature unchanged — no redesign follows.
+**No drag and drop.** The question was whether `dropEvent` could be
+overridden from script; it cannot. `qcadjsapi`'s `rtreewidget_wrapper.cpp`
+forwards exactly five virtuals — `contextMenuEvent`, `mousePressEvent`,
+`mouseReleaseEvent`, `mouseMoveEvent`, `resizeEvent` — so a drop would
+silently do nothing. The context menu carries the feature, as the fallback
+said it would. (Checked first against `src/scripting/ecmaapi`, which is
+vestigial upstream code that is not in the build graph; the live binding is
+`qcadjsapi`.)
 
 ## Layer states
 
@@ -161,13 +206,29 @@ A combo box at the foot of the palette with Save, Update and Delete.
 
 ## Cave Survey side
 
-A tool in `cavecad-tools` that builds starter groups from the `CsLayers`
-registry: Plan, Profile, Section, Notes, Control, Scans & Basemap. It ships
-through `publish.sh` like every other Cave Survey change.
+**Group Layers** (`gl`), in `cavecad-tools`, with the classifier in
+`Core/CsLayerGroups.js`. Six groups, not the seven first sketched: Plan,
+Profile, Sections, Survey control, Scans & basemap, Sheet.
 
-It is idempotent — re-running it refiles the registry layers and leaves any
-group you made by hand alone. The fork itself stays generic; nothing in
-`scripts/Widgets/LayerManager/` knows the word "cave".
+Notes lost their group. `PROFILE-NOTES-DIG` belongs with the profile a
+caver is working on, not in a pile of notes from three views, and a "Notes"
+group that held only plan notes would have been a worse answer than none.
+The classifier reuses `CsLayers.frameOf` rather than re-deriving the frame,
+with two rules on top: `CTRL-` beats the frame (the survey skeleton goes
+off in all three views at once), and scans and basemap beat `CTRL-` (they
+are tracing sources, not control, and several of them carry the prefix).
+
+It only ever adds. Re-running picks up layers created since — per-run
+variants land with their base for free, because a variant's token goes last
+and its prefix still reads — and leaves every hand-made group and every
+hand-filed layer alone. There is no reset to defaults: the groups are the
+caver's the moment it has run once.
+
+It refuses a sheet, like every other tool in the suite that writes, and
+says so plainly when the build has no Layer Manager to store groups in.
+
+The fork itself stays generic; nothing in `scripts/Widgets/LayerManager/`
+knows the word "cave".
 
 ## Testing
 
@@ -184,12 +245,24 @@ asserted.
 
 Covered by unit tests:
 
-- Membership round-trips: set, read, add a second group, remove one.
-- Registry survives a group being emptied.
-- Chunking: a registry long enough to need several chunks reassembles
-  identically, and no chunk exceeds 800 characters.
-- Group names containing `|` are rejected.
-- State capture and restore, including a layer absent from the state.
+- Membership: file, re-file, unfile, and a layer in two groups at once.
+- An emptied group still exists; renaming onto an existing group merges.
+- The sweep drops a layer the document no longer has, from groups and from
+  every state.
+- Round trip through the stored form, including an empty group, and the
+  shape of that form: a code string is exactly three characters per table
+  entry.
+- Chunking at real scale — 300 layers and a full state — reassembles
+  identically, no chunk exceeds 800 characters, and shrinking the registry
+  removes the chunks it no longer needs.
+- A truncated blob reads as empty rather than throwing; an out-of-range
+  member index is discarded rather than resolved.
+- Flag codes: encode, apply, and applying a state a layer already matches.
+- `LayerStates.apply` is still `Function.prototype.apply` — asserted so
+  that renaming `applyCode` back fails here rather than in the GUI.
+- `CsLayerGroups.classify` on every layer in the registry, including the
+  order-dependent cases: scans beat `CTRL-`, `CTRL-` beats the frame, and
+  the section cut mark stays with the plan.
 
 Tree, filter and drag behaviour are verified live in a running CaveCAD
 through the `cavecad` MCP bridge. Per the live-restart trap, each check

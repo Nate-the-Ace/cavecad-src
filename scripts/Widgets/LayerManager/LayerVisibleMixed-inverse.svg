@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" version="1.1">
+  <path style="fill:#6a6a6a;stroke:#ffffff;stroke-width:16;stroke-linejoin:round" d="M 32,256 C 96,144 176,96 256,96 336,96 416,144 480,256 416,368 336,416 256,416 176,416 96,368 32,256 Z M 256,160 C 203,160 160,203 160,256 c 0,53 43,96 96,96 53,0 96,-43 96,-96 0,-53 -43,-96 -96,-96 z"/>
+  <path style="fill:#323232;stroke:#ffffff;stroke-width:16;stroke-linejoin:round" d="M 176,232 h 160 v 48 h -160 z"/>
+</svg>
