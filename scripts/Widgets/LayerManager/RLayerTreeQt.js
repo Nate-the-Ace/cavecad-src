@@ -691,6 +691,10 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
     // and the highlight showed another.
     var wasSelected = this.selectedNames();
 
+    // Dropped so the inactive colour is mixed again from the palette
+    // this rebuild sees, which is what makes it follow a theme change.
+    this.dimmed = undefined;
+
     this.blockSignals(true);
     this.clear();
 
@@ -805,6 +809,27 @@ RLayerTreeQt.prototype.addGroup = function(name, label, members, layers, collaps
     font.setBold(true);
     item.setFont(RLayerTreeQt.colName, font);
 
+    // A group holding none of the isolated layers is inactive as a
+    // whole, and saying so saves the caver expanding six groups to
+    // find out that nothing in them is showing.
+    var isolatedHere = LayerGroups.isolatedLayers(this.registry);
+    if (isolatedHere.length>0) {
+        // The Ungrouped row is not a group and membersUnder knows
+        // nothing about it, so it is asked what it was actually given
+        // -- otherwise isolating an unfiled layer would dim the very
+        // row that holds it.
+        var under = this.isRealGroup(name) ?
+            LayerGroups.membersUnder(this.registry, name) :
+            (isNull(members) ? [] : members);
+        var holds = false;
+        for (var ih=0; ih<isolatedHere.length && !holds; ih++) {
+            holds = under.indexOf(isolatedHere[ih])>=0;
+        }
+        if (!holds) {
+            this.dimItem(item);
+        }
+    }
+
     if (isNull(parentItem)) {
         this.addTopLevelItem(item);
     }
@@ -878,6 +903,47 @@ RLayerTreeQt.prototype.ungroupedLabel = function() {
     return (isNull(label) || String(label).length===0) ? qsTr("Ungrouped") : String(label);
 };
 
+/**
+ * The colour an inactive row is painted while something is isolated.
+ *
+ * BLENDED, NOT THE THEME'S DISABLED ROLE. Measured in the running app:
+ * this style reports the same #ffffff for QPalette.Disabled.Text as for
+ * the active one, so painting with the disabled role would grey nothing
+ * at all and the feature would look unimplemented. Mixing the text
+ * colour halfway into the background it sits on works in a dark theme
+ * and a light one alike, and follows a theme change for free because it
+ * is recomputed on every rebuild.
+ */
+RLayerTreeQt.prototype.dimBrush = function() {
+    if (!isNull(this.dimmed)) {
+        return this.dimmed;
+    }
+    var grey = new QColor(128, 128, 128);
+    try {
+        var pal = this.palette;
+        var text = pal.color(QPalette.Active, QPalette.Text);
+        var back = pal.color(QPalette.Active, QPalette.Base);
+        grey = new QColor(
+            Math.round((text.red() + back.red()) / 2),
+            Math.round((text.green() + back.green()) / 2),
+            Math.round((text.blue() + back.blue()) / 2));
+    }
+    catch (e) {
+        // A build whose palette roles this bridge will not hand over
+        // gets a mid grey, which is wrong in neither theme.
+    }
+    this.dimmed = new QBrush(grey);
+    return this.dimmed;
+};
+
+/** Paints every column of \c item in the inactive colour. */
+RLayerTreeQt.prototype.dimItem = function(item) {
+    var brush = this.dimBrush();
+    for (var c=0; c<RLayerTreeQt.COLUMNS; c++) {
+        item.setForeground(c, brush);
+    }
+};
+
 RLayerTreeQt.prototype.createLayerItem = function(layer, groupName, doc) {
     var item = new QTreeWidgetItem();
     var name = layer.getName();
@@ -895,10 +961,21 @@ RLayerTreeQt.prototype.createLayerItem = function(layer, groupName, doc) {
     // nobody has opened yet. Bold, the same mark a group row carries,
     // because the tree already reads it as "this row is not like the
     // others".
-    if (LayerGroups.isolatedLayers(this.registry).indexOf(name)>=0) {
-        var isoFont = item.font(RLayerTreeQt.colName);
-        isoFont.setBold(true);
-        item.setFont(RLayerTreeQt.colName, isoFont);
+    var isolatedNow = LayerGroups.isolatedLayers(this.registry);
+    if (isolatedNow.length>0) {
+        if (isolatedNow.indexOf(name)>=0) {
+            var isoFont = item.font(RLayerTreeQt.colName);
+            isoFont.setBold(true);
+            item.setFont(RLayerTreeQt.colName, isoFont);
+        }
+        else {
+            // EVERY OTHER ROW READS AS INACTIVE. The isolated row being
+            // bold says which one it is; it does not say that the rest
+            // are not being shown, and a list of ordinary-looking rows
+            // over a drawing displaying one layer invites the caver to
+            // go hunting for what broke.
+            this.dimItem(item);
+        }
     }
 
     this.updateLayerIcons(item, layer, doc);
