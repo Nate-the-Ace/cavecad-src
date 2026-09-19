@@ -883,6 +883,17 @@ RLayerTreeQt.prototype.createLayerItem = function(layer, groupName, doc) {
     item.setData(RLayerTreeQt.colName, RLayerTreeQt.RoleProtected,
                  name==="0" || (isFunction(layer.isProtected) && layer.isProtected()));
 
+    // THE ISOLATED ROW SAYS SO. A cave showing one layer and offering
+    // no reason is alarming, and the only other sign is a context menu
+    // nobody has opened yet. Bold, the same mark a group row carries,
+    // because the tree already reads it as "this row is not like the
+    // others".
+    if (LayerGroups.isolatedLayers(this.registry).indexOf(name)>=0) {
+        var isoFont = item.font(RLayerTreeQt.colName);
+        isoFont.setBold(true);
+        item.setFont(RLayerTreeQt.colName, isoFont);
+    }
+
     this.updateLayerIcons(item, layer, doc);
     return item;
 };
@@ -2234,6 +2245,37 @@ RLayerTreeQt.prototype.contextMenuEvent = function(e) {
     a.triggered.connect(function() { self.setAllExpanded(true); });
     a = menu.addAction(qsTr("Collapse All"));
     a.triggered.connect(function() { self.setAllExpanded(false); });
+
+    // ISOLATE AND UNISOLATE ARE NEVER BOTH OFFERED. While something is
+    // isolated the only entry is the way out, named after what is
+    // isolated and not after the row that was right clicked: isolating
+    // a second time would snapshot an already-hidden cave over the
+    // record of how it really looked, and the caver would lose their
+    // arrangement with nothing to undo.
+    var isolated = LayerGroups.isolatedLayers(this.registry);
+    if (isolated.length>0) {
+        a = menu.addAction(isolated.length===1 ?
+            qsTr("Unisolate \"%1\"").arg(isolated[0]) :
+            qsTr("Unisolate %1 Layers").arg(isolated.length));
+        a.triggered.connect(function() { self.unisolate(); });
+    }
+    else if (!isNull(item)) {
+        var targets = this.targetsFor(item);
+        if (targets.length>0) {
+            var text;
+            if (onGroupRow) {
+                text = qsTr("Isolate Group \"%1\"").arg(groupName);
+            }
+            else if (targets.length===1) {
+                text = qsTr("Isolate \"%1\"").arg(targets[0]);
+            }
+            else {
+                text = qsTr("Isolate %1 Layers").arg(targets.length);
+            }
+            a = menu.addAction(text);
+            a.triggered.connect(function() { self.isolate(targets); });
+        }
+    }
     menu.addSeparator();
 
     a = menu.addAction(qsTr("New Group..."));
@@ -2521,4 +2563,33 @@ RLayerTreeQt.prototype.changeMembership = function(layerNames, groupName, add) {
         LayerGroups.writeRegistry(doc, reg);
         this.updateLayers(this.di);
     }
+};
+
+/**
+ * Hides everything but \c names, remembering the arrangement.
+ *
+ * The work is LayerStates.isolate's; this is the palette half --
+ * refusing when the drawing is already isolated (the menu does not
+ * offer it, and this is what makes that a rule rather than a habit)
+ * and rebuilding the tree so the mark appears.
+ */
+RLayerTreeQt.prototype.isolate = function(names) {
+    if (isNull(this.di) || isNull(names) || names.length===0) {
+        return;
+    }
+    if (LayerStates.isolate(this.di, names) === null) {
+        return;
+    }
+    this.updateLayers(this.di);
+};
+
+/** Puts back what isolate hid. */
+RLayerTreeQt.prototype.unisolate = function() {
+    if (isNull(this.di)) {
+        return;
+    }
+    if (LayerStates.unisolate(this.di) < 0) {
+        return;
+    }
+    this.updateLayers(this.di);
 };

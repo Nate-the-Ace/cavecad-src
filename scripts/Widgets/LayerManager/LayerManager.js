@@ -260,6 +260,17 @@ LayerManager.applySelectedState = function() {
     if (isNull(di)) {
         return;
     }
+    // APPLYING A STATE ENDS AN ISOLATION. The state is the arrangement
+    // the caver has just asked for; the isolation's record is a
+    // photograph of the one before it, and an Unisolate left armed
+    // would later put the state back the way it was and look like the
+    // palette undoing their choice on its own.
+    var doc = di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    if (LayerGroups.clearIsolation(reg)) {
+        LayerGroups.writeRegistry(doc, reg);
+    }
+
     LayerStates.restore(di, name);
 
     var tree = LayerManager.getTree();

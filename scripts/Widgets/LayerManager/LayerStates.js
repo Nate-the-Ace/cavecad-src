@@ -485,6 +485,176 @@ LayerStates.rename = function(di, oldName, newName) {
 
 
 // ---------------------------------------------------------------------
+// Isolating a layer
+//
+// "Show me this and nothing else, and put everything back when I am
+// done." Built on the records above because that is exactly what a
+// record is for: the way back is not "show all layers", which would
+// invent an arrangement nobody asked for, but every layer returned to
+// the colour, weight, linetype and four flags it actually had.
+//
+// The hiding itself follows the application's own two settings, the
+// same pair Layer.showHide reads, so an isolated cave looks like one
+// hidden by Hide All Layers rather than like a second convention. The
+// restore does not depend on that choice: it replays records.
+// ---------------------------------------------------------------------
+
+/** \return true when the drawing is isolated. */
+LayerStates.isIsolated = function(doc) {
+    return LayerGroups.isolatedLayers(LayerGroups.readRegistry(doc)).length>0;
+};
+
+/** \return The isolated layer names, [] when none. */
+LayerStates.isolatedLayers = function(doc) {
+    return LayerGroups.isolatedLayers(LayerGroups.readRegistry(doc));
+};
+
+/**
+ * Hides everything except \c names and remembers how it all looked.
+ *
+ * REFUSES WHEN ALREADY ISOLATED. The snapshot would be of a cave that
+ * is already hidden, and writing it over the record would lose the
+ * caver's real arrangement silently. The palette offers Unisolate
+ * instead of Isolate for the same reason; this is the half that cannot
+ * be got round.
+ *
+ * The first named layer becomes CURRENT. Freezing the current layer is
+ * the kind of thing this engine refuses quietly, and stock QCAD dodges
+ * the question by only ever isolating the layer that is already
+ * current -- which this cannot do, because the caver picked the row.
+ *
+ * \return { isolated: n, hidden: n } or null when it refused.
+ */
+LayerStates.isolate = function(di, names) {
+    if (isNull(names) || names.length===0) {
+        return null;
+    }
+    var doc = di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    if (!isNull(LayerGroups.isolation(reg))) {
+        return null;
+    }
+
+    var keep = {};
+    var i;
+    for (i=0; i<names.length; i++) {
+        keep[names[i]] = true;
+    }
+
+    // The snapshot FIRST, before a single layer moves.
+    var before = LayerStates.snapshot(doc);
+
+    var showFrozen = (typeof(Layer)!=="undefined" &&
+        isFunction(Layer.getShowFrozen)) ? Layer.getShowFrozen() : false;
+    var freezeLayer = (typeof(Layer)!=="undefined" &&
+        isFunction(Layer.getFreezeLayer)) ? Layer.getFreezeLayer() : true;
+
+    // The current layer moves to one of the kept ones first, so that
+    // nothing below is asked to freeze the layer being drawn on.
+    var currentLayer = doc.queryCurrentLayer();
+    var current = (isNull(currentLayer) ||
+        (isFunction(currentLayer.isNull) && currentLayer.isNull())) ? "" :
+        currentLayer.getName();
+    if (keep[current]!==true) {
+        var target = doc.queryLayer(names[0]);
+        if (!isNull(target) && !(isFunction(target.isNull) && target.isNull())) {
+            di.setCurrentLayer(names[0]);
+        }
+    }
+
+    var op = new RModifyObjectsOperation();
+    var hidden = 0;
+    var ids = doc.queryAllLayers();
+    for (i=0; i<ids.length; i++) {
+        var layer = doc.queryLayer(ids[i]);
+        if (isNull(layer) || (isFunction(layer.isNull) && layer.isNull())) {
+            continue;
+        }
+        var name = layer.getName();
+        if (keep[name]===true) {
+            // A kept layer is SHOWN, whatever it was. Isolating a
+            // layer that was itself switched off and being handed a
+            // blank drawing is not what anybody means by it.
+            if (layer.isOff() || layer.isFrozen()) {
+                layer.setOff(false);
+                layer.setFrozen(false);
+                op.addObject(layer);
+            }
+            continue;
+        }
+        if (layer.isOff() && (showFrozen || layer.isFrozen())) {
+            continue;   // already hidden the way this would hide it
+        }
+        if (!showFrozen && freezeLayer) {
+            layer.setFrozen(true);
+        }
+        layer.setOff(true);
+        op.addObject(layer);
+        hidden++;
+    }
+
+    LayerGroups.setIsolation(reg, names, before);
+    LayerGroups.writeRegistry(doc, reg);
+
+    di.applyOperation(op);
+    di.clearPreview();
+    di.repaintViews();
+    return { isolated: names.length, hidden: hidden };
+};
+
+/**
+ * Puts back what isolate hid.
+ *
+ * A layer made SINCE the isolation has no record and is left exactly as
+ * it is -- you made it while isolated, so you are looking at it, and
+ * hiding it now on the grounds that it is not in an old photograph
+ * would be the wrong of the two guesses.
+ *
+ * A layer DELETED since is simply not there to restore. Both of those
+ * are LayerStates.restore's existing tolerance; this adds nothing to
+ * it.
+ *
+ * \return Number of layers changed, or -1 when nothing was isolated.
+ */
+LayerStates.unisolate = function(di) {
+    var doc = di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    var iso = LayerGroups.isolation(reg);
+    if (isNull(iso)) {
+        return -1;
+    }
+
+    var op = new RModifyObjectsOperation();
+    var changed = 0;
+    for (var layerName in iso.before) {
+        if (!iso.before.hasOwnProperty(layerName)) {
+            continue;
+        }
+        var layer = doc.queryLayer(layerName);
+        if (isNull(layer) || (isFunction(layer.isNull) && layer.isNull())) {
+            continue;
+        }
+        if (LayerStates.applyRecord(doc, layer, iso.before[layerName])) {
+            op.addObject(layer);
+            changed++;
+        }
+    }
+
+    // The record goes BEFORE the operation is applied, so a drawing
+    // saved between the two is never one that is visually unisolated
+    // but still believes it is isolated.
+    LayerGroups.clearIsolation(reg);
+    LayerGroups.writeRegistry(doc, reg);
+
+    if (changed>0) {
+        di.applyOperation(op);
+        di.clearPreview();
+        di.repaintViews();
+    }
+    return changed;
+};
+
+// ---------------------------------------------------------------------
 // Carrying states between drawings: the .clas file.
 //
 // A state names every layer in the drawing it was saved from, so it is

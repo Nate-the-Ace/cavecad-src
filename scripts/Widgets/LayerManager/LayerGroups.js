@@ -174,9 +174,69 @@ LayerGroups.nameError = function(name) {
 // The registry in memory
 // ---------------------------------------------------------------------
 
-/** \return A registry with no groups and no states. */
+/** \return A registry with no groups, no states and nothing isolated. */
 LayerGroups.emptyRegistry = function() {
-    return { groups: [], states: [], ungroupedLabel: undefined };
+    return { groups: [], states: [], ungroupedLabel: undefined,
+             isolation: undefined };
+};
+
+// ---------------------------------------------------------------------
+// Isolation
+//
+// A separate thing from a layer state, deliberately. A state is a
+// picture a caver NAMED and chose to keep; isolation is a temporary
+// view with exactly one way out, and it would be wrong for it to turn
+// up in the state list, be exportable to a .clas, or survive being
+// renamed. It lives beside the states rather than among them.
+//
+// It is stored IN THE DRAWING because a drawing saved while isolated
+// already carries every layer hidden. A memory kept per-user would not
+// travel with the file, and whoever opened it next would find one
+// layer showing, no record of the arrangement they had, and nothing to
+// reach for but Show All Layers.
+// ---------------------------------------------------------------------
+
+/** \return {layers: [name], before: {name: record}} or undefined. */
+LayerGroups.isolation = function(reg) {
+    return isNull(reg) ? undefined : reg.isolation;
+};
+
+/** \return The isolated layer names, or [] when nothing is isolated. */
+LayerGroups.isolatedLayers = function(reg) {
+    var iso = LayerGroups.isolation(reg);
+    return isNull(iso) ? [] : iso.layers.slice(0);
+};
+
+/**
+ * Records that \c layers are isolated and what every layer looked like
+ * beforehand.
+ *
+ * REFUSES A SECOND ISOLATION. Isolating again would snapshot a cave
+ * that is already hidden and write that over the only record of how it
+ * really looked -- the arrangement would be gone, with no error and
+ * nothing to undo. The palette never offers it; this refuses it anyway,
+ * because the cost of the two disagreeing is a caver's layer
+ * arrangement.
+ *
+ * \return true when the record was written.
+ */
+LayerGroups.setIsolation = function(reg, layers, before) {
+    if (isNull(reg) || !isNull(reg.isolation) ||
+            isNull(layers) || layers.length===0) {
+        return false;
+    }
+    reg.isolation = { layers: layers.slice(0),
+                      before: isNull(before) ? {} : before };
+    return true;
+};
+
+/** Forgets the isolation, leaving every layer exactly as it is now. */
+LayerGroups.clearIsolation = function(reg) {
+    if (isNull(reg) || isNull(reg.isolation)) {
+        return false;
+    }
+    reg.isolation = undefined;
+    return true;
 };
 
 /** \return Ordered group names. */
@@ -438,6 +498,33 @@ LayerGroups.sweep = function(reg, layerNames) {
         }
     }
 
+    if (!isNull(reg.isolation)) {
+        for (var b in reg.isolation.before) {
+            if (reg.isolation.before.hasOwnProperty(b) &&
+                    layerNames.indexOf(b)<0) {
+                delete reg.isolation.before[b];
+                dropped = true;
+            }
+        }
+        var live = [];
+        for (i=0; i<reg.isolation.layers.length; i++) {
+            if (layerNames.indexOf(reg.isolation.layers[i])>=0) {
+                live.push(reg.isolation.layers[i]);
+            }
+        }
+        if (live.length!==reg.isolation.layers.length) {
+            dropped = true;
+            // DELETING THE ISOLATED LAYER ENDS THE ISOLATION, rather
+            // than leaving a mode whose Unisolate entry names a layer
+            // that is gone. The records the other layers need are
+            // still here, so the caller unisolates with them first --
+            // see LayerStates.unisolate, which reads the record before
+            // anything sweeps it.
+            reg.isolation = (live.length===0) ? undefined :
+                { layers: live, before: reg.isolation.before };
+        }
+    }
+
     return dropped;
 };
 
@@ -487,6 +574,20 @@ LayerGroups.encode = function(reg) {
         }
     }
 
+    // The isolation's records are positional over the SAME table, so
+    // every layer it remembers has to be in the table before any of
+    // the strings below are laid out. Left out, an isolation in a
+    // drawing with no groups kept a record for the isolated layer
+    // alone -- the table held nothing else -- and unisolating restored
+    // nothing at all while reporting success.
+    if (!isNull(reg.isolation)) {
+        for (key in reg.isolation.before) {
+            if (reg.isolation.before.hasOwnProperty(key)) {
+                indexOf(key);
+            }
+        }
+    }
+
     var states = [];
     var canPackStates = (typeof(LayerStates)!=="undefined");
     for (i=0; canPackStates && i<reg.states.length; i++) {
@@ -503,6 +604,29 @@ LayerGroups.encode = function(reg) {
     var out = { v: LayerGroups.VERSION, l: table, g: groups, s: states };
     if (!isNull(reg.ungroupedLabel)) {
         out.u = reg.ungroupedLabel;
+    }
+
+    // ISOLATION RIDES IN THE DRAWING, for the reason the accessors
+    // below give: a drawing saved while isolated has every layer
+    // hidden in the DXF itself, and the way back must travel with it.
+    //
+    // NO VERSION BUMP. decode reads by key, so a v2 blob simply has no
+    // "i" and an older CaveCAD ignores the one it does not know. The
+    // cost is that such a build cannot unisolate and has to reach for
+    // Show All Layers; the alternative is a format break that stops
+    // those builds reading the groups at all, which is worse.
+    if (!isNull(reg.isolation) && canPackStates) {
+        var isoNames = [];
+        for (i=0; i<reg.isolation.layers.length; i++) {
+            isoNames.push(indexOf(reg.isolation.layers[i]));
+        }
+        var isoRecords = [];
+        for (j=0; j<table.length; j++) {
+            var before = reg.isolation.before[table[j]];
+            isoRecords.push(isNull(before) ? "" :
+                LayerStates.packRecord(before));
+        }
+        out.i = { n: isoNames, r: isoRecords };
     }
     return out;
 };
@@ -588,6 +712,39 @@ LayerGroups.decode = function(stored) {
 
     if (typeof(stored.u)==="string" && stored.u.length>0) {
         reg.ungroupedLabel = stored.u;
+    }
+
+    // Isolation. Read last and guarded the same way the states are: a
+    // blob whose "i" is malformed opens as a drawing that is simply
+    // not isolated, which is recoverable, rather than throwing on the
+    // way in.
+    if (!isNull(stored.i) && typeof(stored.i)==="object" &&
+            typeof(LayerStates)!=="undefined") {
+        var isoLayers = [];
+        var n = Array.isArray(stored.i.n) ? stored.i.n : [];
+        for (i=0; i<n.length; i++) {
+            if (n[i]>=0 && n[i]<table.length &&
+                    isoLayers.indexOf(table[n[i]])<0) {
+                isoLayers.push(table[n[i]]);
+            }
+        }
+        var before = {};
+        var r = Array.isArray(stored.i.r) ? stored.i.r : [];
+        for (j=0; j<table.length && j<r.length; j++) {
+            if (typeof(r[j])!=="string" || r[j].length===0) {
+                continue;
+            }
+            var rec = LayerStates.unpackRecord(r[j]);
+            if (!isNull(rec)) {
+                before[table[j]] = rec;
+            }
+        }
+        // ISOLATED BY NOTHING IS NOT ISOLATED. A record naming no
+        // layer would put the palette in a mode whose only exit is an
+        // Unisolate entry with no name in it.
+        if (isoLayers.length>0) {
+            reg.isolation = { layers: isoLayers, before: before };
+        }
     }
 
     return reg;
