@@ -2308,6 +2308,21 @@ RLayerTreeQt.prototype.isRealGroup = function(name) {
     return !isNull(name) && String(name).length>0;
 };
 
+/**
+ * The palette's own width, forwarded to the button row.
+ *
+ * This tree is the widget in the palette that owns its class AND
+ * changes size with the dock -- a QDockWidget offers script no resize
+ * event of its own -- so the row's fold-away is driven from here.
+ */
+RLayerTreeQt.prototype.resizeEvent = function(event) {
+    RTreeWidget.prototype.resizeEvent.call(this, event);
+    if (typeof(LayerManager)!=="undefined" &&
+            isFunction(LayerManager.reflowButtons)) {
+        LayerManager.reflowButtons(this.width);
+    }
+};
+
 RLayerTreeQt.prototype.contextMenuEvent = function(e) {
     var item = this.itemAt(e.pos());
     if (!isNull(item) && !item.isSelected()) {

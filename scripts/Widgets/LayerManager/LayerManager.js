@@ -145,6 +145,41 @@ LayerManager.getStateButton = function() {
     return RMainWindowQt.getMainWindow().findChild("StateButton");
 };
 
+/** The bottom row, in the order it is laid out. */
+LayerManager.ROW_BUTTONS = ["ShowAll", "HideAll", "NewGroup", "Add",
+    "Remove", "Edit"];
+
+/**
+ * Below this many pixels each, the row folds into the overflow button.
+ *
+ * A 16px-wide button is a target nobody can hit and an icon nobody can
+ * read; one button holding a list of names is more use than six
+ * illegible ones.
+ */
+LayerManager.MIN_BUTTON = 22;
+
+/**
+ * Shows the six buttons or the one, whichever the width allows.
+ *
+ * Driven from the tree's resizeEvent, because the tree is the widget
+ * in this palette that changes size with the dock and is the one whose
+ * class we own. A QDockWidget hands script no resize of its own.
+ */
+LayerManager.reflowButtons = function(width) {
+    if (isNull(LayerManager.rowButtons) || isNull(LayerManager.overflow)) {
+        return;
+    }
+    var fits = width >= LayerManager.MIN_BUTTON * LayerManager.rowButtons.length;
+    if (LayerManager.rowFits === fits) {
+        return;   // a resize that did not cross the line changes nothing
+    }
+    LayerManager.rowFits = fits;
+    for (var i=0; i<LayerManager.rowButtons.length; i++) {
+        LayerManager.rowButtons[i].visible = fits;
+    }
+    LayerManager.overflow.visible = !fits;
+};
+
 /** The state showing on the button, or undefined for the placeholder. */
 LayerManager.currentState = undefined;
 
@@ -608,7 +643,7 @@ LayerManager.init = function(basePath) {
         tree.setFilterText(text);
     });
 
-    // THE BUTTON ROWS MUST NOT BE THE PALETTE'S FLOOR.
+    // THE BOTTOM ROW SHARES THE WIDTH, AND FOLDS AWAY WHEN IT CANNOT.
     //
     // A dock is as narrow as its widest child insists on being, and a
     // QToolButton insists on its own size hint: eleven of them across
@@ -634,6 +669,46 @@ LayerManager.init = function(basePath) {
         }
         button.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed);
         button.setMinimumWidth(16);
+    }
+
+    // Equal stretch, so the row divides the width between them evenly
+    // instead of one wide button beside five narrow ones.
+    var buttonLayout = formWidget.findChild("buttonLayout");
+    LayerManager.rowButtons = [];
+    for (bi=0; bi<LayerManager.ROW_BUTTONS.length; bi++) {
+        var rb = formWidget.findChild(LayerManager.ROW_BUTTONS[bi]);
+        if (isNull(rb)) {
+            continue;
+        }
+        LayerManager.rowButtons.push(rb);
+        if (!isNull(buttonLayout)) {
+            buttonLayout.setStretch(bi, 1);
+        }
+    }
+
+    // The overflow. Below the width where six buttons are still worth
+    // pressing, they fold into this one and it holds them as a list --
+    // so the palette keeps shrinking instead of stopping at whatever
+    // six icons happen to measure.
+    LayerManager.overflow = new QToolButton(formWidget);
+    LayerManager.overflow.objectName = "LayerButtonOverflow";
+    LayerManager.overflow.text = "\u2261";
+    LayerManager.overflow.toolTip = qsTr("Layer actions");
+    LayerManager.overflow.setSizePolicy(QSizePolicy.Ignored,
+        QSizePolicy.Fixed);
+    LayerManager.overflow.setMinimumWidth(16);
+    LayerManager.overflowMenu = new QMenu(formWidget);
+    LayerManager.overflowMenu.addAction(qsTr("New Group...")).triggered
+        .connect(function() { tree.newGroup(); });
+    LayerManager.overflowMenu.addSeparator();
+    RLayerTreeQt.addLayerActions(LayerManager.overflowMenu);
+    LayerManager.overflow.setMenu(LayerManager.overflowMenu);
+    // 2, not QToolButton.InstantPopup -- the enum names are not bound
+    // in this build, for the reason the state menu button records.
+    LayerManager.overflow.popupMode = 2;
+    LayerManager.overflow.visible = false;
+    if (!isNull(buttonLayout)) {
+        buttonLayout.addWidget(LayerManager.overflow);
     }
 
     formWidget.findChild("StateButton").clicked.connect(
@@ -670,6 +745,9 @@ LayerManager.init = function(basePath) {
     // The state list lives in the drawing, so it has to follow the
     // drawing. The tree is already listening for that; ride along.
     tree.onUpdate = LayerManager.refreshStates;
+
+    // The palette may well open at a width it was dragged to last time.
+    LayerManager.reflowButtons(tree.width);
 
     var widgets = getWidgets(formWidget);
     widgets["ShowAll"].setDefaultAction(
