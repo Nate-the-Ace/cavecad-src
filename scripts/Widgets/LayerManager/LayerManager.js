@@ -132,21 +132,37 @@ LayerManager.getTree = function() {
     return LayerManager.tree;
 };
 
-LayerManager.getStateCombo = function() {
-    return RMainWindowQt.getMainWindow().findChild("StateCombo");
+/**
+ * The state picker: a button that opens a menu, NOT a combo box.
+ *
+ * A QComboBox at the foot of a full-height dock drops its list
+ * downwards off the bottom of the screen -- Qt's own flip did not save
+ * it there, and a combo's popup placement is not something script can
+ * reach in to correct. A QMenu flips on its own, and it makes the
+ * state picker behave like every other picker in this palette.
+ */
+LayerManager.getStateButton = function() {
+    return RMainWindowQt.getMainWindow().findChild("StateButton");
 };
 
+/** The state showing on the button, or undefined for the placeholder. */
+LayerManager.currentState = undefined;
+
+/** Every state name in the drawing, as of the last refresh. */
+LayerManager.stateNames = [];
+
 /**
- * Reloads the state combo from the current drawing, keeping the entry
- * that was showing if it still exists.
+ * Re-reads the drawing's states and puts the right name on the button.
  *
- * Signals are blocked throughout: repopulating a combo emits
- * currentIndexChanged, and letting that through would restore a layer
- * state every time the layer list refreshed.
+ * Called from the tree's own refresh, so it runs on every layer change
+ * -- which is why it only READS. The combo box this replaced had to
+ * block its signals here, because repopulating one emits
+ * currentIndexChanged and a layer state would have been restored every
+ * time the layer list refreshed. A button has nothing to emit.
  */
 LayerManager.refreshStates = function() {
-    var combo = LayerManager.getStateCombo();
-    if (isNull(combo)) {
+    var button = LayerManager.getStateButton();
+    if (isNull(button)) {
         return;
     }
 
@@ -158,28 +174,81 @@ LayerManager.refreshStates = function() {
             names = LayerStates.listNames(doc);
         }
     }
+    LayerManager.stateNames = names;
 
-    var previous = String(combo.currentText);
-
-    combo.blockSignals(true);
-    combo.clear();
-    combo.addItem(LayerManager.NoState);
-    for (var i=0; i<names.length; i++) {
-        combo.addItem(names[i]);
+    // A state that has gone -- deleted, or this is another drawing --
+    // stops being the one showing, rather than naming something that
+    // is not there.
+    if (!isNull(LayerManager.currentState) &&
+            names.indexOf(LayerManager.currentState)<0) {
+        LayerManager.currentState = undefined;
     }
-    var idx = combo.findText(previous);
-    combo.currentIndex = idx>=0 ? idx : 0;
-    combo.blockSignals(false);
+    button.text = isNull(LayerManager.currentState) ?
+        LayerManager.NoState : LayerManager.currentState;
+};
+
+/**
+ * Opens the state menu at the button.
+ *
+ * Dropped from the button's bottom edge, and QMenu takes it from there
+ * -- including flipping it above when the palette is against the foot
+ * of the screen, which is the whole reason this is not a combo box.
+ */
+LayerManager.showStateMenu = function() {
+    var button = LayerManager.getStateButton();
+    if (isNull(button)) {
+        return;
+    }
+    LayerManager.refreshStates();
+
+    // Held on the class: a menu whose only reference is the function
+    // that opened it can go out of scope while it is still on screen.
+    LayerManager.stateMenuPopup = new QMenu(button);
+    var placeholder = LayerManager.stateMenuPopup.addAction(
+        LayerManager.NoState);
+    placeholder.checkable = true;
+    placeholder.checked = isNull(LayerManager.currentState);
+
+    var names = LayerManager.stateNames;
+    if (names.length>0) {
+        LayerManager.stateMenuPopup.addSeparator();
+    }
+    var actions = [];
+    for (var i=0; i<names.length; i++) {
+        var action = LayerManager.stateMenuPopup.addAction(names[i]);
+        action.checkable = true;
+        action.checked = (names[i]===LayerManager.currentState);
+        actions.push(action);
+    }
+
+    var chosen = LayerManager.stateMenuPopup.exec(
+        button.mapToGlobal(new QPoint(0, button.height)));
+    if (isNull(chosen)) {
+        return;
+    }
+
+    // Matched by text, not identity: exec() answers with a wrapper
+    // around the chosen QAction and a wrapper is not guaranteed to be
+    // the object addAction returned.
+    var text = String(chosen.text);
+    if (text===String(placeholder.text)) {
+        LayerManager.currentState = undefined;
+        LayerManager.refreshStates();
+        return;
+    }
+    for (i=0; i<names.length; i++) {
+        if (names[i]===text) {
+            LayerManager.currentState = names[i];
+            LayerManager.refreshStates();
+            LayerManager.applySelectedState();
+            return;
+        }
+    }
 };
 
 /** \return The selected state name, or undefined for the placeholder. */
 LayerManager.getSelectedState = function() {
-    var combo = LayerManager.getStateCombo();
-    if (isNull(combo)) {
-        return undefined;
-    }
-    var name = String(combo.currentText);
-    return (name===LayerManager.NoState || name.length===0) ? undefined : name;
+    return LayerManager.currentState;
 };
 
 LayerManager.applySelectedState = function() {
@@ -210,17 +279,9 @@ LayerManager.saveState = function() {
     }
 
     LayerStates.capture(di, name);
+    // The state you just saved is the one you are on.
+    LayerManager.currentState = name;
     LayerManager.refreshStates();
-
-    var combo = LayerManager.getStateCombo();
-    if (!isNull(combo)) {
-        var idx = combo.findText(name);
-        if (idx>=0) {
-            combo.blockSignals(true);
-            combo.currentIndex = idx;
-            combo.blockSignals(false);
-        }
-    }
 };
 
 /**
@@ -271,6 +332,7 @@ LayerManager.deleteState = function() {
     }
 
     LayerStates.remove(di, name);
+    LayerManager.currentState = undefined;
     LayerManager.refreshStates();
 };
 
@@ -310,17 +372,8 @@ LayerManager.renameState = function() {
     }
 
     LayerStates.rename(di, name, newName);
+    LayerManager.currentState = newName;
     LayerManager.refreshStates();
-
-    var combo = LayerManager.getStateCombo();
-    if (!isNull(combo)) {
-        var idx = combo.findText(newName);
-        if (idx>=0) {
-            combo.blockSignals(true);
-            combo.currentIndex = idx;
-            combo.blockSignals(false);
-        }
-    }
 };
 
 /**
@@ -532,10 +585,8 @@ LayerManager.init = function(basePath) {
         tree.setFilterText(text);
     });
 
-    var combo = formWidget.findChild("StateCombo");
-    combo.activated.connect(function() {
-        LayerManager.applySelectedState();
-    });
+    formWidget.findChild("StateButton").clicked.connect(
+        LayerManager.showStateMenu);
 
     formWidget.findChild("SaveState").clicked.connect(LayerManager.saveState);
     formWidget.findChild("UpdateState").clicked.connect(LayerManager.updateState);

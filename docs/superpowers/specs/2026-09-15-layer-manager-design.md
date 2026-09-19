@@ -290,6 +290,22 @@ wrong first:
   `QColorDialog` **instance**, shown with `open()`, answered by its
   `colorSelected` signal.
 
+## The state picker
+
+A **button that opens a `QMenu`**, not a combo box. A `QComboBox` at the
+foot of a full-height dock drops its list downwards off the bottom of
+the screen, and a combo's popup placement is not something script can
+reach in and correct. `QMenu` places itself inside the screen on its own
+— measured with the palette's button bottom at y=1215 on a screen ending
+at 1183, the menu landed at 1148 — and it makes the state picker behave
+like every other picker here.
+
+It removed a hazard as well as a bug: repopulating a combo emits
+`currentIndexChanged`, so `refreshStates` had to block signals or a
+layer state would be restored every time the layer list refreshed — and
+`refreshStates` runs from the tree's own refresh, which is every layer
+change. A button has nothing to emit, so the function only reads.
+
 ## Carrying states between drawings: `.clas`
 
 A state names every layer in the drawing it was saved from, so it is the

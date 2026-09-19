@@ -40,12 +40,15 @@
       <number>0</number>
      </property>
      <item>
-      <widget class="QComboBox" name="StateCombo">
+      <widget class="QToolButton" name="StateButton">
        <property name="sizePolicy">
         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
          <horstretch>1</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextOnly</enum>
        </property>
        <property name="toolTip">
         <string>Layer states</string>
