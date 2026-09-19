@@ -1291,27 +1291,15 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
     this.editTitle = (names.length===1) ? names[0] :
         qsTr("%1 layers").arg(names.length);
 
-    var apply;
     if (column===RLayerTreeQt.colColor) {
-        var picked = this.askColor(first);
-        if (picked===RLayerTreeQt.MORE) {
-            // THE FULL PICKER CANNOT OPEN FROM HERE. We are inside the
-            // QMenu's exec and a popup holds a mouse grab, so a dialog
-            // raised under it does not take focus. It goes on a zero
-            // timer instead, so the menu has closed and let the grab
-            // go before the dialog is asked for -- and because the
-            // dialog is answered by signal rather than by return
-            // value, nothing here waits for it.
-            this.pendingColor = { names: names, seed: first.getColor() };
-            this.colorTimer = new QTimer();
-            this.colorTimer.singleShot = true;
-            this.colorTimer.timeout.connect(RLayerTreeQt.runPendingColor);
-            this.colorTimer.start(0);
-            return;
-        }
-        apply = isNull(picked) ? undefined : RLayerTreeQt.colorApplier(picked);
+        // The colour popup applies its own answer, so there is nothing
+        // to wait for and nothing to return.
+        this.openColorPopup(names, first.getColor());
+        return;
     }
-    else if (column===RLayerTreeQt.colLinetype) {
+
+    var apply;
+    if (column===RLayerTreeQt.colLinetype) {
         apply = this.askLinetype(doc, first);
     }
     else if (column===RLayerTreeQt.colLineweight) {
@@ -1463,6 +1451,63 @@ RLayerTreeQt.QUICK_COLORS = function() {
 };
 
 /**
+ * The wider palette: a column per hue, a row per shade.
+ *
+ * Built rather than written out: eight hues by five shades is forty
+ * entries, and forty hand-typed hex strings is forty chances to fat
+ * finger one. Shades run light to dark by mixing the pure hue toward
+ * white and then toward black, which is what a cartographer actually
+ * wants -- a lighter version of the same colour, not a different one.
+ */
+RLayerTreeQt.PALETTE = function() {
+    var hues = [
+        { name: qsTr("Reds"), rgb: [255, 0, 0] },
+        { name: qsTr("Oranges"), rgb: [255, 128, 0] },
+        { name: qsTr("Yellows"), rgb: [255, 255, 0] },
+        { name: qsTr("Greens"), rgb: [0, 192, 0] },
+        { name: qsTr("Cyans"), rgb: [0, 192, 192] },
+        { name: qsTr("Blues"), rgb: [0, 64, 255] },
+        { name: qsTr("Purples"), rgb: [128, 0, 255] },
+        { name: qsTr("Magentas"), rgb: [255, 0, 192] }
+    ];
+    // Above 0 the hue is mixed toward white, below it toward black.
+    var mixes = [0.6, 0.3, 0, -0.3, -0.55];
+
+    var hex = function(n) {
+        n = Math.max(0, Math.min(255, Math.round(n)));
+        var t = n.toString(16);
+        return t.length < 2 ? "0" + t : t;
+    };
+
+    var res = [];
+    var h, m;
+    for (h = 0; h < hues.length; h++) {
+        var shades = [];
+        for (m = 0; m < mixes.length; m++) {
+            var k = mixes[m];
+            var parts = "";
+            for (var c = 0; c < 3; c++) {
+                var v = hues[h].rgb[c];
+                parts += hex(k >= 0 ? v + (255 - v) * k : v * (1 + k));
+            }
+            shades.push("#" + parts);
+        }
+        res.push({ name: hues[h].name, colors: shades });
+    }
+
+    // Greys get their own row: a cave map leans on them for inferred
+    // walls and anything meant to sit back.
+    var greys = [];
+    var steps = [255, 208, 160, 128, 96, 64, 32, 0];
+    for (m = 0; m < steps.length; m++) {
+        greys.push("#" + hex(steps[m]) + hex(steps[m]) + hex(steps[m]));
+    }
+    res.push({ name: qsTr("Greys"), colors: greys });
+
+    return res;
+};
+
+/**
  * The last colour picked out of the full picker.
  *
  * ONE colour and not a list: "the one I mixed a minute ago" is the
@@ -1525,41 +1570,43 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title
         this.choiceMenu.addSeparator();
     }
 
-    var actions = [];
-    var i;
+    // text -> value, because exec() answers with a wrapper around the
+    // chosen QAction and a wrapper is NOT guaranteed to be the same JS
+    // object addAction returned. Comparing by identity made the menu
+    // silently do nothing for the very item that was clicked. Every
+    // text in one of these menus is distinct, so text is a sound key.
+    var byText = {};
+    var i, action;
+
     for (i=0; i<entries.length; i++) {
-        if (entries[i].separatorBefore===true) {
+        var entry = entries[i];
+        if (entry.separatorBefore===true) {
             this.choiceMenu.addSeparator();
         }
-        var action = this.choiceMenu.addAction(entries[i].text);
-        if (!isNull(entries[i].icon)) {
-            action.icon = entries[i].icon;
+
+        action = this.choiceMenu.addAction(entry.text);
+        if (!isNull(entry.icon)) {
+            action.icon = entry.icon;
         }
-        if (!isNull(current) && entries[i].value===current) {
+        if (!isNull(current) && entry.value===current) {
             action.checkable = true;
             action.checked = true;
         }
-        actions.push(action);
+        byText[String(action.text)] = entry.value;
     }
-    var extra;
+
     if (!isNull(extraText)) {
         this.choiceMenu.addSeparator();
-        extra = this.choiceMenu.addAction(extraText);
+        var extra = this.choiceMenu.addAction(extraText);
+        byText[String(extra.text)] = RLayerTreeQt.MORE;
     }
 
     var chosen = this.choiceMenu.exec(QCursor.pos());
     if (isNull(chosen)) {
         return undefined;   // clicked away
     }
-    if (!isNull(extra) && chosen===extra) {
-        return RLayerTreeQt.MORE;
-    }
-    for (i=0; i<actions.length; i++) {
-        if (actions[i]===chosen) {
-            return entries[i].value;
-        }
-    }
-    return undefined;
+    var value = byText[String(chosen.text)];
+    return isNull(value) ? undefined : value;
 };
 
 /**
@@ -1571,29 +1618,235 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title
 RLayerTreeQt.MORE = "<<more>>";
 
 /**
- * The quick colour menu.
- * \return A "#rrggbb", RLayerTreeQt.MORE, or undefined if dismissed.
+ * The colour popup: a grid of swatches under the pointer.
+ *
+ * A FRAMELESS Qt.Popup AND NOT A MENU. A colour is chosen by eye from a
+ * block you can scan in one look; a menu makes you read it as a list,
+ * and a cascade of hue submenus makes you read it as several. It is
+ * still a popup in every way that matters -- no title bar, no buttons,
+ * appears where the pointer is, and clicking anywhere else puts it away
+ * having changed nothing.
+ *
+ * Nothing is returned: a swatch applies itself. The caller is done once
+ * this has been called.
  */
-RLayerTreeQt.prototype.askColor = function(seed) {
-    var current = LayerStates.colorToText(seed.getColor());
+RLayerTreeQt.prototype.openColorPopup = function(names, seedColor) {
+    var current = LayerStates.colorToText(seedColor);
+
+    // A QFrame AND NOT A QDIALOG. A QDialog keeps its window chrome on
+    // macOS even under Qt.Popup: the frame is not drawn, but the space
+    // it would occupy is, as an empty band across the top of the
+    // popup. A plain frame has no such machinery -- and none of
+    // QDialog's is wanted here, since nothing about this is modal and
+    // there is no accept or reject.
+    var popup = new QFrame(RMainWindowQt.getMainWindow());
+
+    // Qt.Popup (9) is what dismisses it on a click away;
+    // Qt.FramelessWindowHint (2048) says plainly that there is no
+    // border to reserve room for. Both enums are bound in this build,
+    // but their values are written down because plenty of their
+    // neighbours are not, and a silently undefined flag reads as 0 --
+    // an ordinary window that never goes away.
+    popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint);
+    popup.frameShape = QFrame.StyledPanel;
+    popup.frameShadow = QFrame.Raised;
+
+    var grid = new QGridLayout();
+    grid.spacing = 2;
+    grid.setContentsMargins(6, 6, 6, 6);
+
+    var row = 0;
+    var i, j;
+
+    // WHAT IS ABOUT TO CHANGE, across the top -- the same sentence the
+    // linetype and lineweight menus carry. A grid of colours with
+    // nothing above it says which colours are available and not which
+    // layers are about to take one, and a popup opened over the wrong
+    // row is the fault this whole heading exists to prevent.
+    var heading = new QLabel((names.length===1) ? names[0] :
+        qsTr("%1 layers").arg(names.length));
+    heading.styleSheet = "font-weight: bold; padding: 0px 2px 2px 2px;";
+    grid.addWidget(heading, row, 0, 1, 8);
+    row++;
+
+    // The everyday eight, across the top.
     var quick = RLayerTreeQt.QUICK_COLORS();
-    var entries = [];
-    for (var i=0; i<quick.length; i++) {
-        entries.push({ text: quick[i].text, value: quick[i].hex,
-                       icon: RLayerTreeQt.swatch(quick[i].hex) });
+    for (i=0; i<quick.length && i<8; i++) {
+        grid.addWidget(RLayerTreeQt.swatchButton(popup, quick[i].hex,
+            quick[i].text, current), row, i);
+    }
+    row++;
+
+    // A hair of space, then the palette: a column per hue, a row per
+    // shade, so scanning down is "darker" and across is "a different
+    // colour". Both are things a cartographer looks for.
+    var line = new QFrame();
+    line.frameShape = QFrame.HLine;
+    line.frameShadow = QFrame.Sunken;
+    grid.addWidget(line, row, 0, 1, 8);
+    row++;
+
+    var palette = RLayerTreeQt.PALETTE();
+    var hues = [];
+    var greys;
+    for (i=0; i<palette.length; i++) {
+        if (palette[i].colors.length>5) {
+            greys = palette[i];
+        }
+        else {
+            hues.push(palette[i]);
+        }
+    }
+    var shades = hues.length>0 ? hues[0].colors.length : 0;
+    for (j=0; j<shades; j++) {
+        for (i=0; i<hues.length && i<8; i++) {
+            grid.addWidget(RLayerTreeQt.swatchButton(popup, hues[i].colors[j],
+                hues[i].name, current), row, i);
+        }
+        row++;
+    }
+    if (!isNull(greys)) {
+        for (i=0; i<greys.colors.length && i<8; i++) {
+            grid.addWidget(RLayerTreeQt.swatchButton(popup, greys.colors[i],
+                greys.name, current), row, i);
+        }
+        row++;
     }
 
-    // The last colour mixed by hand, under a rule of its own so it
-    // never looks like a tenth standard.
+    // The last colour mixed by hand, and the way to mix another.
     var recent = RLayerTreeQt.recentColor();
     if (!isNull(recent)) {
-        entries.push({ text: qsTr("Recent") + "  " + recent, value: recent,
-                       icon: RLayerTreeQt.swatch(recent),
-                       separatorBefore: true });
+        var line2 = new QFrame();
+        line2.frameShape = QFrame.HLine;
+        line2.frameShadow = QFrame.Sunken;
+        grid.addWidget(line2, row, 0, 1, 8);
+        row++;
+        grid.addWidget(RLayerTreeQt.swatchButton(popup, recent,
+            qsTr("Recent"), current), row, 0);
+        row++;
     }
 
-    return this.popupChoice(entries, current, qsTr("More Colours..."),
-        this.editTitle);
+    var custom = new QToolButton();
+    custom.text = qsTr("Custom...");
+    custom.autoRaise = true;
+    custom.clicked.connect(RLayerTreeQt.onCustomColorRequested);
+    grid.addWidget(custom, row, 0, 1, 8);
+
+    popup.setLayout(grid);
+
+    // Held so it is not collected while it is on screen, and so the
+    // swatch handlers can close it without being handed a reference.
+    this.colorPopup = popup;
+    this.pendingColor = { names: names, seed: seedColor };
+
+    popup.show();
+    RLayerTreeQt.placeAtCursor(popup);
+};
+
+/**
+ * \return One swatch button, wired to apply its own colour.
+ *
+ * The handler closes over the HEX STRING and nothing else. A closure
+ * holding a Qt wrapper is the shape this bridge crashes on, and the
+ * alternative -- one shared handler asking Qt which button sent the
+ * signal -- means guessing from the focused widget, which is not the
+ * pressed one often enough to matter.
+ */
+RLayerTreeQt.swatchButton = function(parent, hex, tip, current) {
+    var button = new QToolButton(parent);
+    button.objectName = hex;
+    button.autoRaise = true;
+    button.toolTip = tip + "  " + hex;
+    var icon = RLayerTreeQt.swatch(hex);
+    if (!isNull(icon)) {
+        button.icon = icon;
+        button.iconSize = new QSize(14, 14);
+    }
+    else {
+        button.text = hex;
+    }
+    if (hex===current) {
+        button.checkable = true;
+        button.checked = true;
+    }
+    button.clicked.connect(
+        (function(chosen) {
+            return function() { RLayerTreeQt.applyPickedColor(chosen); };
+        })(hex));
+    return button;
+};
+
+/** A swatch was pressed: close the popup and put \c hex on the layers. */
+RLayerTreeQt.applyPickedColor = function(hex) {
+    var tree = RLayerTreeQt.instance;
+    if (isNull(tree) || isNull(tree.pendingColor)) {
+        return;
+    }
+    var names = tree.pendingColor.names;
+    tree.closeColorPopup();
+
+    var apply = RLayerTreeQt.colorApplier(hex);
+    if (!isNull(apply)) {
+        tree.applyToLayers(names, apply);
+    }
+};
+
+RLayerTreeQt.prototype.closeColorPopup = function() {
+    if (isNull(this.colorPopup)) {
+        return;
+    }
+    try {
+        this.colorPopup.close();
+    }
+    catch (e) {
+        // already gone
+    }
+    this.colorPopup = undefined;
+    this.pendingColor = undefined;
+};
+
+/** "Custom..." -- hand over to the full dialog. */
+RLayerTreeQt.onCustomColorRequested = function() {
+    var tree = RLayerTreeQt.instance;
+    if (isNull(tree) || isNull(tree.pendingColor)) {
+        return;
+    }
+    // Kept across the popup closing: closeColorPopup clears it.
+    var pending = tree.pendingColor;
+    tree.closeColorPopup();
+    tree.pendingColor = pending;
+    RLayerTreeQt.runPendingColor();
+};
+
+/**
+ * Puts \c widget under the pointer, wholly on the screen the pointer is
+ * on. Shown first, because its size is not settled until it is.
+ */
+RLayerTreeQt.placeAtCursor = function(widget) {
+    try {
+        var at = QCursor.pos();
+        var x = at.x() - 8;
+        var y = at.y() - 8;
+        var area = QGuiApplication.screenAt(at).availableGeometry();
+        var w = widget.width;
+        var h = widget.height;
+        if (x + w > area.x() + area.width()) {
+            x = area.x() + area.width() - w;
+        }
+        if (y + h > area.y() + area.height()) {
+            y = area.y() + area.height() - h;
+        }
+        if (x < area.x()) {
+            x = area.x();
+        }
+        if (y < area.y()) {
+            y = area.y();
+        }
+        widget.move(x, y);
+    }
+    catch (e) {
+        // Left where Qt put it rather than not shown at all.
+    }
 };
 
 /** \return A function applying the chosen linetype, or undefined. */

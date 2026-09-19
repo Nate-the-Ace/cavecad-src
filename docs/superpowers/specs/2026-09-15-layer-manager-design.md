@@ -204,162 +204,34 @@ than a default.
 behave the way a cell editor should: they appear under the mouse, carry
 no title bar or buttons, and clicking anywhere else puts them away
 without changing anything. A modal dialog centred on the main window is
-the wrong weight for a one-click choice. Colour offers nine standard
-swatches, the last colour mixed by hand under a rule of its own, and a
-**More Colours…** entry. Only that entry opens the full colour dialog.
+the wrong weight for a one-click choice. Colour is different from the other
+two, because a colour is chosen by eye from a block you can scan in one
+look rather than read as a list: it opens a **grid of swatches** — a
+frameless `Qt.Popup` holding the everyday eight, then a column per hue
+and a row per shade, then the greys, then the last colour mixed by
+hand, then **Custom…**. Still a popup in every way that matters, and
+each popup carries the layer's name, or "N layers", across the top.
 
-That one entry cost two wrong diagnoses, so both are written down.
-`QColorDialog.getColor` — the blocking static everybody reaches for —
-**does not come back in this binding**: it opens its dialog, the dialog
-can be accepted or rejected, the dialog goes away, and the call never
-returns, so every line after it is never reached. Nothing is logged. It
-looks exactly like "More Colours… does nothing", which is how it was
-reported. (The three-argument call was ALSO wrong — the bridge binds
-two- and four-argument variants and nothing between — but fixing that
-changed nothing, because the static was never the way.) The dialog is a
-**QColorDialog instance** now, shown with `open()`, which is modal but
-does not block, and answered by its `colorSelected` signal.
+Three things about that popup are written down because each was got
+wrong first:
 
-It still goes on a zero timer, for a different reason: the menu that
-asked for it holds a mouse grab, and a dialog raised under a popup does
-not take focus. The timer lets the menu close first.
-
-**The click moves the highlight** unless it landed inside the
-selection. Only the name column is selectable, so a click on a switch
-or a property cell used to change nothing about what was highlighted:
-with one layer selected and a colour cell clicked three rows below it,
-the popup opened over an unhighlighted row and edited a layer that was
-not the one shown as chosen. The edit was right and unreadable, which
-is worse than wrong. The popup also carries the target across its top —
-the layer's name, or "N layers" — because a popup editing forty layers
-otherwise looks exactly like one editing the row under the pointer.
-
-**The selection survives a rebuild.** Every toggle and every property
-edit ends in `updateLayers`, and a rebuild that dropped the selection
-would undo the thing the caver is in the middle of: pick eight layers,
-freeze them, and the next click would find one row selected. It was
-also what made the highlight snap back to the current layer after the
-fix above.
-
-**The selection wins when the clicked row is part of it.** Click a
-switch on one of eight selected layers and all eight move; click one
-outside the selection and only it moves. That is what every table in
-every CAD program does, and the alternative — always acting on one row
-— makes a multiple selection decorative. A selected group row
-contributes every layer under it. The whole edit is one transaction, so
-a change across forty layers is one undo.
-
-A set is decided once rather than inverted row by row: if any member is
-on, they all go off. Inverting each separately would turn a mixed
-selection into a differently mixed one, which is never what the click
-meant.
-
-One consequence worth writing down: **the current layer changing no
-longer rebuilds the tree.** The stock list rebuilds there, which is
-harmless for a flat list and is not for this one — selecting a row would
-throw away every other row the caver had selected, and editing across a
-selection is the whole point of the table. It also destroys every
-`QTreeWidgetItem` mid-click, which is how this was found.
-
-## Filter
-
-A `QLineEdit` above the tree, matching layer *and* group names, case
-insensitively. Matching groups auto-expand; clearing restores the
-collapse state that was in effect before typing. **Expand All** and
-**Collapse All** sit at the top of the tree's context menu and are
-remembered — walked by hand rather than handed to QTreeWidget's own
-`expandAll`, which would move every twisty without telling the setting
-and be undone at the next start. Both are ignored while a filter is
-active, for the same reason the twisties are: the expansion you see then
-was forced by the filter.
-
-**Wildcards when you type one, substring when you do not.** `*` is any
-run of characters and `?` is exactly one, and a pattern is ANCHORED, so
-`CTRL-*` means names that start that way. Plain text stays a substring
-search, because a caver typing `scan` means "show me the scan layers"
-and an anchored `scan` would match nothing and read as broken. Commas
-separate alternatives: `CTRL-*,PROFILE-*` shows both.
-
-This lives in its own file, `LayerFilter.js`, for one reason:
-`RLayerTreeQt.js` subclasses `RTreeWidget` at load time and therefore
-cannot be loaded without Qt, so nothing inside it can be unit tested. A
-filter that quietly matches the wrong thing is a bug a caver blames
-their layer names for, so it is the last thing that should be
-untestable.
-
-## Group management
-
-Context menu on the tree, mirrored by buttons in the `.ui`:
-
-- New Group
-- Rename Group
-- Delete Group — removes the group; members lose that one membership and
-  fall to `Ungrouped` if it was their last. **Deleting a group never deletes
-  a layer.**
-- Add Selected Layers To ▸ (submenu of existing groups, plus New Group…)
-- Remove From This Group
-
-**No drag and drop.** The question was whether `dropEvent` could be
-overridden from script; it cannot. `qcadjsapi`'s `rtreewidget_wrapper.cpp`
-forwards exactly five virtuals — `contextMenuEvent`, `mousePressEvent`,
-`mouseReleaseEvent`, `mouseMoveEvent`, `resizeEvent` — so a drop would
-silently do nothing. The context menu carries the feature, as the fallback
-said it would. (Checked first against `src/scripting/ecmaapi`, which is
-vestigial upstream code that is not in the build graph; the live binding is
-`qcadjsapi`.)
-
-## Layer states
-
-A combo box at the foot of the palette with Save, Update and Delete.
-
-- **Save** captures off, frozen and locked for every layer in the document
-  under a new name.
-- **Update** overwrites the selected state from the current flags.
-- **Restore** (selecting a state) applies the flags inside a single
-  transaction, so one undo puts everything back.
-- A layer created *after* a state was saved has no entry in it and is
-  **left untouched** by a restore. The alternative — guessing a default —
-  is how an elevation datum gets rebased to zero, and the suite has closed
-  that door five times already.
-
-## What a state remembers
-
-Everything a layer is, not just whether you can see it:
-
-```js
-{ off, frozen, locked, plottable, snappable,
-  color, linetype, lineweight }
-```
-
-**Every field is optional, and that is the design.** A field a record
-does not carry is left alone on restore, exactly as a layer the state
-never mentions is left alone. That is what lets the template ship a
-`Plot ready` meaning "hide the scans" without it also meaning "and put
-every colour back to the day the template was built" — a state that
-froze the palette would quietly undo Restyle Layers every time anyone
-applied it. A state a caver **saves** captures all of it, because they
-asked for a photograph of the drawing as it stands.
-
-Colour is stored as `#rrggbb` and not `RColor::getName()`, which answers
-`White` for one colour and `#1163c8` for the next: a named colour is a
-localised string in some builds, and a state written in one language
-would not read back in another. Linetype travels as a **name**, because
-the id a layer holds means nothing in another drawing — and a linetype
-this drawing has never loaded is left alone rather than forced to
-CONTINUOUS.
-
-Restore no longer claims `LayerVisibilityStatusChange` on its
-transaction. That type lets the view take the cheap regeneration path,
-which was true when only on/off/lock could move and is a lie now that a
-state can change colour, linetype and lineweight — the drawing would
-keep the old appearance until something else forced a redraw.
-
-Stored as one packed string per layer, `flags;colour;linetype;weight`,
-in an array aligned to the layer-name table — variable length, so the
-array is what carries position where version 1 used a fixed three
-characters per entry. Version 1 blobs and version 1 `.clas` files are
-still read: a three-character entry becomes a flags-only record, which
-is exactly what it meant.
+- It is a **`QFrame`**, not a `QDialog`. A QDialog keeps its window
+  chrome on macOS even under `Qt.Popup` — the frame is not drawn but
+  the space it would take is, as an empty band across the top.
+- Each swatch closes over its **hex string and nothing else**. The
+  alternative — one shared handler asking Qt which button sent the
+  signal — means guessing from the focused widget, and a closure
+  holding a Qt wrapper is the shape this bridge crashes on.
+- `QColorDialog.getColor`, behind **Custom…**, is never used. The
+  blocking static **does not return in this binding**: it opens its
+  dialog, the dialog can be accepted or rejected, the dialog goes away,
+  and the call never comes back, so every line after it is never
+  reached and nothing is logged. From outside it looks exactly like
+  "the button does nothing", which is how it was reported — twice,
+  because the first fix addressed a real but unrelated defect (the
+  three-argument call matches no bound variant). Custom… uses a
+  `QColorDialog` **instance**, shown with `open()`, answered by its
+  `colorSelected` signal.
 
 ## Carrying states between drawings: `.clas`
 
