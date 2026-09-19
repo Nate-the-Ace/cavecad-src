@@ -27,14 +27,28 @@ include(includeBasePath + "/LayerGroups.js");
 
 /**
  * \class LayerStates
- * \brief Named snapshots of every layer's off / frozen / locked flags.
+ * \brief Named snapshots of what every layer looks like and does.
  *
  * Stored in the same document blob the groups live in, for the same
  * reason: layer custom properties are dropped by the DXF exporter. See
- * the header of LayerGroups.js for the measurement.
+ * the header of LayerGroups.js for the measurement. Groups and states
+ * share that blob and NOTHING ELSE -- a state never carries a group and
+ * importing one never touches an arrangement somebody built by hand.
  *
- * A state's entry for one layer is three characters, in this order: off,
- * frozen, locked.
+ * A state's entry for one layer is a RECORD, and every field in it is
+ * OPTIONAL:
+ *
+ *     { off, frozen, locked, plottable, snappable,
+ *       color, linetype, lineweight }
+ *
+ * Optional is the whole design. A field a record does not carry is left
+ * alone on restore, exactly as a layer the state never mentions is left
+ * alone. That is what lets the template ship a "Plot ready" that means
+ * "hide the scans" without also meaning "and put every colour back to
+ * what it was the day the template was built" -- a state that froze the
+ * palette would quietly undo Restyle Layers every time it was applied.
+ * A state a caver SAVES captures everything, because they asked for a
+ * photograph of the drawing as it stands.
  */
 function LayerStates() {
 }
@@ -54,18 +68,97 @@ LayerStates.nameError = function(name) {
 
 
 // ---------------------------------------------------------------------
-// Flag codes
+// Records: what a state remembers about one layer
 // ---------------------------------------------------------------------
 
-/** \return \c layer's current flags as a three character code. */
-LayerStates.encode = function(layer) {
-    return String(Number(layer.isOff())) +
-           String(Number(layer.isFrozen())) +
-           String(Number(layer.isLocked()));
+/** The boolean fields, in the order they are packed into a record string. */
+LayerStates.FLAGS = ["off", "frozen", "locked", "plottable", "snappable"];
+
+/** Field separator inside a stored record. */
+LayerStates.FIELD_SEP = ";";
+
+/** A field the record does not carry. */
+LayerStates.ABSENT = "-";
+
+/**
+ * \return A colour as text that survives a round trip.
+ *
+ * The hex form and not RColor::getName(), which answers "White" for one
+ * and "#1163c8" for the next: a named colour is a localised string in
+ * some builds, and a state written in one language would not read in
+ * another. ByLayer and ByBlock have no hex and keep their token -- they
+ * are nonsense on a layer, but a file can hold them and a reader that
+ * threw would be worse than one that passes them through.
+ */
+LayerStates.colorToText = function(color) {
+    if (isNull(color)) {
+        return undefined;
+    }
+    try {
+        if (color.isByLayer()) {
+            return "ByLayer";
+        }
+        if (color.isByBlock()) {
+            return "ByBlock";
+        }
+        var hex = function(n) {
+            var t = Number(n).toString(16);
+            return t.length < 2 ? "0" + t : t;
+        };
+        return "#" + hex(color.red()) + hex(color.green()) + hex(color.blue());
+    }
+    catch (e) {
+        return undefined;
+    }
+};
+
+/** \return An RColor for text from colorToText, or undefined. */
+LayerStates.colorFromText = function(text) {
+    if (isNull(text) || String(text).length === 0) {
+        return undefined;
+    }
+    try {
+        return new RColor(String(text));
+    }
+    catch (e) {
+        return undefined;
+    }
 };
 
 /**
- * Applies \c code to \c layer. Mutates the layer only; the caller owns
+ * \return Everything \c layer currently is, as a record.
+ *
+ * \param doc Needed for the linetype, which a layer holds as an id that
+ * means nothing in another drawing. The NAME is what travels.
+ */
+LayerStates.encode = function(doc, layer) {
+    var record = {
+        off: layer.isOff(),
+        frozen: layer.isFrozen(),
+        locked: layer.isLocked(),
+        color: LayerStates.colorToText(layer.getColor()),
+        lineweight: layer.getLineweight()
+    };
+    // Not every build has these; a missing one is simply not recorded
+    // rather than recorded as false, which would switch it off on the
+    // next restore.
+    if (isFunction(layer.isPlottable)) {
+        record.plottable = layer.isPlottable();
+    }
+    if (isFunction(layer.isSnappable)) {
+        record.snappable = layer.isSnappable();
+    }
+    if (!isNull(doc) && isFunction(doc.getLinetypeName)) {
+        var name = doc.getLinetypeName(layer.getLinetypeId());
+        if (!isNull(name) && String(name).length > 0) {
+            record.linetype = String(name);
+        }
+    }
+    return record;
+};
+
+/**
+ * Applies \c record to \c layer. Mutates the layer only; the caller owns
  * the operation.
  *
  * NOT named apply(). LayerStates is a function object, and Function
@@ -74,25 +167,135 @@ LayerStates.encode = function(layer) {
  * Type error" that names nothing. Cost one live debugging session.
  * The same trap waits on call, bind and name.
  *
- * \return True if any flag changed, so the caller can skip layers that
+ * A field the record does not carry is LEFT ALONE. A linetype the
+ * drawing does not have is left alone too -- the alternative is putting
+ * a layer on CONTINUOUS because the state came from a cave with a
+ * linetype this one never loaded.
+ *
+ * \return True if anything changed, so the caller can skip layers that
  * are already right and keep the transaction small.
  */
-LayerStates.applyCode = function(layer, code) {
-    if (isNull(code) || String(code).length<3) {
+LayerStates.applyRecord = function(doc, layer, record) {
+    if (isNull(record) || typeof(record) !== "object") {
         return false;
     }
-    code = String(code);
-    var off = code.charAt(0)==="1";
-    var frozen = code.charAt(1)==="1";
-    var locked = code.charAt(2)==="1";
+    var changed = false;
+    var i, field;
 
-    if (layer.isOff()===off && layer.isFrozen()===frozen && layer.isLocked()===locked) {
-        return false;
+    for (i = 0; i < LayerStates.FLAGS.length; i++) {
+        field = LayerStates.FLAGS[i];
+        if (typeof(record[field]) !== "boolean") {
+            continue;
+        }
+        var getter = "is" + field.charAt(0).toUpperCase() + field.substring(1);
+        var setter = "set" + field.charAt(0).toUpperCase() + field.substring(1);
+        if (!isFunction(layer[getter]) || !isFunction(layer[setter])) {
+            continue;
+        }
+        if (layer[getter]() !== record[field]) {
+            layer[setter](record[field]);
+            changed = true;
+        }
     }
-    layer.setOff(off);
-    layer.setFrozen(frozen);
-    layer.setLocked(locked);
-    return true;
+
+    if (!isNull(record.color)) {
+        var color = LayerStates.colorFromText(record.color);
+        if (!isNull(color) &&
+                LayerStates.colorToText(layer.getColor()) !== record.color) {
+            layer.setColor(color);
+            changed = true;
+        }
+    }
+
+    if (typeof(record.lineweight) === "number" &&
+            layer.getLineweight() !== record.lineweight) {
+        layer.setLineweight(record.lineweight);
+        changed = true;
+    }
+
+    if (!isNull(record.linetype) && !isNull(doc) &&
+            isFunction(doc.getLinetypeId)) {
+        var id = doc.getLinetypeId(String(record.linetype));
+        if (!isNull(id) && id !== RObject.INVALID_ID &&
+                layer.getLinetypeId() !== id) {
+            layer.setLinetypeId(id);
+            changed = true;
+        }
+    }
+
+    return changed;
+};
+
+/**
+ * \return A record packed into one string for storage.
+ *
+ * Fixed slots -- five flag characters, colour, linetype, lineweight --
+ * so a reader knows what it is looking at without a key per field. A
+ * dash is a field the record does not carry, which is not the same as a
+ * field that is false.
+ */
+LayerStates.packRecord = function(record) {
+    var flags = "";
+    for (var i = 0; i < LayerStates.FLAGS.length; i++) {
+        var value = record[LayerStates.FLAGS[i]];
+        flags += (typeof(value) === "boolean") ? (value ? "1" : "0")
+                                               : LayerStates.ABSENT;
+    }
+    var parts = [
+        flags,
+        isNull(record.color) ? LayerStates.ABSENT : String(record.color),
+        isNull(record.linetype) ? LayerStates.ABSENT : String(record.linetype),
+        (typeof(record.lineweight) === "number") ? String(record.lineweight)
+                                                 : LayerStates.ABSENT
+    ];
+    return parts.join(LayerStates.FIELD_SEP);
+};
+
+/**
+ * \return The record a packed string describes, or undefined.
+ *
+ * Reads the OLD three-character form too: before layer states carried
+ * appearance, an entry was "110" and nothing else. Those become
+ * flags-only records, which is exactly what they meant.
+ */
+LayerStates.unpackRecord = function(text) {
+    if (isNull(text)) {
+        return undefined;
+    }
+    text = String(text);
+
+    if (text.indexOf(LayerStates.FIELD_SEP) < 0) {
+        // Pre-appearance format: off, frozen, locked and nothing else.
+        if (text.length !== 3) {
+            return undefined;
+        }
+        return { off: text.charAt(0) === "1",
+                 frozen: text.charAt(1) === "1",
+                 locked: text.charAt(2) === "1" };
+    }
+
+    var parts = text.split(LayerStates.FIELD_SEP);
+    var flags = parts[0];
+    var record = {};
+    for (var i = 0; i < LayerStates.FLAGS.length && i < flags.length; i++) {
+        var ch = flags.charAt(i);
+        if (ch === "0" || ch === "1") {
+            record[LayerStates.FLAGS[i]] = (ch === "1");
+        }
+    }
+    if (parts.length > 1 && parts[1] !== LayerStates.ABSENT && parts[1] !== "") {
+        record.color = parts[1];
+    }
+    if (parts.length > 2 && parts[2] !== LayerStates.ABSENT && parts[2] !== "") {
+        record.linetype = parts[2];
+    }
+    if (parts.length > 3 && parts[3] !== LayerStates.ABSENT && parts[3] !== "") {
+        var lw = parseInt(parts[3], 10);
+        if (!isNaN(lw)) {
+            record.lineweight = lw;
+        }
+    }
+    return record;
 };
 
 
@@ -120,20 +323,20 @@ LayerStates.findState = function(reg, name) {
 };
 
 /**
- * \return \c layerName's code in state \c name, or undefined if the
+ * \return \c layerName's record in state \c name, or undefined if the
  * state holds no entry for it.
  *
  * Undefined is the meaningful case, not an error: a layer created after
  * the state was saved has no entry, and a restore must leave it alone.
  * Guessing a default here is how an elevation datum gets rebased to zero.
  */
-LayerStates.getCode = function(reg, name, layerName) {
+LayerStates.getRecord = function(reg, name, layerName) {
     var st = LayerStates.findState(reg, name);
     if (isNull(st)) {
         return undefined;
     }
-    var code = st.flags[layerName];
-    return (isNull(code) || String(code).length<3) ? undefined : String(code);
+    var record = st.flags[layerName];
+    return (isNull(record) || typeof(record)!=="object") ? undefined : record;
 };
 
 /**
@@ -188,7 +391,10 @@ LayerStates.listNames = function(doc) {
     return LayerStates.stateNames(LayerGroups.readRegistry(doc));
 };
 
-/** \return A flags map of every layer in \c doc and its current code. */
+/**
+ * \return A record for every layer in \c doc: everything each one
+ * currently is, which is what a caver asking to save a state means.
+ */
 LayerStates.snapshot = function(doc) {
     var flags = {};
     var ids = doc.queryAllLayers();
@@ -197,7 +403,7 @@ LayerStates.snapshot = function(doc) {
         if (isFunction(layer.isNull) && layer.isNull()) {
             continue;
         }
-        flags[layer.getName()] = LayerStates.encode(layer);
+        flags[layer.getName()] = LayerStates.encode(doc, layer);
     }
     return flags;
 };
@@ -228,9 +434,13 @@ LayerStates.restore = function(di, name) {
         return 0;
     }
 
+    // NOT LayerVisibilityStatusChange any more. That transaction type
+    // tells the view it may take the cheap regeneration path, which is
+    // true when only on/off/lock moved and a lie now that a state can
+    // change a layer's colour, linetype and lineweight -- the drawing
+    // would keep the old appearance until something else forced a
+    // redraw.
     var op = new RModifyObjectsOperation();
-    // Only visibility flags change: lets the view regenerate the cheap way.
-    op.setTransactionType(RTransaction.LayerVisibilityStatusChange);
 
     var changed = 0;
     for (var layerName in st.flags) {
@@ -241,7 +451,7 @@ LayerStates.restore = function(di, name) {
         if (isNull(layer) || (isFunction(layer.isNull) && layer.isNull())) {
             continue;
         }
-        if (LayerStates.applyCode(layer, st.flags[layerName])) {
+        if (LayerStates.applyRecord(doc, layer, st.flags[layerName])) {
             op.addObject(layer);
             changed++;
         }
@@ -299,8 +509,16 @@ LayerStates.rename = function(di, oldName, newName) {
 /** Marker in the file, so a wrong file chosen by mistake says so. */
 LayerStates.FORMAT = "cavecad-layer-states";
 
-/** Bumped only for a change that an older reader would misread. */
-LayerStates.FORMAT_VERSION = 1;
+/**
+ * Bumped only for a change that an older reader would misread.
+ *
+ * 2 added the appearance fields. A version 1 file holds three-character
+ * flag strings and is still read; a version 1 READER handed a version 2
+ * file would take a record object for a code and silently apply
+ * nothing, which is why the version gate refuses the newer file rather
+ * than trying.
+ */
+LayerStates.FORMAT_VERSION = 2;
 
 /**
  * CaveCAD Layer StateS. Deliberately one letter off AutoCAD's .las, and
@@ -390,10 +608,18 @@ LayerStates.fromExport = function(text) {
         for (var layerName in entry.flags) {
             // Three characters or it is not a code. A malformed entry is
             // dropped rather than stored, so it cannot reach applyCode.
-            if (entry.flags.hasOwnProperty(layerName) &&
-                    typeof(entry.flags[layerName])==="string" &&
-                    entry.flags[layerName].length===3) {
-                flags[layerName] = entry.flags[layerName];
+            if (!entry.flags.hasOwnProperty(layerName)) {
+                continue;
+            }
+            var value = entry.flags[layerName];
+            // An object is a record. A string is the pre-appearance
+            // form, still read so a .clas written before layer states
+            // carried colour keeps working.
+            var record = (typeof(value)==="string") ?
+                LayerStates.unpackRecord(value) :
+                ((!isNull(value) && typeof(value)==="object") ? value : undefined);
+            if (!isNull(record)) {
+                flags[layerName] = record;
             }
         }
         states.push({ name: entry.name, flags: flags });

@@ -239,6 +239,45 @@ A combo box at the foot of the palette with Save, Update and Delete.
   is how an elevation datum gets rebased to zero, and the suite has closed
   that door five times already.
 
+## What a state remembers
+
+Everything a layer is, not just whether you can see it:
+
+```js
+{ off, frozen, locked, plottable, snappable,
+  color, linetype, lineweight }
+```
+
+**Every field is optional, and that is the design.** A field a record
+does not carry is left alone on restore, exactly as a layer the state
+never mentions is left alone. That is what lets the template ship a
+`Plot ready` meaning "hide the scans" without it also meaning "and put
+every colour back to the day the template was built" — a state that
+froze the palette would quietly undo Restyle Layers every time anyone
+applied it. A state a caver **saves** captures all of it, because they
+asked for a photograph of the drawing as it stands.
+
+Colour is stored as `#rrggbb` and not `RColor::getName()`, which answers
+`White` for one colour and `#1163c8` for the next: a named colour is a
+localised string in some builds, and a state written in one language
+would not read back in another. Linetype travels as a **name**, because
+the id a layer holds means nothing in another drawing — and a linetype
+this drawing has never loaded is left alone rather than forced to
+CONTINUOUS.
+
+Restore no longer claims `LayerVisibilityStatusChange` on its
+transaction. That type lets the view take the cheap regeneration path,
+which was true when only on/off/lock could move and is a lie now that a
+state can change colour, linetype and lineweight — the drawing would
+keep the old appearance until something else forced a redraw.
+
+Stored as one packed string per layer, `flags;colour;linetype;weight`,
+in an array aligned to the layer-name table — variable length, so the
+array is what carries position where version 1 used a fixed three
+characters per entry. Version 1 blobs and version 1 `.clas` files are
+still read: a three-character entry becomes a flags-only record, which
+is exactly what it meant.
+
 ## Carrying states between drawings: `.clas`
 
 A state names every layer in the drawing it was saved from, so it is the

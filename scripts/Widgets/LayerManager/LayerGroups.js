@@ -41,10 +41,17 @@
  *
  * Stored shape, deliberately terse because it is written into a DXF:
  *
- *     {"v":1,
+ *     {"v":2,
  *      "l":["0","CTRL-SHOTS"],                 layer name table
  *      "g":[{"n":"Plan work","m":[1]}],        groups, members by index
- *      "s":[{"n":"Plan only","c":"000110"}]}   states, 3 chars per index
+ *      "s":[{"n":"Plan only",                  states, one record per
+ *            "r":["-----;-;-;-",                 table entry, "" for a
+ *                 "11000;#ffffff;Continuous;50"]}]}   layer it omits
+ *
+ * Version 1 wrote a state's entries as one string of three characters
+ * per table entry, when a state held nothing but off/frozen/locked. A
+ * record is variable length, so version 2 uses an array instead, and
+ * "c" is still read where it is found.
  *
  * The table travels inside the same blob as the indices referring to it,
  * written and read in one go, so the two cannot drift apart the way a
@@ -71,6 +78,15 @@
  * Nothing in this file touches Qt, so it is unit tested against a plain
  * object answering getVariable/setVariable. Everything needing a widget
  * lives in RLayerTreeQt.js.
+ *
+ * ONE SOFT DEPENDENCY, and it points the wrong way on purpose.
+ * Serializing a state's records needs LayerStates.packRecord, because
+ * the record's SHAPE belongs to LayerStates while the blob's LAYOUT
+ * belongs here. LayerStates.js includes this file, so this file cannot
+ * include it back; it reaches for the global at call time instead and
+ * skips states when it is absent. Loading LayerGroups.js alone
+ * therefore gives you working groups and no states, which is a coherent
+ * thing to be rather than a half-loaded one.
  */
 function LayerGroups() {
 }
@@ -103,8 +119,11 @@ LayerGroups.CHUNK = 800;
 /** Longest accepted group or state name. */
 LayerGroups.MAX_NAME = 64;
 
-/** Placeholder for a layer a state holds no entry for. */
+/** Placeholder for a layer a state holds no entry for, in version 1. */
 LayerGroups.NO_CODE = "---";
+
+/** The stored format this writes. Older ones are still read. */
+LayerGroups.VERSION = 2;
 
 
 // ---------------------------------------------------------------------
@@ -469,16 +488,19 @@ LayerGroups.encode = function(reg) {
     }
 
     var states = [];
-    for (i=0; i<reg.states.length; i++) {
-        var codes = "";
+    var canPackStates = (typeof(LayerStates)!=="undefined");
+    for (i=0; canPackStates && i<reg.states.length; i++) {
+        var records = [];
         for (j=0; j<table.length; j++) {
-            var code = reg.states[i].flags[table[j]];
-            codes += isNull(code) ? LayerGroups.NO_CODE : code;
+            var record = reg.states[i].flags[table[j]];
+            // An empty string, not a placeholder token: a record is
+            // variable length and the array is what carries position.
+            records.push(isNull(record) ? "" : LayerStates.packRecord(record));
         }
-        states.push({ n: reg.states[i].name, c: codes });
+        states.push({ n: reg.states[i].name, r: records });
     }
 
-    var out = { v: 1, l: table, g: groups, s: states };
+    var out = { v: LayerGroups.VERSION, l: table, g: groups, s: states };
     if (!isNull(reg.ungroupedLabel)) {
         out.u = reg.ungroupedLabel;
     }
@@ -532,17 +554,33 @@ LayerGroups.decode = function(stored) {
         }
     }
 
-    var states = Array.isArray(stored.s) ? stored.s : [];
+    var states = (Array.isArray(stored.s) && typeof(LayerStates)!=="undefined") ?
+        stored.s : [];
     for (i=0; i<states.length; i++) {
         if (isNull(states[i]) || typeof(states[i].n)!=="string") {
             continue;
         }
-        var codes = typeof(states[i].c)==="string" ? states[i].c : "";
         var flags = {};
-        for (j=0; j<table.length; j++) {
-            var code = codes.substr(j*3, 3);
-            if (code.length===3 && code!==LayerGroups.NO_CODE) {
-                flags[table[j]] = code;
+        if (Array.isArray(states[i].r)) {
+            // Version 2: one packed record per table entry.
+            for (j=0; j<table.length && j<states[i].r.length; j++) {
+                var packed = states[i].r[j];
+                if (typeof(packed)!=="string" || packed.length===0) {
+                    continue;
+                }
+                var record = LayerStates.unpackRecord(packed);
+                if (!isNull(record)) {
+                    flags[table[j]] = record;
+                }
+            }
+        }
+        else if (typeof(states[i].c)==="string") {
+            // Version 1: three characters per table entry, flags only.
+            for (j=0; j<table.length; j++) {
+                var code = states[i].c.substr(j*3, 3);
+                if (code.length===3 && code!==LayerGroups.NO_CODE) {
+                    flags[table[j]] = LayerStates.unpackRecord(code);
+                }
             }
         }
         reg.states.push({ name: states[i].n, flags: flags });
