@@ -1178,6 +1178,13 @@ RLayerTreeQt.prototype.itemColumnClickedSlot = function(item, column) {
         this.blockSignals(false);
     }
 
+    // WHERE THE EDITOR SHOULD APPEAR: under the cell that was clicked,
+    // not under the pointer. They are the same place for the first
+    // popup, and they stop being the same the moment that popup offers
+    // "Custom..." -- by then the pointer is at the bottom of a grid
+    // and the dialog would open nowhere near the layer it edits.
+    this.anchor = this.cellAnchor(item, column);
+
     if (RLayerTreeQt.isPropertyColumn(column)) {
         this.editProperty(this.targetsFor(item), column);
         return;
@@ -1390,7 +1397,7 @@ RLayerTreeQt.runPendingColor = function() {
     // is logged. It reads from outside as "the button does nothing".
     tree.colorDialog = dialog;
     dialog.show();
-    RLayerTreeQt.placeAtCursor(dialog);
+    RLayerTreeQt.placeAt(dialog, tree.anchor);
 };
 
 /** The caver pressed OK. \c color is what they picked. */
@@ -1613,7 +1620,11 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title
         byText[String(extra.text)] = RLayerTreeQt.MORE;
     }
 
-    var chosen = this.choiceMenu.exec(QCursor.pos());
+    // Dropped from the cell that was clicked, so the menu lines up
+    // with the column it edits instead of wherever the pointer
+    // happened to be inside it.
+    var chosen = this.choiceMenu.exec(
+        isNull(this.anchor) ? QCursor.pos() : this.anchor);
     if (isNull(chosen)) {
         return undefined;   // clicked away
     }
@@ -1752,7 +1763,7 @@ RLayerTreeQt.prototype.openColorPopup = function(names, seedColor) {
     this.pendingColor = { names: names, seed: seedColor };
 
     popup.show();
-    RLayerTreeQt.placeAtCursor(popup);
+    RLayerTreeQt.placeAt(popup, this.anchor);
 };
 
 /**
@@ -1831,14 +1842,37 @@ RLayerTreeQt.onCustomColorRequested = function() {
 };
 
 /**
- * Puts \c widget under the pointer, wholly on the screen the pointer is
- * on. Shown first, because its size is not settled until it is.
+ * \return The bottom-left corner of one cell, in screen coordinates,
+ * or undefined if it cannot be worked out.
+ *
+ * Bottom-left so an editor hangs below its cell the way a combo box
+ * drops, rather than covering the row it is about to change.
  */
-RLayerTreeQt.placeAtCursor = function(widget) {
+RLayerTreeQt.prototype.cellAnchor = function(item, column) {
     try {
-        var at = QCursor.pos();
-        var x = at.x() - 8;
-        var y = at.y() - 8;
+        var rect = this.visualItemRect(item);
+        var x = this.header().sectionViewportPosition(column);
+        // QPoint's x and y are FUNCTIONS in this binding, not
+        // properties -- reading them as properties yields the function
+        // object and every sum after it is NaN.
+        return this.viewport().mapToGlobal(
+            new QPoint(x, rect.y() + rect.height()));
+    }
+    catch (e) {
+        return undefined;
+    }
+};
+
+/**
+ * Puts \c widget at \c point, or under the pointer when there is none,
+ * wholly on the screen that point is on. Shown first, because its size
+ * is not settled until it is.
+ */
+RLayerTreeQt.placeAt = function(widget, point) {
+    try {
+        var at = isNull(point) ? QCursor.pos() : point;
+        var x = at.x();
+        var y = at.y();
         var area = QGuiApplication.screenAt(at).availableGeometry();
         var w = widget.width;
         var h = widget.height;

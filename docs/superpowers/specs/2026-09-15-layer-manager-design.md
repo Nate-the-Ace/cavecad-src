@@ -212,6 +212,14 @@ and a row per shade, then the greys, then the last colour mixed by
 hand, then **Custom…**. Still a popup in every way that matters, and
 each popup carries the layer's name, or "N layers", across the top.
 
+Every editor here is anchored to the **cell that was clicked**, not to
+the pointer: the bottom-left corner of the cell, so it drops below the
+row the way a combo box does rather than covering the row it is about
+to change, and clamped to stay wholly on that screen. The two are the
+same place for the first popup and stop being the same the moment it
+offers Custom… — by then the pointer is at the bottom of a grid, and
+the dialog would open nowhere near the layer it edits.
+
 Three things about that popup are written down because each was got
 wrong first:
 
