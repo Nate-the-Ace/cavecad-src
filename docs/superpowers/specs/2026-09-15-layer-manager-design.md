@@ -205,9 +205,24 @@ behave the way a cell editor should: they appear under the mouse, carry
 no title bar or buttons, and clicking anywhere else puts them away
 without changing anything. A modal dialog centred on the main window is
 the wrong weight for a one-click choice. Colour offers nine standard
-swatches and a **More Colours…** entry, and only that entry opens the
-full `QColorDialog` — a real dialog for a real decision, asked for by
-name.
+swatches, the last colour mixed by hand under a rule of its own, and a
+**More Colours…** entry. Only that entry opens the full colour dialog.
+
+That one entry cost two wrong diagnoses, so both are written down.
+`QColorDialog.getColor` — the blocking static everybody reaches for —
+**does not come back in this binding**: it opens its dialog, the dialog
+can be accepted or rejected, the dialog goes away, and the call never
+returns, so every line after it is never reached. Nothing is logged. It
+looks exactly like "More Colours… does nothing", which is how it was
+reported. (The three-argument call was ALSO wrong — the bridge binds
+two- and four-argument variants and nothing between — but fixing that
+changed nothing, because the static was never the way.) The dialog is a
+**QColorDialog instance** now, shown with `open()`, which is modal but
+does not block, and answered by its `colorSelected` signal.
+
+It still goes on a zero timer, for a different reason: the menu that
+asked for it holds a mouse grab, and a dialog raised under a popup does
+not take focus. The timer lets the menu close first.
 
 **The click moves the highlight** unless it landed inside the
 selection. Only the name column is selectable, so a click on a switch

@@ -55,6 +55,12 @@ function RLayerTreeQt(parent) {
      */
     var self = this;
 
+    // The live tree, for the one place a deferred callback needs it.
+    // A QTimer closure that captures the widget is the shape that
+    // crashes; resolving a static at fire time is the shape that does
+    // not.
+    RLayerTreeQt.instance = this;
+
     this.registry = LayerGroups.emptyRegistry();
 
     /** Current filter text, lower cased. Empty means no filter. */
@@ -1287,7 +1293,23 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
 
     var apply;
     if (column===RLayerTreeQt.colColor) {
-        apply = this.askColor(first);
+        var picked = this.askColor(first);
+        if (picked===RLayerTreeQt.MORE) {
+            // THE FULL PICKER CANNOT OPEN FROM HERE. We are inside the
+            // QMenu's exec and a popup holds a mouse grab, so a dialog
+            // raised under it does not take focus. It goes on a zero
+            // timer instead, so the menu has closed and let the grab
+            // go before the dialog is asked for -- and because the
+            // dialog is answered by signal rather than by return
+            // value, nothing here waits for it.
+            this.pendingColor = { names: names, seed: first.getColor() };
+            this.colorTimer = new QTimer();
+            this.colorTimer.singleShot = true;
+            this.colorTimer.timeout.connect(RLayerTreeQt.runPendingColor);
+            this.colorTimer.start(0);
+            return;
+        }
+        apply = isNull(picked) ? undefined : RLayerTreeQt.colorApplier(picked);
     }
     else if (column===RLayerTreeQt.colLinetype) {
         apply = this.askLinetype(doc, first);
@@ -1298,7 +1320,15 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
     if (isNull(apply)) {
         return;   // cancelled
     }
+    this.applyToLayers(names, apply);
+};
 
+/**
+ * Applies \c apply to every named layer, in one transaction so an edit
+ * across forty of them is one undo.
+ */
+RLayerTreeQt.prototype.applyToLayers = function(names, apply) {
+    var doc = this.di.getDocument();
     var op = new RModifyObjectsOperation();
     var changed = 0;
     for (var i=0; i<names.length; i++) {
@@ -1318,6 +1348,96 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
     this.di.clearPreview();
     this.di.repaintViews();
     this.updateLayers(this.di);
+};
+
+/**
+ * Opens the full colour picker, once the menu that asked for it has
+ * gone.
+ *
+ * A plain function on the class and not a closure: a QTimer callback
+ * that captured the widget would be holding a Qt wrapper across the
+ * gap, which is the shape that crashes. This resolves the static at
+ * fire time instead.
+ */
+RLayerTreeQt.runPendingColor = function() {
+    var tree = RLayerTreeQt.instance;
+    if (isNull(tree) || isNull(tree.pendingColor)) {
+        return;
+    }
+
+    var initial;
+    try {
+        initial = new QColor(String(
+            LayerStates.colorToText(tree.pendingColor.seed)));
+    }
+    catch (e) {
+        initial = new QColor(255, 255, 255);
+    }
+
+    // AN INSTANCE AND A SIGNAL, never QColorDialog.getColor.
+    //
+    // The blocking static does not come back in this binding. Measured:
+    // getColor opens its dialog, the dialog can be accepted or
+    // rejected, the dialog goes away -- and the call never returns, so
+    // every line after it, including the one that would have applied
+    // the colour, is simply never reached. Nothing is logged. It looks
+    // from the outside exactly like "More Colours... does nothing",
+    // which is what it was reported as.
+    //
+    // open() is modal but does NOT block, and colorSelected carries the
+    // answer, so there is no nested loop to come back from.
+    tree.colorDialog = new QColorDialog(RMainWindowQt.getMainWindow());
+    tree.colorDialog.setCurrentColor(initial);
+    tree.colorDialog.colorSelected.connect(RLayerTreeQt.onColorSelected);
+    tree.colorDialog.finished.connect(RLayerTreeQt.onColorFinished);
+    tree.colorDialog.open();
+};
+
+/** The caver pressed OK. \c color is what they picked. */
+RLayerTreeQt.onColorSelected = function(color) {
+    var tree = RLayerTreeQt.instance;
+    if (isNull(tree) || isNull(tree.pendingColor)) {
+        return;
+    }
+    var names = tree.pendingColor.names;
+    tree.pendingColor = undefined;
+
+    if (isNull(color) || !isFunction(color.isValid) || !color.isValid()) {
+        return;
+    }
+    var text = LayerStates.colorToText(
+        new RColor(color.red(), color.green(), color.blue()));
+    RLayerTreeQt.setRecentColor(text);
+
+    var apply = RLayerTreeQt.colorApplier(text);
+    if (!isNull(apply)) {
+        tree.applyToLayers(names, apply);
+    }
+};
+
+/** Closed, however it closed: let go of the dialog and the request. */
+RLayerTreeQt.onColorFinished = function() {
+    var tree = RLayerTreeQt.instance;
+    if (isNull(tree)) {
+        return;
+    }
+    tree.pendingColor = undefined;
+    tree.colorDialog = undefined;
+};
+
+/** \return A function putting colour \c text on a layer. */
+RLayerTreeQt.colorApplier = function(text) {
+    var color = LayerStates.colorFromText(text);
+    if (isNull(color)) {
+        return undefined;
+    }
+    return function(layer) {
+        if (LayerStates.colorToText(layer.getColor())===text) {
+            return false;
+        }
+        layer.setColor(color);
+        return true;
+    };
 };
 
 /**
@@ -1450,7 +1570,10 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title
  */
 RLayerTreeQt.MORE = "<<more>>";
 
-/** \return A function applying the chosen colour, or undefined. */
+/**
+ * The quick colour menu.
+ * \return A "#rrggbb", RLayerTreeQt.MORE, or undefined if dismissed.
+ */
 RLayerTreeQt.prototype.askColor = function(seed) {
     var current = LayerStates.colorToText(seed.getColor());
     var quick = RLayerTreeQt.QUICK_COLORS();
@@ -1469,56 +1592,8 @@ RLayerTreeQt.prototype.askColor = function(seed) {
                        separatorBefore: true });
     }
 
-    var picked = this.popupChoice(entries, current, qsTr("More Colours..."),
+    return this.popupChoice(entries, current, qsTr("More Colours..."),
         this.editTitle);
-    if (isNull(picked)) {
-        return undefined;
-    }
-
-    var text;
-    if (picked===RLayerTreeQt.MORE) {
-        // The full picker is a real dialog, because it is a real
-        // decision and the caver asked for it by name.
-        var initial;
-        try {
-            initial = new QColor(String(current));
-        }
-        catch (e) {
-            initial = new QColor(255, 255, 255);
-        }
-        // TWO ARGUMENTS, not three. The bridge binds getColor(QColor,
-        // QWidget*) and getColor(QColor, QWidget*, QString,
-        // ColorDialogOptions) and nothing in between: the three
-        // argument call everyone writes matches no variant, logs "no
-        // matching function variant found" where nobody is looking,
-        // and returns undefined -- so "More Colours..." opened nothing
-        // at all. The four argument form would take a title but needs
-        // a ColorDialogOptions, and those enum names are the kind this
-        // build leaves unbound.
-        var chosen = QColorDialog.getColor(initial,
-            RMainWindowQt.getMainWindow());
-        if (isNull(chosen) || !isFunction(chosen.isValid) || !chosen.isValid()) {
-            return undefined;
-        }
-        text = LayerStates.colorToText(
-            new RColor(chosen.red(), chosen.green(), chosen.blue()));
-        RLayerTreeQt.setRecentColor(text);
-    }
-    else {
-        text = picked;
-    }
-
-    var color = LayerStates.colorFromText(text);
-    if (isNull(color)) {
-        return undefined;
-    }
-    return function(layer) {
-        if (LayerStates.colorToText(layer.getColor())===text) {
-            return false;
-        }
-        layer.setColor(color);
-        return true;
-    };
 };
 
 /** \return A function applying the chosen linetype, or undefined. */
