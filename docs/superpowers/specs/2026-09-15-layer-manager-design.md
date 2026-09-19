@@ -222,6 +222,16 @@ wrong first:
   alternative — one shared handler asking Qt which button sent the
   signal — means guessing from the focused widget, and a closure
   holding a Qt wrapper is the shape this bridge crashes on.
+- **Custom… is Qt's dialog, never the platform's.** `DontUseNativeDialog`
+  is set, so macOS's colour panel — a system window with its own title
+  bar that does not close when you click past it and outlives whatever
+  opened it — never appears. Qt's own widget version takes
+  `Qt.Popup | Qt.FramelessWindowHint` and behaves like every other
+  editor here. This is the general rule for the palette and not a
+  one-off: the platform dialogs are precisely what differs between the
+  three systems this runs on, so the `.clas` file dialogs go through
+  QCAD's own `getDontUseNativeDialog()` rather than reaching for
+  `QFileDialog`'s statics, which silently took the platform's.
 - `QColorDialog.getColor`, behind **Custom…**, is never used. The
   blocking static **does not return in this binding**: it opens its
   dialog, the dialog can be accepted or rejected, the dialog goes away,

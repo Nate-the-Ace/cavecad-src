@@ -324,6 +324,46 @@ LayerManager.renameState = function() {
 };
 
 /**
+ * A file dialog for .clas, honouring the application's own preference
+ * about native dialogs.
+ *
+ * QCAD answers that question once, in getDontUseNativeDialog(), from
+ * the SaveAs/UseSystemFileDialog setting plus a KDE workaround. Going
+ * straight to QFileDialog's static, as this did, silently took the
+ * platform's dialog whatever the caver had chosen -- and the platform's
+ * dialogs are exactly what differs between the three this runs on.
+ *
+ * \return The chosen path, or undefined. A cancelled dialog can answer
+ * with a wrapped empty QString rather than null, so both are checked.
+ */
+LayerManager.fileDialog = function(saving, caption, startPath) {
+    var filter = qsTr("CaveCAD layer states") +
+        " (*." + LayerStates.FILE_SUFFIX + ")";
+    var dialog = new QFileDialog(RMainWindowQt.getMainWindow(),
+        caption, startPath, filter);
+    dialog.setOption(QFileDialog.DontUseNativeDialog,
+        getDontUseNativeDialog());
+    dialog.fileMode = saving ? QFileDialog.AnyFile : QFileDialog.ExistingFile;
+    if (saving) {
+        dialog.acceptMode = QFileDialog.AcceptSave;
+        dialog.defaultSuffix = LayerStates.FILE_SUFFIX;
+    }
+    else {
+        dialog.acceptMode = QFileDialog.AcceptOpen;
+    }
+
+    var accepted = dialog.exec();
+    var files = dialog.selectedFiles();
+    destrDialog(dialog);
+
+    if (!accepted || isNull(files) || files.length===0) {
+        return undefined;
+    }
+    var path = String(files[0]);
+    return (path==="") ? undefined : path;
+};
+
+/**
  * Writes every state in this drawing to a file.
  *
  * All of them, not the selected one: states are cheap to carry and a
@@ -350,10 +390,9 @@ LayerManager.exportStates = function() {
     if (suggested.length===0) {
         suggested = "layers";
     }
-    var path = QFileDialog.getSaveFileName(RMainWindowQt.getMainWindow(),
+    var path = LayerManager.fileDialog(true,
         qsTr("Export Layer States"),
-        QDir.homePath() + "/" + suggested + "." + LayerStates.FILE_SUFFIX,
-        qsTr("CaveCAD layer states") + " (*." + LayerStates.FILE_SUFFIX + ")");
+        QDir.homePath() + "/" + suggested + "." + LayerStates.FILE_SUFFIX);
     // A cancelled dialog can hand back a wrapped empty QString rather
     // than null, so both are checked.
     if (isNull(path) || String(path)==="") {
@@ -394,9 +433,8 @@ LayerManager.importStates = function() {
         return;
     }
 
-    var path = QFileDialog.getOpenFileName(RMainWindowQt.getMainWindow(),
-        qsTr("Import Layer States"), QDir.homePath(),
-        qsTr("CaveCAD layer states") + " (*." + LayerStates.FILE_SUFFIX + ")");
+    var path = LayerManager.fileDialog(false,
+        qsTr("Import Layer States"), QDir.homePath());
     if (isNull(path) || String(path)==="") {
         return;
     }

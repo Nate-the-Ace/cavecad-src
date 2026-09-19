@@ -1362,23 +1362,35 @@ RLayerTreeQt.runPendingColor = function() {
         initial = new QColor(255, 255, 255);
     }
 
-    // AN INSTANCE AND A SIGNAL, never QColorDialog.getColor.
-    //
-    // The blocking static does not come back in this binding. Measured:
-    // getColor opens its dialog, the dialog can be accepted or
-    // rejected, the dialog goes away -- and the call never returns, so
-    // every line after it, including the one that would have applied
-    // the colour, is simply never reached. Nothing is logged. It looks
-    // from the outside exactly like "More Colours... does nothing",
-    // which is what it was reported as.
-    //
-    // open() is modal but does NOT block, and colorSelected carries the
-    // answer, so there is no nested loop to come back from.
-    tree.colorDialog = new QColorDialog(RMainWindowQt.getMainWindow());
-    tree.colorDialog.setCurrentColor(initial);
-    tree.colorDialog.colorSelected.connect(RLayerTreeQt.onColorSelected);
-    tree.colorDialog.finished.connect(RLayerTreeQt.onColorFinished);
-    tree.colorDialog.open();
+    var dialog = new QColorDialog(RMainWindowQt.getMainWindow());
+
+    // NOT THE NATIVE PANEL. On macOS the native colour panel is a
+    // window of the system's own: it has its own title bar, it does
+    // not close when you click past it, and it outlives the thing that
+    // opened it. Qt's own widget version can be made to behave like
+    // every other editor in this palette. DontUseNativeDialog is 4.
+    dialog.setOption(QColorDialog.DontUseNativeDialog, true);
+
+    // Qt.Popup (9) dismisses it on a click away;
+    // Qt.FramelessWindowHint (2048) stops a QDialog reserving room for
+    // chrome it will not draw -- the empty band this palette already
+    // hit once with the swatch grid.
+    dialog.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint);
+    dialog.setCurrentColor(initial);
+
+    // colorSelected fires on OK and not on a click away, which is the
+    // distinction wanted: leaving without choosing changes nothing.
+    dialog.colorSelected.connect(RLayerTreeQt.onColorSelected);
+    dialog.finished.connect(RLayerTreeQt.onColorFinished);
+
+    // NEVER QColorDialog.getColor. The blocking static does not come
+    // back in this binding: it opens its dialog, the dialog can be
+    // accepted or rejected, the dialog goes away, and the call never
+    // returns -- so every line after it is never reached and nothing
+    // is logged. It reads from outside as "the button does nothing".
+    tree.colorDialog = dialog;
+    dialog.show();
+    RLayerTreeQt.placeAtCursor(dialog);
 };
 
 /** The caver pressed OK. \c color is what they picked. */
