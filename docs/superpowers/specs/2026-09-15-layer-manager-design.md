@@ -209,6 +209,23 @@ swatches and a **More Colours…** entry, and only that entry opens the
 full `QColorDialog` — a real dialog for a real decision, asked for by
 name.
 
+**The click moves the highlight** unless it landed inside the
+selection. Only the name column is selectable, so a click on a switch
+or a property cell used to change nothing about what was highlighted:
+with one layer selected and a colour cell clicked three rows below it,
+the popup opened over an unhighlighted row and edited a layer that was
+not the one shown as chosen. The edit was right and unreadable, which
+is worse than wrong. The popup also carries the target across its top —
+the layer's name, or "N layers" — because a popup editing forty layers
+otherwise looks exactly like one editing the row under the pointer.
+
+**The selection survives a rebuild.** Every toggle and every property
+edit ends in `updateLayers`, and a rebuild that dropped the selection
+would undo the thing the caver is in the middle of: pick eight layers,
+freeze them, and the next click would find one row selected. It was
+also what made the highlight snap back to the current layer after the
+fix above.
+
 **The selection wins when the clicked row is part of it.** Click a
 switch on one of eight selected layers and all eight move; click one
 outside the selection and only it moves. That is what every table in

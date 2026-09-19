@@ -518,6 +518,15 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
 
     var pos = this.verticalScrollBar().sliderPosition;
 
+    // WHAT WAS SELECTED SURVIVES THE REBUILD. Every toggle and every
+    // property edit ends here, and a rebuild that dropped the selection
+    // would undo the thing the caver is in the middle of: pick eight
+    // layers, freeze them, and the next click would find one row
+    // selected. It also made the highlight snap back to the current
+    // layer after a click three rows away, so the popup named one layer
+    // and the highlight showed another.
+    var wasSelected = this.selectedNames();
+
     this.blockSignals(true);
     this.clear();
 
@@ -584,7 +593,11 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
     this.blockSignals(false);
 
     this.applyFilter();
-    this.selectCurrentLayer();
+    if (!this.restoreSelection(wasSelected)) {
+        // Nothing was selected, so fall back to showing where the
+        // caver is drawing.
+        this.selectCurrentLayer();
+    }
 
     this.verticalScrollBar().sliderPosition = pos;
 
@@ -956,6 +969,62 @@ RLayerTreeQt.prototype.getSelectedGroupName = function() {
     return isNull(g) ? undefined : String(g);
 };
 
+/**
+ * \return The names on every selected row, layers and groups alike, so
+ * a rebuild can put the selection back exactly as it was.
+ *
+ * Groups and layers can share a name only if somebody names a group
+ * after a layer, and then the worst that happens is one extra row comes
+ * back selected. Worth it for a function this small.
+ */
+RLayerTreeQt.prototype.selectedNames = function() {
+    var res = [];
+    var items = this.selectedItems();
+    for (var i=0; i<items.length; i++) {
+        var name = this.getItemName(items[i]);
+        if (!isNull(name) && res.indexOf(name)<0) {
+            res.push(name);
+        }
+    }
+    return res;
+};
+
+/**
+ * Re-selects the rows named in \c names after a rebuild.
+ * \return True if anything was selected.
+ */
+RLayerTreeQt.prototype.restoreSelection = function(names) {
+    if (isNull(names) || names.length===0) {
+        return false;
+    }
+    var found = false;
+    this.blockSignals(true);
+    for (var i=0; i<this.getTopLevelCount(); i++) {
+        if (this.selectNamedRows(this.topLevelItem(i), names)) {
+            found = true;
+        }
+    }
+    this.blockSignals(false);
+    return found;
+};
+
+RLayerTreeQt.prototype.selectNamedRows = function(item, names) {
+    var found = false;
+    if (names.indexOf(this.getItemName(item))>=0 && !item.isHidden()) {
+        item.setSelected(true);
+        if (isNull(this.currentItem())) {
+            this.setCurrentItem(item);
+        }
+        found = true;
+    }
+    for (var i=0; i<item.childCount(); i++) {
+        if (this.selectNamedRows(item.child(i), names)) {
+            found = true;
+        }
+    }
+    return found;
+};
+
 RLayerTreeQt.prototype.selectCurrentLayer = function() {
     if (isNull(this.di)) {
         return;
@@ -1084,6 +1153,25 @@ RLayerTreeQt.prototype.itemColumnClickedSlot = function(item, column) {
         return;
     }
 
+    // THE CLICK MOVES THE HIGHLIGHT unless it landed inside the
+    // selection. Only the name column is selectable, so a click on a
+    // switch or a property cell used to change nothing about what was
+    // highlighted: with one layer selected and a colour cell clicked
+    // three rows below it, the popup opened over a row that was not
+    // highlighted and edited a layer that was not the one shown as
+    // chosen. The edit was right and unreadable, which is worse than
+    // wrong.
+    //
+    // Signals blocked: this is feedback, not a request to change which
+    // layer the caver is drawing on.
+    if (!item.isSelected()) {
+        this.blockSignals(true);
+        this.clearSelection();
+        item.setSelected(true);
+        this.setCurrentItem(item);
+        this.blockSignals(false);
+    }
+
     if (RLayerTreeQt.isPropertyColumn(column)) {
         this.editProperty(this.targetsFor(item), column);
         return;
@@ -1192,6 +1280,11 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
         return;
     }
 
+    // Named once here rather than in each asker: they all want the
+    // same sentence and none of them should have to work it out.
+    this.editTitle = (names.length===1) ? names[0] :
+        qsTr("%1 layers").arg(names.length);
+
     var apply;
     if (column===RLayerTreeQt.colColor) {
         apply = this.askColor(first);
@@ -1250,6 +1343,38 @@ RLayerTreeQt.QUICK_COLORS = function() {
 };
 
 /**
+ * The last colour picked out of the full picker.
+ *
+ * ONE colour and not a list: "the one I mixed a minute ago" is the
+ * thing a caver reaches back for, and a growing row of near-identical
+ * swatches under the standard nine would cost more to read than it
+ * saves. Kept per user rather than per drawing -- it is a habit, not a
+ * property of the cave.
+ */
+RLayerTreeQt.recentColor = function() {
+    var hex = RSettings.getStringValue("LayerManager/RecentColor", "");
+    return (isNull(hex) || String(hex).length===0) ? undefined : String(hex);
+};
+
+/**
+ * Remembers \c hex, unless it is one of the standard nine -- those are
+ * already in the list and a "recent" entry duplicating one teaches the
+ * caver that the row means nothing.
+ */
+RLayerTreeQt.setRecentColor = function(hex) {
+    if (isNull(hex)) {
+        return;
+    }
+    var quick = RLayerTreeQt.QUICK_COLORS();
+    for (var i=0; i<quick.length; i++) {
+        if (quick[i].hex===hex) {
+            return;
+        }
+    }
+    RSettings.setValue("LayerManager/RecentColor", hex);
+};
+
+/**
  * A popup at the mouse. \return The chosen entry's value, or undefined.
  *
  * A QMenU AND NOT A DIALOG, which is what makes it behave the way a
@@ -1264,14 +1389,28 @@ RLayerTreeQt.QUICK_COLORS = function() {
  * \param entries [{ text, value, icon }], icon optional.
  * \param current The value to show as checked, or undefined.
  */
-RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText) {
+RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title) {
     // Held on the tree rather than in a local: a menu whose only
     // reference is the function that opened it can go out of scope
     // while it is still on screen.
     this.choiceMenu = new QMenu(this);
+
+    // WHAT IS ABOUT TO CHANGE, across the top. A popup that edits
+    // forty layers looks exactly like one that edits the row under the
+    // pointer, and the difference is not recoverable by undo-ing and
+    // squinting.
+    if (!isNull(title)) {
+        var heading = this.choiceMenu.addAction(title);
+        heading.enabled = false;
+        this.choiceMenu.addSeparator();
+    }
+
     var actions = [];
     var i;
     for (i=0; i<entries.length; i++) {
+        if (entries[i].separatorBefore===true) {
+            this.choiceMenu.addSeparator();
+        }
         var action = this.choiceMenu.addAction(entries[i].text);
         if (!isNull(entries[i].icon)) {
             action.icon = entries[i].icon;
@@ -1303,8 +1442,13 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText) {
     return undefined;
 };
 
-/** Sentinel: the caver asked for the full picker instead. */
-RLayerTreeQt.MORE = "\u0000more";
+/**
+ * Sentinel: the caver asked for the full picker instead.
+ *
+ * A string no colour, linetype or lineweight label can ever be, so
+ * comparing against it cannot collide with a real answer.
+ */
+RLayerTreeQt.MORE = "<<more>>";
 
 /** \return A function applying the chosen colour, or undefined. */
 RLayerTreeQt.prototype.askColor = function(seed) {
@@ -1316,7 +1460,17 @@ RLayerTreeQt.prototype.askColor = function(seed) {
                        icon: RLayerTreeQt.swatch(quick[i].hex) });
     }
 
-    var picked = this.popupChoice(entries, current, qsTr("More Colours..."));
+    // The last colour mixed by hand, under a rule of its own so it
+    // never looks like a tenth standard.
+    var recent = RLayerTreeQt.recentColor();
+    if (!isNull(recent)) {
+        entries.push({ text: qsTr("Recent") + "  " + recent, value: recent,
+                       icon: RLayerTreeQt.swatch(recent),
+                       separatorBefore: true });
+    }
+
+    var picked = this.popupChoice(entries, current, qsTr("More Colours..."),
+        this.editTitle);
     if (isNull(picked)) {
         return undefined;
     }
@@ -1332,13 +1486,23 @@ RLayerTreeQt.prototype.askColor = function(seed) {
         catch (e) {
             initial = new QColor(255, 255, 255);
         }
+        // TWO ARGUMENTS, not three. The bridge binds getColor(QColor,
+        // QWidget*) and getColor(QColor, QWidget*, QString,
+        // ColorDialogOptions) and nothing in between: the three
+        // argument call everyone writes matches no variant, logs "no
+        // matching function variant found" where nobody is looking,
+        // and returns undefined -- so "More Colours..." opened nothing
+        // at all. The four argument form would take a title but needs
+        // a ColorDialogOptions, and those enum names are the kind this
+        // build leaves unbound.
         var chosen = QColorDialog.getColor(initial,
-            RMainWindowQt.getMainWindow(), qsTr("Layer Colour"));
-        if (isNull(chosen) || !chosen.isValid()) {
+            RMainWindowQt.getMainWindow());
+        if (isNull(chosen) || !isFunction(chosen.isValid) || !chosen.isValid()) {
             return undefined;
         }
         text = LayerStates.colorToText(
             new RColor(chosen.red(), chosen.green(), chosen.blue()));
+        RLayerTreeQt.setRecentColor(text);
     }
     else {
         text = picked;
@@ -1381,7 +1545,8 @@ RLayerTreeQt.prototype.askLinetype = function(doc, seed) {
         entries.push({ text: names[i], value: names[i] });
     }
     var chosen = this.popupChoice(entries,
-        String(doc.getLinetypeName(seed.getLinetypeId())));
+        String(doc.getLinetypeName(seed.getLinetypeId())),
+        undefined, this.editTitle);
     if (isNull(chosen) || chosen===RLayerTreeQt.MORE) {
         return undefined;
     }
@@ -1423,7 +1588,8 @@ RLayerTreeQt.prototype.askLineweight = function(seed) {
         entries.push({ text: RLayerTreeQt.lineweightText(weights[i]),
                        value: weights[i] });
     }
-    var weight = this.popupChoice(entries, seed.getLineweight());
+    var weight = this.popupChoice(entries, seed.getLineweight(),
+        undefined, this.editTitle);
     if (isNull(weight) || weight===RLayerTreeQt.MORE) {
         return undefined;
     }
