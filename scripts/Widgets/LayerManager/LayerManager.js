@@ -608,6 +608,34 @@ LayerManager.init = function(basePath) {
         tree.setFilterText(text);
     });
 
+    // THE BUTTON ROWS MUST NOT BE THE PALETTE'S FLOOR.
+    //
+    // A dock is as narrow as its widest child insists on being, and a
+    // QToolButton insists on its own size hint: eleven of them across
+    // two rows added up to 161px, which was the width below which this
+    // palette could not be dragged. Ignored is the one horizontal
+    // policy that discards the hint, and the explicit minimum then
+    // says how far they may really compress. Measured in the running
+    // app through the bridge: 161 -> 96.
+    //
+    // FOUND BY MEASURING, after two fixes that changed nothing. The
+    // second of them looked right and was applied to the wrong
+    // widgets: five of these names -- ShowAll, HideAll, Add, Remove,
+    // Edit -- belong to the stock Layer List's buttons as well, and
+    // appWin.findChild finds THAT palette's. Every lookup here goes
+    // through formWidget for that reason, and any future one must too.
+    var compressible = ["ShowAll", "HideAll", "NewGroup", "Add", "Remove",
+        "Edit", "StateButton", "SaveState", "UpdateState", "DeleteState",
+        "StateMenu"];
+    for (var bi=0; bi<compressible.length; bi++) {
+        var button = formWidget.findChild(compressible[bi]);
+        if (isNull(button)) {
+            continue;
+        }
+        button.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed);
+        button.setMinimumWidth(16);
+    }
+
     formWidget.findChild("StateButton").clicked.connect(
         LayerManager.showStateMenu);
 
