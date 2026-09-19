@@ -329,12 +329,18 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
         }
     }
 
-    for (g=0; g<groupNames.length; g++) {
-        this.addGroup(groupNames[g], groupNames[g], members[groupNames[g]], layers, collapsed);
+    var topLevel = LayerGroups.topLevelGroups(this.registry);
+    for (g=0; g<topLevel.length; g++) {
+        this.addGroup(topLevel[g], topLevel[g], members, layers, collapsed, undefined);
     }
-    // Ungrouped is always last and is not a group: it cannot be renamed,
-    // deleted, or stored in the registry.
-    this.addGroup(RLayerTreeQt.Ungrouped, qsTr("Ungrouped"), ungrouped, layers, collapsed);
+    // Ungrouped is always last, takes no children, and is not a group:
+    // it cannot be deleted or stored in the registry. It CAN be renamed
+    // -- see LayerGroups.ungroupedLabel -- because a caver who has filed
+    // everything else deserves to say what the remainder is.
+    var ungroupedMembers = {};
+    ungroupedMembers[RLayerTreeQt.Ungrouped] = ungrouped;
+    this.addGroup(RLayerTreeQt.Ungrouped, this.ungroupedLabel(), ungroupedMembers,
+                  layers, collapsed, undefined);
 
     this.blockSignals(false);
 
@@ -351,7 +357,17 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
     }
 };
 
-RLayerTreeQt.prototype.addGroup = function(name, label, memberNames, layers, collapsed) {
+/**
+ * Builds one group row and everything inside it.
+ *
+ * \param members The whole group-name -> layer-names map, not one
+ *        group's slice, because a parent has to reach its children's.
+ * \param parentItem The row to nest under, or undefined for top level.
+ *
+ * Nested groups are added BEFORE the parent's own member layers, so a
+ * subgroup never hides at the bottom of a long list of layers.
+ */
+RLayerTreeQt.prototype.addGroup = function(name, label, members, layers, collapsed, parentItem) {
     var item = new QTreeWidgetItem();
     item.setText(RLayerTreeQt.colName, label);
     item.setData(RLayerTreeQt.colName, RLayerTreeQt.RoleType, RLayerTreeQt.TypeGroup);
@@ -361,16 +377,35 @@ RLayerTreeQt.prototype.addGroup = function(name, label, memberNames, layers, col
     font.setBold(true);
     item.setFont(RLayerTreeQt.colName, font);
 
-    this.addTopLevelItem(item);
+    if (isNull(parentItem)) {
+        this.addTopLevelItem(item);
+    }
+    else {
+        parentItem.addChild(item);
+    }
 
-    for (var i=0; i<memberNames.length; i++) {
-        var layer = layers[memberNames[i]];
-        item.addChild(this.createLayerItem(layer, name));
+    var i;
+    if (name!==RLayerTreeQt.Ungrouped) {
+        var kids = LayerGroups.childrenOf(this.registry, name);
+        for (i=0; i<kids.length; i++) {
+            this.addGroup(kids[i], kids[i], members, layers, collapsed, item);
+        }
+    }
+
+    var memberNames = isNull(members[name]) ? [] : members[name];
+    for (i=0; i<memberNames.length; i++) {
+        item.addChild(this.createLayerItem(layers[memberNames[i]], name));
     }
 
     this.updateGroupIcons(item, layers);
     item.setExpanded(collapsed.indexOf(name)<0);
     return item;
+};
+
+/** \return What the Ungrouped row is called in this drawing. */
+RLayerTreeQt.prototype.ungroupedLabel = function() {
+    var label = this.registry.ungroupedLabel;
+    return (isNull(label) || String(label).length===0) ? qsTr("Ungrouped") : String(label);
 };
 
 RLayerTreeQt.prototype.createLayerItem = function(layer, groupName) {
@@ -402,20 +437,50 @@ RLayerTreeQt.prototype.updateLayerIcons = function(item, layer) {
  * stored group flag can disagree with its members, and then the palette
  * has to decide which one is lying.
  */
+/**
+ * \return Every LAYER row under \c item, at any depth.
+ *
+ * Walked over the tree rather than looked up in the registry, so a group
+ * row answers for exactly what is drawn inside it -- including the rows
+ * a filter has hidden, which must still be toggled by their group.
+ */
+RLayerTreeQt.prototype.collectLayerItems = function(item) {
+    var res = [];
+    for (var i=0; i<item.childCount(); i++) {
+        var child = item.child(i);
+        if (this.isGroupItem(child)) {
+            res = res.concat(this.collectLayerItems(child));
+        }
+        else {
+            res.push(child);
+        }
+    }
+    return res;
+};
+
+/**
+ * Draws a group's own eye and lock from every layer under it, nested
+ * groups included: all on, all off, or mixed.
+ *
+ * Nothing about a group's visibility is stored. That is deliberate -- a
+ * stored group flag can disagree with its members, and then the palette
+ * has to decide which one is lying.
+ */
 RLayerTreeQt.prototype.updateGroupIcons = function(groupItem, layers) {
-    var count = groupItem.childCount();
-    if (count===0) {
+    var rows = this.collectLayerItems(groupItem);
+    if (rows.length===0) {
         groupItem.setIcon(RLayerTreeQt.colVisible, RLayerTreeQt.iconVisibleMixed);
         groupItem.setIcon(RLayerTreeQt.colLock, RLayerTreeQt.iconLockMixed);
         return;
     }
 
-    var visible = 0, locked = 0;
-    for (var i=0; i<count; i++) {
-        var layer = layers[String(groupItem.child(i).data(RLayerTreeQt.colName, RLayerTreeQt.RoleName))];
+    var visible = 0, locked = 0, counted = 0;
+    for (var i=0; i<rows.length; i++) {
+        var layer = layers[String(rows[i].data(RLayerTreeQt.colName, RLayerTreeQt.RoleName))];
         if (isNull(layer)) {
             continue;
         }
+        counted++;
         if (!layer.isOffOrFrozen()) {
             visible++;
         }
@@ -423,11 +488,14 @@ RLayerTreeQt.prototype.updateGroupIcons = function(groupItem, layers) {
             locked++;
         }
     }
+    if (counted===0) {
+        return;
+    }
 
     if (visible===0) {
         groupItem.setIcon(RLayerTreeQt.colVisible, RLayerTreeQt.iconVisible[0]);
     }
-    else if (visible===count) {
+    else if (visible===counted) {
         groupItem.setIcon(RLayerTreeQt.colVisible, RLayerTreeQt.iconVisible[1]);
     }
     else {
@@ -437,7 +505,7 @@ RLayerTreeQt.prototype.updateGroupIcons = function(groupItem, layers) {
     if (locked===0) {
         groupItem.setIcon(RLayerTreeQt.colLock, RLayerTreeQt.iconLock[0]);
     }
-    else if (locked===count) {
+    else if (locked===counted) {
         groupItem.setIcon(RLayerTreeQt.colLock, RLayerTreeQt.iconLock[1]);
     }
     else {
@@ -473,38 +541,65 @@ RLayerTreeQt.prototype.setFilterText = function(text) {
  * so filtering by group name is a way to see the group whole.
  */
 RLayerTreeQt.prototype.applyFilter = function() {
-    var f = this.filterText;
-
     for (var i=0; i<this.getTopLevelCount(); i++) {
-        var groupItem = this.topLevelItem(i);
-        var groupLabel = String(groupItem.text(RLayerTreeQt.colName)).toLowerCase();
-        var groupMatches = f.length===0 || groupLabel.indexOf(f)>=0;
+        this.filterGroup(this.topLevelItem(i), false);
+    }
+};
 
-        var shown = 0;
-        for (var j=0; j<groupItem.childCount(); j++) {
-            var child = groupItem.child(j);
-            var layerName = String(child.text(RLayerTreeQt.colName)).toLowerCase();
-            var match = f.length===0 || groupMatches || layerName.indexOf(f)>=0;
-            child.setHidden(!match);
-            if (match) {
+/**
+ * Hides what does not match, one group and everything inside it.
+ *
+ * \param inherited True when an ancestor group's own name matched, which
+ *        shows the whole subtree: filtering by a group name is how you
+ *        ask to see that group whole.
+ * \return True if anything under \c groupItem is still visible.
+ */
+RLayerTreeQt.prototype.filterGroup = function(groupItem, inherited) {
+    var f = this.filterText;
+    var label = String(groupItem.text(RLayerTreeQt.colName)).toLowerCase();
+    var matches = inherited || f.length===0 || label.indexOf(f)>=0;
+
+    var shown = 0;
+    for (var i=0; i<groupItem.childCount(); i++) {
+        var child = groupItem.child(i);
+        if (this.isGroupItem(child)) {
+            if (this.filterGroup(child, matches)) {
                 shown++;
             }
+            continue;
         }
-
-        // An empty group stays visible under a group-name match, so you
-        // can still see that it exists and file layers into it.
-        groupItem.setHidden(!(groupMatches || shown>0));
-        if (f.length>0) {
-            groupItem.setExpanded(true);
+        var layerName = String(child.text(RLayerTreeQt.colName)).toLowerCase();
+        var hit = matches || layerName.indexOf(f)>=0;
+        child.setHidden(!hit);
+        if (hit) {
+            shown++;
         }
     }
+
+    // An empty group stays visible under a name match, so you can still
+    // see that it exists and file layers into it.
+    var visible = matches || shown>0;
+    groupItem.setHidden(!visible);
+    if (f.length>0 && visible) {
+        groupItem.setExpanded(true);
+    }
+    return visible;
 };
 
 RLayerTreeQt.prototype.restoreExpansion = function(collapsedNames) {
     for (var i=0; i<this.getTopLevelCount(); i++) {
-        var groupItem = this.topLevelItem(i);
-        var name = String(groupItem.data(RLayerTreeQt.colName, RLayerTreeQt.RoleName));
-        groupItem.setExpanded(collapsedNames.indexOf(name)<0);
+        this.restoreExpansionOf(this.topLevelItem(i), collapsedNames);
+    }
+};
+
+RLayerTreeQt.prototype.restoreExpansionOf = function(groupItem, collapsedNames) {
+    var name = String(groupItem.data(RLayerTreeQt.colName, RLayerTreeQt.RoleName));
+    groupItem.setExpanded(collapsedNames.indexOf(name)<0);
+    for (var i=0; i<groupItem.childCount(); i++) {
+        var child = groupItem.child(i);
+        if (this.isGroupItem(child)) {
+            this.restoreExpansionOf(child, collapsedNames);
+        }
     }
 };
 
@@ -573,17 +668,31 @@ RLayerTreeQt.prototype.selectCurrentLayer = function() {
 
     this.blockSignals(true);
     for (var i=0; i<this.getTopLevelCount(); i++) {
-        var groupItem = this.topLevelItem(i);
-        for (var j=0; j<groupItem.childCount(); j++) {
-            var child = groupItem.child(j);
-            if (this.getItemName(child)===name && !child.isHidden()) {
-                this.setCurrentItem(child);
-                this.blockSignals(false);
-                return;
-            }
+        var found = this.findLayerRow(this.topLevelItem(i), name);
+        if (!isNull(found)) {
+            this.setCurrentItem(found);
+            break;
         }
     }
     this.blockSignals(false);
+};
+
+/** \return The first visible row for layer \c name under \c item. */
+RLayerTreeQt.prototype.findLayerRow = function(item, name) {
+    for (var i=0; i<item.childCount(); i++) {
+        var child = item.child(i);
+        if (this.isGroupItem(child)) {
+            var deeper = this.findLayerRow(child, name);
+            if (!isNull(deeper)) {
+                return deeper;
+            }
+            continue;
+        }
+        if (this.getItemName(child)===name && !child.isHidden()) {
+            return child;
+        }
+    }
+    return undefined;
 };
 
 
@@ -662,11 +771,15 @@ RLayerTreeQt.prototype.itemColumnClickedSlot = function(item, column) {
  */
 RLayerTreeQt.prototype.toggleGroup = function(groupItem, column) {
     var doc = this.di.getDocument();
+    var rows = this.collectLayerItems(groupItem);
     var names = [];
     var anyOn = false;
 
-    for (var i=0; i<groupItem.childCount(); i++) {
-        var name = this.getItemName(groupItem.child(i));
+    for (var i=0; i<rows.length; i++) {
+        var name = this.getItemName(rows[i]);
+        if (names.indexOf(name)>=0) {
+            continue;   // the same layer filed in two nested groups
+        }
         var layer = doc.queryLayer(name);
         if (isFunction(layer.isNull) && layer.isNull()) {
             continue;
@@ -760,11 +873,28 @@ RLayerTreeQt.prototype.contextMenuEvent = function(e) {
     a.triggered.connect(function() { self.newGroup(); });
 
     if (onGroupRow && this.isRealGroup(groupName)) {
+        a = menu.addAction(qsTr("New Group Inside..."));
+        a.setEnabled(isNull(LayerGroups.parentOf(this.registry, groupName)));
+        a.triggered.connect(function() { self.newGroup(groupName); });
+
         a = menu.addAction(qsTr("Rename Group..."));
         a.triggered.connect(function() { self.renameGroup(groupName); });
 
+        if (!isNull(LayerGroups.parentOf(this.registry, groupName))) {
+            a = menu.addAction(qsTr("Move to Top Level"));
+            a.triggered.connect(function() { self.unnestGroup(groupName); });
+        }
+
         a = menu.addAction(qsTr("Delete Group"));
         a.triggered.connect(function() { self.deleteGroup(groupName); });
+    }
+    else if (onGroupRow) {
+        // The Ungrouped row. It is not a group and never will be, but
+        // what it is CALLED is the caver's to decide: once everything
+        // else is filed, "Ungrouped" is the wrong word for whatever is
+        // left.
+        a = menu.addAction(qsTr("Rename Ungrouped..."));
+        a.triggered.connect(function() { self.renameUngrouped(); });
     }
 
     if (layerNames.length>0) {
@@ -868,18 +998,19 @@ RLayerTreeQt.promptName = function(title, label, initial) {
  * selected. An existing name is reused rather than refused: asking for a
  * group you already have is a filing request, not a mistake.
  */
-RLayerTreeQt.prototype.newGroup = function() {
+RLayerTreeQt.prototype.newGroup = function(parent) {
     if (isNull(this.di)) {
         return;
     }
-    var name = RLayerTreeQt.promptName(qsTr("New Group"), qsTr("Group name:"));
+    var title = isNull(parent) ? qsTr("New Group") : qsTr("New Group Inside");
+    var name = RLayerTreeQt.promptName(title, qsTr("Group name:"));
     if (isNull(name)) {
         return;
     }
 
     var doc = this.di.getDocument();
     var reg = LayerGroups.readRegistry(doc);
-    LayerGroups.createGroup(reg, name);
+    LayerGroups.createGroup(reg, name, parent);
 
     // The selection is filed in the same write, so a group made with
     // layers selected costs one document change rather than two.
@@ -934,6 +1065,58 @@ RLayerTreeQt.prototype.deleteGroup = function(name) {
     if (LayerGroups.deleteGroup(reg, name)) {
         LayerGroups.writeRegistry(doc, reg);
     }
+    this.updateLayers(this.di);
+};
+
+/** Moves a nested group back out to the top level. */
+RLayerTreeQt.prototype.unnestGroup = function(name) {
+    if (isNull(this.di) || !this.isRealGroup(name)) {
+        return;
+    }
+    var doc = this.di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    if (LayerGroups.setParent(reg, name, undefined)) {
+        LayerGroups.writeRegistry(doc, reg);
+    }
+    this.updateLayers(this.di);
+};
+
+/**
+ * Renames the Ungrouped row.
+ *
+ * Stored as a label on the registry, not as a group: the row still
+ * holds exactly the layers that are in no group, still sits last, and
+ * still cannot be deleted. An empty answer puts the default back.
+ */
+RLayerTreeQt.prototype.renameUngrouped = function() {
+    if (isNull(this.di)) {
+        return;
+    }
+    var dialog = new QInputDialog(RMainWindowQt.getMainWindow());
+    dialog.setInputMode(QInputDialog.TextInput);
+    dialog.setWindowTitle(qsTr("Rename Ungrouped"));
+    dialog.setLabelText(qsTr("Name for the layers in no group (blank for the default):"));
+    dialog.setTextValue(this.ungroupedLabel());
+    var accepted = dialog.exec();
+    var value = String(dialog.textValue()).trim();
+    destrDialog(dialog);
+    if (!accepted) {
+        return;
+    }
+
+    if (value.length>0) {
+        var err = LayerGroups.nameError(value);
+        if (!isNull(err)) {
+            QMessageBox.warning(RMainWindowQt.getMainWindow(),
+                qsTr("Rename Ungrouped"), err);
+            return;
+        }
+    }
+
+    var doc = this.di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    reg.ungroupedLabel = value.length>0 ? value : undefined;
+    LayerGroups.writeRegistry(doc, reg);
     this.updateLayers(this.di);
 };
 

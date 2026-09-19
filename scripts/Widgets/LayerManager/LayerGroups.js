@@ -52,8 +52,21 @@
  *
  * In memory, callers see names and never indices:
  *
- *     { groups: [ { name: "Plan work", members: ["CTRL-SHOTS"] } ],
- *       states: [ { name: "Plan only", flags: { "CTRL-SHOTS": "110" } } ] }
+ *     { groups: [ { name: "Plan work", members: ["CTRL-SHOTS"],
+ *                   parent: undefined } ],
+ *       states: [ { name: "Plan only", flags: { "CTRL-SHOTS": "110" } } ],
+ *       ungroupedLabel: undefined }
+ *
+ * GROUPS NEST ONE LEVEL AND NO MORE. A group may name a parent, and the
+ * tree draws it inside that parent; a group whose parent itself has a
+ * parent is flattened to the top on read rather than drawn three deep.
+ * The cap is the point, not a shortcut -- a layer palette is a place to
+ * find a switch, and arbitrary depth turns it into a filing cabinet to
+ * get lost in. Names stay globally unique either way, so a group is
+ * still addressed by its name alone.
+ *
+ * \c ungroupedLabel renames the Ungrouped row without making it a real
+ * group: it takes no members of its own and is always last.
  *
  * Nothing in this file touches Qt, so it is unit tested against a plain
  * object answering getVariable/setVariable. Everything needing a widget
@@ -144,7 +157,7 @@ LayerGroups.nameError = function(name) {
 
 /** \return A registry with no groups and no states. */
 LayerGroups.emptyRegistry = function() {
-    return { groups: [], states: [] };
+    return { groups: [], states: [], ungroupedLabel: undefined };
 };
 
 /** \return Ordered group names. */
@@ -184,15 +197,104 @@ LayerGroups.groupsOfLayer = function(reg, layerName) {
 };
 
 /**
- * Creates group \c name if it does not already exist.
+ * Creates group \c name if it does not already exist, optionally inside
+ * \c parent.
+ *
+ * An existing group is left where it is rather than re-parented: filing
+ * into a group you already have is a filing request, not a request to
+ * move it.
+ *
  * \return True if the registry changed.
  */
-LayerGroups.createGroup = function(reg, name) {
+LayerGroups.createGroup = function(reg, name, parent) {
     if (!isNull(LayerGroups.findGroup(reg, name))) {
         return false;
     }
-    reg.groups.push({ name: name, members: [] });
+    reg.groups.push({ name: name, members: [],
+                      parent: isNull(parent) ? undefined : parent });
     return true;
+};
+
+/** \return The parent group's name, or undefined for a top level group. */
+LayerGroups.parentOf = function(reg, name) {
+    var g = LayerGroups.findGroup(reg, name);
+    return isNull(g) ? undefined : g.parent;
+};
+
+/**
+ * Moves \c name inside \c parent, or to the top level when \c parent is
+ * undefined.
+ *
+ * Refuses to nest a group that already has children, and refuses a
+ * cycle: one level is the whole contract, and a group that is its own
+ * ancestor would hang the tree walk rather than look wrong.
+ *
+ * \return True if the registry changed.
+ */
+LayerGroups.setParent = function(reg, name, parent) {
+    var g = LayerGroups.findGroup(reg, name);
+    if (isNull(g) || name === parent) {
+        return false;
+    }
+    if (!isNull(parent)) {
+        if (isNull(LayerGroups.findGroup(reg, parent))) {
+            return false;
+        }
+        if (!isNull(LayerGroups.parentOf(reg, parent))) {
+            return false;   // would be three deep
+        }
+        if (LayerGroups.childrenOf(reg, name).length > 0) {
+            return false;   // would be three deep the other way up
+        }
+    }
+    if (g.parent === parent) {
+        return false;
+    }
+    g.parent = parent;
+    return true;
+};
+
+/** \return Names of the groups nested inside \c parent, in registry order. */
+LayerGroups.childrenOf = function(reg, parent) {
+    var res = [];
+    for (var i = 0; i < reg.groups.length; i++) {
+        if (reg.groups[i].parent === parent) {
+            res.push(reg.groups[i].name);
+        }
+    }
+    return res;
+};
+
+/** \return Names of the groups at the top level, in registry order. */
+LayerGroups.topLevelGroups = function(reg) {
+    var res = [];
+    for (var i = 0; i < reg.groups.length; i++) {
+        if (isNull(reg.groups[i].parent)) {
+            res.push(reg.groups[i].name);
+        }
+    }
+    return res;
+};
+
+/**
+ * \return Member layer names of \c name and of every group inside it.
+ *
+ * What a group row's eye and lock act on, and what its three-state icon
+ * is derived from: a parent with no members of its own still has to
+ * answer for its children.
+ */
+LayerGroups.membersUnder = function(reg, name) {
+    var res = LayerGroups.membersOf(reg, name).slice();
+    var kids = LayerGroups.childrenOf(reg, name);
+    for (var i = 0; i < kids.length; i++) {
+        var inner = LayerGroups.membersOf(reg, kids[i]);
+        for (var j = 0; j < inner.length; j++) {
+            if (res.indexOf(inner[j]) < 0) {
+                res.push(inner[j]);
+            }
+        }
+    }
+    return res;
 };
 
 /**
@@ -236,6 +338,15 @@ LayerGroups.renameGroup = function(reg, oldName, newName) {
     if (isNull(g) || oldName===newName) {
         return false;
     }
+    // Anything nested inside it is re-pointed first, whichever branch
+    // below runs: a child left naming a group that no longer exists is
+    // flattened to the top on the next read, which looks like the
+    // rename moved it.
+    for (var k=0; k<reg.groups.length; k++) {
+        if (reg.groups[k].parent===oldName) {
+            reg.groups[k].parent = newName;
+        }
+    }
     var target = LayerGroups.findGroup(reg, newName);
     if (isNull(target)) {
         g.name = newName;
@@ -259,6 +370,14 @@ LayerGroups.deleteGroup = function(reg, name) {
     var g = LayerGroups.findGroup(reg, name);
     if (isNull(g)) {
         return false;
+    }
+    // Groups nested inside it move up rather than going with it. Losing
+    // a shelf should not lose what was on it, and the alternative is a
+    // delete whose blast radius is invisible until it has happened.
+    for (var i = 0; i < reg.groups.length; i++) {
+        if (reg.groups[i].parent === name) {
+            reg.groups[i].parent = undefined;
+        }
     }
     reg.groups.splice(reg.groups.indexOf(g), 1);
     return true;
@@ -331,7 +450,11 @@ LayerGroups.encode = function(reg) {
         for (j=0; j<reg.groups[i].members.length; j++) {
             members.push(indexOf(reg.groups[i].members[j]));
         }
-        groups.push({ n: reg.groups[i].name, m: members });
+        var entry = { n: reg.groups[i].name, m: members };
+        if (!isNull(reg.groups[i].parent)) {
+            entry.p = reg.groups[i].parent;
+        }
+        groups.push(entry);
     }
 
     // Every layer a state mentions has to be in the table BEFORE any code
@@ -355,7 +478,11 @@ LayerGroups.encode = function(reg) {
         states.push({ n: reg.states[i].name, c: codes });
     }
 
-    return { v: 1, l: table, g: groups, s: states };
+    var out = { v: 1, l: table, g: groups, s: states };
+    if (!isNull(reg.ungroupedLabel)) {
+        out.u = reg.ungroupedLabel;
+    }
+    return out;
 };
 
 /** \return \c stored turned back into the in-memory form. */
@@ -382,7 +509,27 @@ LayerGroups.decode = function(stored) {
                 members.push(table[at]);
             }
         }
-        reg.groups.push({ name: groups[i].n, members: members });
+        reg.groups.push({
+            name: groups[i].n,
+            members: members,
+            parent: (typeof(groups[i].p)==="string") ? groups[i].p : undefined
+        });
+    }
+
+    // One level and no more. A parent that does not exist, a group that
+    // is its own parent, and a parent that is itself nested all resolve
+    // the same way -- the group comes back to the top -- so a blob
+    // written by a future version, or edited by hand, opens as something
+    // sane instead of hanging the tree walk.
+    for (i=0; i<reg.groups.length; i++) {
+        var parent = reg.groups[i].parent;
+        if (isNull(parent)) {
+            continue;
+        }
+        var up = LayerGroups.findGroup(reg, parent);
+        if (isNull(up) || up===reg.groups[i] || !isNull(up.parent)) {
+            reg.groups[i].parent = undefined;
+        }
     }
 
     var states = Array.isArray(stored.s) ? stored.s : [];
@@ -399,6 +546,10 @@ LayerGroups.decode = function(stored) {
             }
         }
         reg.states.push({ name: states[i].n, flags: flags });
+    }
+
+    if (typeof(stored.u)==="string" && stored.u.length>0) {
+        reg.ungroupedLabel = stored.u;
     }
 
     return reg;

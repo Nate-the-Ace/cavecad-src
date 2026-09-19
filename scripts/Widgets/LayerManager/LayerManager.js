@@ -295,11 +295,20 @@ LayerManager.init = function(basePath) {
     // The tree goes into its own layout so the filter stays above it and
     // the state and button rows stay below; appending to the outer layout
     // would drop it under everything.
+    var outerLayout = formWidget.findChild("verticalLayout");
     var treeLayout = formWidget.findChild("treeLayout");
     var tree = new RLayerTreeQt(formWidget);
     tree.objectName = "LayerTree";
     treeLayout.addWidget(tree);
     LayerManager.tree = tree;
+
+    // The tree takes every pixel the filter, the state row and the
+    // buttons do not. Without this it sits at its size hint at the top
+    // of the palette with dead space under it: the outer layout gives a
+    // NESTED LAYOUT a stretch factor of zero whatever the widget inside
+    // it asks for, so the tree's own Expanding size policy never gets a
+    // say. Index 1 is treeLayout -- filter, tree, states, buttons.
+    outerLayout.setStretch(1, 1);
 
     RSettings.setValue("LayerManager/AlternatingRowColor", new RColor(230, 235, 250), false);
     WidgetFactory.initList(tree, "LayerManager");

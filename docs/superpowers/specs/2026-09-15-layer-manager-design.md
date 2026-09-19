@@ -126,6 +126,41 @@ that silently unfiled a layer would be the more surprising of the two
 behaviours. The modified flag is set explicitly, so a drawing whose only
 change was a renamed group still offers to save.
 
+## Nesting
+
+Groups nest **one level and no more**. A group may name a parent; the tree
+draws it inside that parent, and a group whose parent is itself nested is
+flattened to the top on read rather than drawn three deep. The cap is the
+point: a layer palette is a place to find a switch, and arbitrary depth
+turns it into a filing cabinet to get lost in.
+
+Names stay globally unique, so a group is still addressed by its name
+alone and nothing else in the model had to learn about paths. A parent row
+answers for everything under it — its eye and lock act on the whole
+subtree and its three-state icon is derived from it — via
+`membersUnder`, and the tree walks its own rows rather than the registry
+so that a row hidden by the filter is still toggled by its group.
+
+Deleting a parent does not delete its children: they come back to the top
+level. Losing a shelf should not lose what was on it, and the alternative
+is a delete whose blast radius is invisible until it has happened.
+Renaming a parent re-points them, or they would be flattened on the next
+read and it would look as though the rename had moved them.
+
+What this buys, in the Cave Survey scheme: eleven groups become **six top
+level rows**, with the six plan families (Passage, Floor, Formations,
+Water, Geology & Finds, Notes) inside one `Plan` parent that holds no
+layers of its own and exists to be the single switch for everything drawn
+in plan.
+
+## The Ungrouped row
+
+Renameable, through `ungroupedLabel` on the registry, and still not a
+group: it takes exactly the layers in no group, is always last, and cannot
+be deleted. Once a drawing is fully filed, "Ungrouped" is the wrong word
+for whatever arrives afterwards, and the caver is better placed than this
+palette to say what the right one is.
+
 ## The tree
 
 Three columns: **name | eye | lock**, in that order, name first.
