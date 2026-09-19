@@ -196,8 +196,18 @@ choice is remembered per user.
 ## Editing
 
 Clicking a switch column toggles it. Clicking Color, Linetype or
-Lineweight opens a picker seeded from the first layer in the selection,
-so a uniform selection shows what it already is rather than a default.
+Lineweight opens a picker at the pointer, seeded from the first layer in
+the selection so a uniform selection shows what it already is rather
+than a default.
+
+**The pickers are `QMenu`s and not dialogs**, which is what makes them
+behave the way a cell editor should: they appear under the mouse, carry
+no title bar or buttons, and clicking anywhere else puts them away
+without changing anything. A modal dialog centred on the main window is
+the wrong weight for a one-click choice. Colour offers nine standard
+swatches and a **More Colours…** entry, and only that entry opens the
+full `QColorDialog` — a real dialog for a real decision, asked for by
+name.
 
 **The selection wins when the clicked row is part of it.** Click a
 switch on one of eight selected layers and all eight move; click one
@@ -223,7 +233,13 @@ selection is the whole point of the table. It also destroys every
 
 A `QLineEdit` above the tree, matching layer *and* group names, case
 insensitively. Matching groups auto-expand; clearing restores the
-collapse state that was in effect before typing.
+collapse state that was in effect before typing. **Expand All** and
+**Collapse All** sit at the top of the tree's context menu and are
+remembered — walked by hand rather than handed to QTreeWidget's own
+`expandAll`, which would move every twisty without telling the setting
+and be undone at the next start. Both are ignored while a filter is
+active, for the same reason the twisties are: the expansion you see then
+was forced by the filter.
 
 **Wildcards when you type one, substring when you do not.** `*` is any
 run of characters and `?` is exactly one, and a pattern is ANCHORED, so

@@ -437,6 +437,44 @@ RLayerTreeQt.prototype.setCollapsedNames = function(names) {
  * active: the expansion you see then was forced by the filter, and saving
  * it would overwrite the layout the user actually chose.
  */
+/**
+ * Opens or closes every group, nested ones included.
+ *
+ * Walked rather than handed to QTreeWidget's own expandAll: the
+ * collapse state is remembered per user, and the built-in would move
+ * every twisty without telling the setting, so the next start would
+ * undo it.
+ *
+ * Ignored while a filter is active, for the same reason rememberExpansion
+ * is: the expansion you can see then was forced by the filter, and
+ * saving it would overwrite the layout the caver actually chose.
+ */
+RLayerTreeQt.prototype.setAllExpanded = function(expanded) {
+    if (this.filterText.length>0) {
+        return;
+    }
+    var names = [];
+    for (var i=0; i<this.getTopLevelCount(); i++) {
+        this.setExpandedDeep(this.topLevelItem(i), expanded, names);
+    }
+    this.setCollapsedNames(expanded ? [] : names);
+};
+
+/** \param collapsed Collects the group names closed, for the setting. */
+RLayerTreeQt.prototype.setExpandedDeep = function(groupItem, expanded, collapsed) {
+    groupItem.setExpanded(expanded);
+    if (!expanded) {
+        collapsed.push(String(groupItem.data(RLayerTreeQt.colName,
+            RLayerTreeQt.RoleName)));
+    }
+    for (var i=0; i<groupItem.childCount(); i++) {
+        var child = groupItem.child(i);
+        if (this.isGroupItem(child)) {
+            this.setExpandedDeep(child, expanded, collapsed);
+        }
+    }
+};
+
 RLayerTreeQt.prototype.rememberExpansion = function(item, expanded) {
     if (this.filterText.length>0 || isNull(item)) {
         return;
@@ -1189,22 +1227,127 @@ RLayerTreeQt.prototype.editProperty = function(names, column) {
     this.updateLayers(this.di);
 };
 
+/**
+ * The standard colours offered before the full picker.
+ *
+ * The seven ACI colours everyone's CAD has used since the eighties,
+ * plus the greys a cave map actually leans on. Hex and not names,
+ * because that is what a record stores and comparing two spellings of
+ * the same colour is a bug waiting to happen.
+ */
+RLayerTreeQt.QUICK_COLORS = function() {
+    return [
+        { text: qsTr("Red"), hex: "#ff0000" },
+        { text: qsTr("Yellow"), hex: "#ffff00" },
+        { text: qsTr("Green"), hex: "#00ff00" },
+        { text: qsTr("Cyan"), hex: "#00ffff" },
+        { text: qsTr("Blue"), hex: "#0000ff" },
+        { text: qsTr("Magenta"), hex: "#ff00ff" },
+        { text: qsTr("White"), hex: "#ffffff" },
+        { text: qsTr("Grey"), hex: "#808080" },
+        { text: qsTr("Dark grey"), hex: "#404040" }
+    ];
+};
+
+/**
+ * A popup at the mouse. \return The chosen entry's value, or undefined.
+ *
+ * A QMenU AND NOT A DIALOG, which is what makes it behave the way a
+ * caver expects a cell editor to: it appears under the pointer, has no
+ * title bar or buttons to dismiss, and clicking anywhere else puts it
+ * away without changing anything. A modal dialog centred on the main
+ * window for a one-click choice is the wrong weight entirely.
+ *
+ * exec() rather than popup(): the answer is wanted right here, and exec
+ * on a QMenu is not the application-modal loop a QDialog's exec is.
+ *
+ * \param entries [{ text, value, icon }], icon optional.
+ * \param current The value to show as checked, or undefined.
+ */
+RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText) {
+    // Held on the tree rather than in a local: a menu whose only
+    // reference is the function that opened it can go out of scope
+    // while it is still on screen.
+    this.choiceMenu = new QMenu(this);
+    var actions = [];
+    var i;
+    for (i=0; i<entries.length; i++) {
+        var action = this.choiceMenu.addAction(entries[i].text);
+        if (!isNull(entries[i].icon)) {
+            action.icon = entries[i].icon;
+        }
+        if (!isNull(current) && entries[i].value===current) {
+            action.checkable = true;
+            action.checked = true;
+        }
+        actions.push(action);
+    }
+    var extra;
+    if (!isNull(extraText)) {
+        this.choiceMenu.addSeparator();
+        extra = this.choiceMenu.addAction(extraText);
+    }
+
+    var chosen = this.choiceMenu.exec(QCursor.pos());
+    if (isNull(chosen)) {
+        return undefined;   // clicked away
+    }
+    if (!isNull(extra) && chosen===extra) {
+        return RLayerTreeQt.MORE;
+    }
+    for (i=0; i<actions.length; i++) {
+        if (actions[i]===chosen) {
+            return entries[i].value;
+        }
+    }
+    return undefined;
+};
+
+/** Sentinel: the caver asked for the full picker instead. */
+RLayerTreeQt.MORE = "\u0000more";
+
 /** \return A function applying the chosen colour, or undefined. */
 RLayerTreeQt.prototype.askColor = function(seed) {
-    var initial;
-    try {
-        initial = new QColor(String(LayerStates.colorToText(seed.getColor())));
+    var current = LayerStates.colorToText(seed.getColor());
+    var quick = RLayerTreeQt.QUICK_COLORS();
+    var entries = [];
+    for (var i=0; i<quick.length; i++) {
+        entries.push({ text: quick[i].text, value: quick[i].hex,
+                       icon: RLayerTreeQt.swatch(quick[i].hex) });
     }
-    catch (e) {
-        initial = new QColor(255, 255, 255);
-    }
-    var picked = QColorDialog.getColor(initial, RMainWindowQt.getMainWindow(),
-        qsTr("Layer Colour"));
-    if (isNull(picked) || !picked.isValid()) {
+
+    var picked = this.popupChoice(entries, current, qsTr("More Colours..."));
+    if (isNull(picked)) {
         return undefined;
     }
-    var color = new RColor(picked.red(), picked.green(), picked.blue());
-    var text = LayerStates.colorToText(color);
+
+    var text;
+    if (picked===RLayerTreeQt.MORE) {
+        // The full picker is a real dialog, because it is a real
+        // decision and the caver asked for it by name.
+        var initial;
+        try {
+            initial = new QColor(String(current));
+        }
+        catch (e) {
+            initial = new QColor(255, 255, 255);
+        }
+        var chosen = QColorDialog.getColor(initial,
+            RMainWindowQt.getMainWindow(), qsTr("Layer Colour"));
+        if (isNull(chosen) || !chosen.isValid()) {
+            return undefined;
+        }
+        text = LayerStates.colorToText(
+            new RColor(chosen.red(), chosen.green(), chosen.blue()));
+    }
+    else {
+        text = picked;
+    }
+
+    var color = LayerStates.colorFromText(text);
+    if (isNull(color)) {
+        return undefined;
+    }
     return function(layer) {
         if (LayerStates.colorToText(layer.getColor())===text) {
             return false;
@@ -1233,12 +1376,16 @@ RLayerTreeQt.prototype.askLinetype = function(doc, seed) {
     }
     names.sort();
 
-    var current = String(doc.getLinetypeName(seed.getLinetypeId()));
-    var chosen = RLayerTreeQt.pickFromList(qsTr("Layer Linetype"),
-        qsTr("Linetype:"), names, names.indexOf(current));
-    if (isNull(chosen)) {
+    var entries = [];
+    for (i=0; i<names.length; i++) {
+        entries.push({ text: names[i], value: names[i] });
+    }
+    var chosen = this.popupChoice(entries,
+        String(doc.getLinetypeName(seed.getLinetypeId())));
+    if (isNull(chosen) || chosen===RLayerTreeQt.MORE) {
         return undefined;
     }
+
     var id = doc.getLinetypeId(chosen);
     if (isNull(id) || id===RObject.INVALID_ID) {
         return undefined;
@@ -1271,16 +1418,15 @@ RLayerTreeQt.prototype.askLineweight = function(seed) {
         return undefined;
     }
 
-    var labels = [];
+    var entries = [];
     for (var i=0; i<weights.length; i++) {
-        labels.push(RLayerTreeQt.lineweightText(weights[i]));
+        entries.push({ text: RLayerTreeQt.lineweightText(weights[i]),
+                       value: weights[i] });
     }
-    var chosen = RLayerTreeQt.pickFromList(qsTr("Layer Lineweight"),
-        qsTr("Lineweight:"), labels, weights.indexOf(seed.getLineweight()));
-    if (isNull(chosen)) {
+    var weight = this.popupChoice(entries, seed.getLineweight());
+    if (isNull(weight) || weight===RLayerTreeQt.MORE) {
         return undefined;
     }
-    var weight = weights[labels.indexOf(chosen)];
     return function(layer) {
         if (layer.getLineweight()===weight) {
             return false;
@@ -1288,29 +1434,6 @@ RLayerTreeQt.prototype.askLineweight = function(seed) {
         layer.setLineweight(weight);
         return true;
     };
-};
-
-/**
- * A combo box in a dialog. \return The chosen string, or undefined.
- *
- * QInputDialog's item mode by NUMBER, because QInputDialog.ComboBoxInput
- * is not bound in this build -- the same shape as the QToolButton popup
- * mode trap. 3 is the item mode.
- */
-RLayerTreeQt.pickFromList = function(title, label, items, current) {
-    var dialog = new QInputDialog(RMainWindowQt.getMainWindow());
-    dialog.setInputMode(3);
-    dialog.setWindowTitle(title);
-    dialog.setLabelText(label);
-    dialog.setComboBoxItems(items);
-    dialog.setComboBoxEditable(false);
-    if (current>=0 && current<items.length) {
-        dialog.setTextValue(items[current]);
-    }
-    var accepted = dialog.exec();
-    var value = String(dialog.textValue());
-    destrDialog(dialog);
-    return accepted ? value : undefined;
 };
 
 
@@ -1403,7 +1526,14 @@ RLayerTreeQt.prototype.contextMenuEvent = function(e) {
     var layerNames = this.getSelectedLayerNames();
     var onGroupRow = this.isGroupItem(item);
 
-    var a = menu.addAction(qsTr("New Group..."));
+    // View actions first: they apply whatever the click landed on.
+    var a = menu.addAction(qsTr("Expand All"));
+    a.triggered.connect(function() { self.setAllExpanded(true); });
+    a = menu.addAction(qsTr("Collapse All"));
+    a.triggered.connect(function() { self.setAllExpanded(false); });
+    menu.addSeparator();
+
+    a = menu.addAction(qsTr("New Group..."));
     a.triggered.connect(function() { self.newGroup(); });
 
     if (onGroupRow && this.isRealGroup(groupName)) {
