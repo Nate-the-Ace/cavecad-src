@@ -183,8 +183,20 @@ LayerManager.refreshStates = function() {
             names.indexOf(LayerManager.currentState)<0) {
         LayerManager.currentState = undefined;
     }
-    button.text = isNull(LayerManager.currentState) ?
+    var full = isNull(LayerManager.currentState) ?
         LayerManager.NoState : LayerManager.currentState;
+
+    // ELIDED TO THE BUTTON, NOT THE OTHER WAY ROUND. This is a
+    // QToolButton showing text, and a tool button's size hint is the
+    // width of that text: left to itself it will not shrink below the
+    // longest state name a caver has saved, and since it sits in the
+    // palette's own layout, neither will the dock. That is a floor the
+    // QComboBox this replaced never had -- a combo elides. The size
+    // policy is Ignored so the hint stops holding the palette open,
+    // and the text is cut to fit here instead.
+    button.text = full.elidedText(button.font, Math.max(24, button.width-12));
+    button.toolTip = qsTr("Layer states") +
+        (isNull(LayerManager.currentState) ? "" : " \u2014 " + full);
 };
 
 /**

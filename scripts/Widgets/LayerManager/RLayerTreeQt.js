@@ -107,6 +107,13 @@ function RLayerTreeQt(parent) {
         }
     }
 
+    // THE TREE NEVER HOLDS THE PALETTE OPEN. A scroll area asks for at
+    // least its header, and this header has eight sections, so the
+    // dock inherited a floor of the whole switch block whatever the
+    // caver wanted. They can hide columns or scroll; what they should
+    // not have to do is widen the palette to satisfy a widget.
+    this.setMinimumWidth(60);
+
     // Eight columns do not fit a narrow dock, so which ones show is the
     // caver's choice and is remembered. Right-click the header.
     this.header().contextMenuPolicy = Qt.CustomContextMenu;
