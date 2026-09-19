@@ -44,11 +44,13 @@ only a `LayerManager.init` function, per the suite's add-on wiring rule.
 | File | Responsibility |
 | --- | --- |
 | `LayerGroups.js` | Group model. Read and write membership and the registry. Pure data plus document I/O; no widget code. |
-| `LayerStates.js` | State model. Capture and restore named on/off/lock snapshots. Same split. |
-| `RLayerTreeQt.js` | The `RTreeWidget` subclass: columns, icons, filter, selection, drag and drop, context menu. |
+| `LayerStates.js` | State model. Capture and restore named layer records, and read and write `.clas`. Same split. |
+| `LayerFilter.js` | What the filter box means. Pure string work, and its own file so it can be tested — `RLayerTreeQt.js` cannot be loaded without Qt. |
+| `RLayerTreeQt.js` | The `RTreeWidget` subclass: columns, icons, selection, editing, context menu. |
 | `LayerManager.js` | `RGuiAction`, the dock, button wiring, preferences. |
-| `LayerManager.ui` | Filter line edit, group buttons, state combo, button row. |
+| `LayerManager.ui` | Filter line edit, tree placeholder, state row, button row. |
 | `LayerManager.svg`, `LayerManager-inverse.svg` | Palette icon, light and dark. |
+| `LayerVisible*`, `LayerFreeze*`, `LayerLock*`, `LayerPlot*` | The four switch icons, on/off/mixed, each with a `-inverse` twin for selected rows. |
 
 Each model file is independently testable and holds no Qt types, which is
 what lets the unit tests below exist at all.
@@ -222,6 +224,39 @@ full length stretched the four switch icons to match, because `QIcon`
 fills the box rather than fitting inside it. Per-column sizing needs an
 item delegate, which is not reachable from script. Menus size their own
 icons, which is where the previews were wanted anyway.
+
+## Filter
+
+A `QLineEdit` above the tree, matching layer *and* group names, case
+insensitively.
+
+**Wildcards when you type one, substring when you do not.** `*` is any
+run of characters and `?` is exactly one, and a pattern is ANCHORED, so
+`CTRL-*` means names that start that way. Plain text stays a substring
+search, because a caver typing `scan` means "show me the scan layers"
+and an anchored `scan` would match nothing and read as broken. Commas
+separate alternatives: `CTRL-*,PROFILE-*` shows both.
+
+This lives in its own file, `LayerFilter.js`, for one reason:
+`RLayerTreeQt.js` subclasses `RTreeWidget` at load time and therefore
+cannot be loaded without Qt, so nothing inside it can be unit tested. A
+filter that quietly matches the wrong thing is a bug a caver blames
+their layer names for, so it is the last thing that should be
+untestable.
+
+**A search flattens the tree.** While the box has something in it the
+groups are gone and the result is a plain list of the layers that
+matched: matches scattered down eleven groups are an answer you have to
+go hunting through, and a layer filed in two groups would appear twice.
+A group whose own name matches brings its members in, so `passage`
+lists the passage layers — the group row itself still is not shown,
+because the point is to stop the answer being a shape to navigate.
+
+That is a REBUILD and not a pass that hides rows: a layer row is a
+child of its group row, so hiding the group hides the layer with it.
+Clearing the box rebuilds the groups, collapsed as they were — the
+collapse state lives in the settings and never needed parking across a
+filter.
 
 ## Editing
 

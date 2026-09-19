@@ -69,13 +69,6 @@ function RLayerTreeQt(parent) {
     /** What that text compiles to; undefined when there is no filter. */
     this.matcher = undefined;
 
-    /**
-     * Collapse state remembered while a filter is active, so clearing the
-     * box puts the twisties back where the user left them instead of
-     * leaving every group open.
-     */
-    this.collapsedBeforeFilter = undefined;
-
     this.header().setVisible(true);
     this.setHeaderLabels([qsTr("Layer"), qsTr("On"), qsTr("Freeze"),
         qsTr("Lock"), qsTr("Plot"), qsTr("Color"), qsTr("Linetype"),
@@ -741,22 +734,34 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
         }
     }
 
-    var topLevel = LayerGroups.topLevelGroups(this.registry);
-    for (g=0; g<topLevel.length; g++) {
-        this.addGroup(topLevel[g], topLevel[g], members, layers, collapsed, undefined);
+    if (isNull(this.matcher)) {
+        var topLevel = LayerGroups.topLevelGroups(this.registry);
+        for (g=0; g<topLevel.length; g++) {
+            this.addGroup(topLevel[g], topLevel[g], members, layers,
+                collapsed, undefined);
+        }
+        // Ungrouped is always last, takes no children, and is not a
+        // group: it cannot be deleted or stored in the registry. It CAN
+        // be renamed -- see LayerGroups.ungroupedLabel -- because a
+        // caver who has filed everything else deserves to say what the
+        // remainder is.
+        var ungroupedMembers = {};
+        ungroupedMembers[RLayerTreeQt.Ungrouped] = ungrouped;
+        this.addGroup(RLayerTreeQt.Ungrouped, this.ungroupedLabel(),
+            ungroupedMembers, layers, collapsed, undefined);
     }
-    // Ungrouped is always last, takes no children, and is not a group:
-    // it cannot be deleted or stored in the registry. It CAN be renamed
-    // -- see LayerGroups.ungroupedLabel -- because a caver who has filed
-    // everything else deserves to say what the remainder is.
-    var ungroupedMembers = {};
-    ungroupedMembers[RLayerTreeQt.Ungrouped] = ungrouped;
-    this.addGroup(RLayerTreeQt.Ungrouped, this.ungroupedLabel(), ungroupedMembers,
-                  layers, collapsed, undefined);
+    else {
+        // A SEARCH FLATTENS THE TREE. Matches scattered down eleven
+        // groups are a search result you have to go hunting through --
+        // and a layer filed in two groups would answer twice. While
+        // the box has something in it this is a plain list of the
+        // layers that matched, so you can select the lot and work on
+        // them. Clearing the box puts the groups back, collapsed as
+        // you left them.
+        this.addMatches(names, layers);
+    }
 
     this.blockSignals(false);
-
-    this.applyFilter();
     if (!this.restoreSelection(wasSelected)) {
         // Nothing was selected, so fall back to showing where the
         // caver is drawing.
@@ -817,6 +822,47 @@ RLayerTreeQt.prototype.addGroup = function(name, label, members, layers, collaps
     this.updateGroupIcons(item, layers);
     item.setExpanded(collapsed.indexOf(name)<0);
     return item;
+};
+
+/**
+ * Fills the tree with every layer the filter matched, flat and sorted.
+ *
+ * A group whose NAME matches brings its members in, which is how
+ * "passage" finds the passage layers rather than nothing: the group
+ * row itself is not shown, because the point of flattening is to stop
+ * the answer being a shape to navigate.
+ *
+ * Each layer appears once however many groups it is in.
+ */
+RLayerTreeQt.prototype.addMatches = function(names, layers) {
+    var matcher = this.matcher;
+    var wanted = [];
+    var i;
+
+    // Groups whose own name matched: everything in them counts.
+    var fromGroups = {};
+    var groupNames = LayerGroups.groupNames(this.registry);
+    for (i=0; i<groupNames.length; i++) {
+        if (!matcher(String(groupNames[i]).toLowerCase())) {
+            continue;
+        }
+        var members = LayerGroups.membersOf(this.registry, groupNames[i]);
+        for (var j=0; j<members.length; j++) {
+            fromGroups[members[j]] = true;
+        }
+    }
+
+    for (i=0; i<names.length; i++) {
+        if (matcher(names[i].toLowerCase()) || fromGroups[names[i]]===true) {
+            wanted.push(names[i]);
+        }
+    }
+
+    var doc = isNull(this.di) ? undefined : this.di.getDocument();
+    for (i=0; i<wanted.length; i++) {
+        this.addTopLevelItem(
+            this.createLayerItem(layers[wanted[i]], RLayerTreeQt.Ungrouped, doc));
+    }
 };
 
 /** \return What the Ungrouped row is called in this drawing. */
@@ -994,20 +1040,17 @@ RLayerTreeQt.prototype.updateGroupIcons = function(groupItem, layers) {
 // ---------------------------------------------------------------------
 
 RLayerTreeQt.prototype.setFilterText = function(text) {
-    var had = this.filterText.length>0;
     this.filterText = isNull(text) ? "" : String(text).toLowerCase().trim();
     this.matcher = LayerFilter.build(this.filterText);
 
-    if (!had && this.filterText.length>0) {
-        // Entering a filter: park the real collapse state so clearing the
-        // box can put it back.
-        this.collapsedBeforeFilter = this.getCollapsedNames();
-    }
-    this.applyFilter();
-
-    if (had && this.filterText.length===0 && !isNull(this.collapsedBeforeFilter)) {
-        this.restoreExpansion(this.collapsedBeforeFilter);
-        this.collapsedBeforeFilter = undefined;
+    // A REBUILD, not a pass that hides rows. Flattening cannot be done
+    // by hiding: a layer row is a child of its group row, and hiding
+    // the group hides the layer with it. The collapse state does not
+    // need parking across this any more either -- it lives in the
+    // settings, the groups are simply absent while a filter runs, and
+    // they come back as they were when it clears.
+    if (!isNull(this.di)) {
+        this.updateLayers(this.di);
     }
 };
 
@@ -1016,71 +1059,6 @@ RLayerTreeQt.prototype.setFilterText = function(text) {
  * or any member does; a group whose name matches keeps all its members,
  * so filtering by group name is a way to see the group whole.
  */
-RLayerTreeQt.prototype.applyFilter = function() {
-    for (var i=0; i<this.getTopLevelCount(); i++) {
-        this.filterGroup(this.topLevelItem(i), false);
-    }
-};
-
-/**
- * Hides what does not match, one group and everything inside it.
- *
- * \param inherited True when an ancestor group's own name matched, which
- *        shows the whole subtree: filtering by a group name is how you
- *        ask to see that group whole.
- * \return True if anything under \c groupItem is still visible.
- */
-RLayerTreeQt.prototype.filterGroup = function(groupItem, inherited) {
-    var f = this.filterText;
-    var matcher = this.matcher;
-    var label = String(groupItem.text(RLayerTreeQt.colName)).toLowerCase();
-    var matches = inherited || isNull(matcher) || matcher(label);
-
-    var shown = 0;
-    for (var i=0; i<groupItem.childCount(); i++) {
-        var child = groupItem.child(i);
-        if (this.isGroupItem(child)) {
-            if (this.filterGroup(child, matches)) {
-                shown++;
-            }
-            continue;
-        }
-        var layerName = String(child.text(RLayerTreeQt.colName)).toLowerCase();
-        var hit = matches || matcher(layerName);
-        child.setHidden(!hit);
-        if (hit) {
-            shown++;
-        }
-    }
-
-    // An empty group stays visible under a name match, so you can still
-    // see that it exists and file layers into it.
-    var visible = matches || shown>0;
-    groupItem.setHidden(!visible);
-    if (f.length>0 && visible) {
-        groupItem.setExpanded(true);
-    }
-    return visible;
-};
-
-RLayerTreeQt.prototype.restoreExpansion = function(collapsedNames) {
-    for (var i=0; i<this.getTopLevelCount(); i++) {
-        this.restoreExpansionOf(this.topLevelItem(i), collapsedNames);
-    }
-};
-
-RLayerTreeQt.prototype.restoreExpansionOf = function(groupItem, collapsedNames) {
-    var name = String(groupItem.data(RLayerTreeQt.colName, RLayerTreeQt.RoleName));
-    groupItem.setExpanded(collapsedNames.indexOf(name)<0);
-    for (var i=0; i<groupItem.childCount(); i++) {
-        var child = groupItem.child(i);
-        if (this.isGroupItem(child)) {
-            this.restoreExpansionOf(child, collapsedNames);
-        }
-    }
-};
-
-
 // ---------------------------------------------------------------------
 // Reading the selection
 // ---------------------------------------------------------------------
