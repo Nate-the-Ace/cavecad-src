@@ -193,6 +193,36 @@ Eight columns do not fit a docked palette at its usual width, so
 right-clicking the header offers one checkable entry per column and the
 choice is remembered per user.
 
+## Previews in the pickers
+
+The linetype and lineweight menus draw what they are offering: a
+lineweight shows its thickness, a linetype its dash pattern, beside
+each entry.
+
+Lineweight is QCAD's own `RLineweight.getIcon`, which already exists.
+Linetype has no equivalent, and cannot be stroked directly either:
+`QPainter` is bound in the C++ wrapper but **its `setPen` never reaches
+JS** — *"Property 'setPen' of object QPainter is not a function"* — so
+each pattern is rendered as a small **SVG written to the temp folder
+and loaded back as a `QIcon`**, which looks like the long way round and
+is the only way round. Both are cached per session, so a menu of
+forty-eight linetypes renders forty-eight files once and none
+thereafter.
+
+A pattern's dash lengths are drawing units — a dash of `0.5` is half a
+foot of cave — so they are scaled to make one repeat about 16 pixels
+wide, and a length below a third of a pixel is floored there, or a dot
+pattern renders as an unbroken line. A pattern that opens with a gap
+gets a zero-length dash in front, because SVG wants positive numbers in
+alternating dash/gap order.
+
+**The previews are not in the table.** A tree has one icon size for
+every column: widening it to 64×16 so a dash pattern could show its
+full length stretched the four switch icons to match, because `QIcon`
+fills the box rather than fitting inside it. Per-column sizing needs an
+item delegate, which is not reachable from script. Menus size their own
+icons, which is where the previews were wanted anyway.
+
 ## Editing
 
 Clicking a switch column toggles it. Clicking Color, Linetype or

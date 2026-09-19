@@ -80,6 +80,14 @@ function RLayerTreeQt(parent) {
     this.setHeaderLabels([qsTr("Layer"), qsTr("On"), qsTr("Freeze"),
         qsTr("Lock"), qsTr("Plot"), qsTr("Color"), qsTr("Linetype"),
         qsTr("Lineweight")]);
+    // SQUARE, and the previews stay out of the table because of it.
+    // A tree has ONE icon size for every column: widening it to 64x16
+    // so a dash pattern could show its full length stretched the four
+    // switch icons to match, because QIcon fills the box rather than
+    // fitting inside it. Per-column sizing needs an item delegate,
+    // which is not reachable from script. The previews live in the
+    // menus instead, where each one sizes its own icons -- which is
+    // where they were wanted anyway.
     this.iconSize = new QSize(16, 16);
     this.rootIsDecorated = true;
     this.indentation = 12;
@@ -262,6 +270,156 @@ RLayerTreeQt.swatch = function(text) {
     }
     RLayerTreeQt.swatches[text] = icon;
     return icon;
+};
+
+/**
+ * Cache of rendered linetype previews: name -> QIcon.
+ *
+ * Per session and not per drawing: two caves that both have DASHED
+ * draw it the same, and a cave has fifty linetypes of which a handful
+ * are ever shown.
+ */
+RLayerTreeQt.linetypeIcons = {};
+
+/** Where the rendered previews are written. */
+RLayerTreeQt.iconCacheDir = function() {
+    return QDir.tempPath() + "/cavecad-linetype-icons";
+};
+
+/**
+ * \return A small drawing of \c name's dash pattern, or undefined.
+ *
+ * RENDERED AS AN SVG FILE AND LOADED BACK, which looks like the long
+ * way round and is the only way round. QPainter is bound in the C++
+ * wrapper but its setPen never reaches JS -- "Property 'setPen' of
+ * object QPainter is not a function" -- so a pattern cannot be stroked
+ * directly. QIcon reads SVG in this build, writing one costs a few
+ * hundred bytes in the temp folder, and the result is cached, so a
+ * repaint of three hundred rows renders nothing.
+ *
+ * Neutral grey rather than the layer's own colour: the preview answers
+ * "what shape is this line", the swatch two columns left already
+ * answers "what colour", and a per-colour cache would be fifty
+ * renderings of DASHED instead of one.
+ */
+RLayerTreeQt.linetypeIcon = function(doc, name) {
+    if (isNull(name) || String(name).length===0) {
+        return undefined;
+    }
+    name = String(name);
+    if (!isNull(RLayerTreeQt.linetypeIcons[name])) {
+        return RLayerTreeQt.linetypeIcons[name];
+    }
+
+    var dashes = RLayerTreeQt.dashArray(doc, name);
+    var svg = '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="12" ' +
+        'viewBox="0 0 64 12">' +
+        '<path d="M2,6 L62,6" fill="none" stroke="#a0a0a0" ' +
+        'stroke-width="1.4"' +
+        (dashes.length===0 ? "" : ' stroke-dasharray="' + dashes.join(",") + '"') +
+        '/></svg>';
+
+    var icon;
+    try {
+        var dir = RLayerTreeQt.iconCacheDir();
+        new QDir().mkpath(dir);
+        // The name goes through a filter: linetype names are free text
+        // and a slash in one would write outside the cache folder.
+        var safe = name.replace(/[^A-Za-z0-9_.-]/g, "_");
+        var path = dir + "/" + safe + ".svg";
+        var file = new QFile(path);
+        if (!file.open(QIODevice.WriteOnly | QIODevice.Text)) {
+            return undefined;
+        }
+        var stream = new QTextStream(file);
+        stream.writeString(svg);
+        file.close();
+        icon = new QIcon(path);
+    }
+    catch (e) {
+        return undefined;
+    }
+    if (isNull(icon) || icon.isNull()) {
+        return undefined;
+    }
+    RLayerTreeQt.linetypeIcons[name] = icon;
+    return icon;
+};
+
+/**
+ * \return \c name's pattern as SVG dash lengths, or an empty array for
+ * a continuous line.
+ *
+ * A pattern's own lengths are drawing units -- a dash of 0.5 means half
+ * a foot of cave -- so they are scaled to make one repeat about 16
+ * pixels wide, which fits three or four repeats in the preview whatever
+ * the pattern's real size. A negative length is a gap; SVG wants only
+ * positive numbers in alternating dash/gap order, so a pattern that
+ * opens with a gap gets a zero-length dash in front of it.
+ */
+RLayerTreeQt.dashArray = function(doc, name) {
+    try {
+        var id = doc.getLinetypeId(name);
+        if (isNull(id) || id===RObject.INVALID_ID) {
+            return [];
+        }
+        var pattern = doc.queryLinetype(id).getPattern();
+        var count = pattern.getNumDashes();
+        if (count<=0) {
+            return [];   // continuous
+        }
+
+        var total = 0;
+        var i, length;
+        for (i=0; i<count; i++) {
+            total += Math.abs(pattern.getDashLengthAt(i));
+        }
+        if (total<=0) {
+            return [];
+        }
+        var scale = 16 / total;
+
+        var res = [];
+        if (pattern.getDashLengthAt(0)<0) {
+            res.push(0);
+        }
+        for (i=0; i<count; i++) {
+            length = Math.abs(pattern.getDashLengthAt(i)) * scale;
+            // Nothing below a third of a pixel: it renders as invisible
+            // and makes the pattern read as solid.
+            res.push(Math.round(Math.max(length, 0.35) * 100) / 100);
+        }
+        return res;
+    }
+    catch (e) {
+        return [];
+    }
+};
+
+/** Cache of lineweight previews, which QCAD draws for us. */
+RLayerTreeQt.lineweightIcons = {};
+
+/** \return QCAD's own drawing of \c weight, cached. */
+RLayerTreeQt.lineweightIcon = function(weight) {
+    if (typeof(weight)!=="number") {
+        return undefined;
+    }
+    var key = String(weight);
+    if (!isNull(RLayerTreeQt.lineweightIcons[key])) {
+        return RLayerTreeQt.lineweightIcons[key];
+    }
+    try {
+        var icon = RLineweight.getIcon(weight, new QSize(64, 12));
+        if (isNull(icon) || icon.isNull()) {
+            return undefined;
+        }
+        RLayerTreeQt.lineweightIcons[key] = icon;
+        return icon;
+    }
+    catch (e) {
+        return undefined;
+    }
 };
 
 /** Which columns are hidden, remembered per user and not per drawing. */
@@ -715,7 +873,6 @@ RLayerTreeQt.prototype.updateLayerIcons = function(item, layer, doc) {
         linetype = isNull(name) ? "" : String(name);
     }
     item.setText(RLayerTreeQt.colLinetype, linetype);
-
     item.setText(RLayerTreeQt.colLineweight,
         RLayerTreeQt.lineweightText(layer.getLineweight()));
 };
@@ -1942,7 +2099,8 @@ RLayerTreeQt.prototype.askLinetype = function(doc, seed) {
 
     var entries = [];
     for (i=0; i<names.length; i++) {
-        entries.push({ text: names[i], value: names[i] });
+        entries.push({ text: names[i], value: names[i],
+                       icon: RLayerTreeQt.linetypeIcon(doc, names[i]) });
     }
     var chosen = this.popupChoice(entries,
         String(doc.getLinetypeName(seed.getLinetypeId())),
@@ -1986,7 +2144,8 @@ RLayerTreeQt.prototype.askLineweight = function(seed) {
     var entries = [];
     for (var i=0; i<weights.length; i++) {
         entries.push({ text: RLayerTreeQt.lineweightText(weights[i]),
-                       value: weights[i] });
+                       value: weights[i],
+                       icon: RLayerTreeQt.lineweightIcon(weights[i]) });
     }
     var weight = this.popupChoice(entries, seed.getLineweight(),
         undefined, this.editTitle);
