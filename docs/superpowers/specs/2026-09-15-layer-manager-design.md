@@ -163,46 +163,81 @@ palette to say what the right one is.
 
 ## The tree
 
-Three columns: **name | eye | lock**, in that order, name first.
-
-This replaces the stock list's single 32×16 composite icon and its
-`x < iconSize/2` hit test. `itemColumnClicked` reports the column directly,
-so the hit test disappears rather than being ported.
+Eight columns, in AutoCAD's Layer Properties Manager order, because that
+is the table cavers already know: **Layer | On | Freeze | Lock | Plot |
+Color | Linetype | Lineweight**.
 
 Name first is forced, not stylistic. A tree draws its indentation and
 expand arrow inside column 0: with an icon there, every child row's icon
 was squeezed out of the 22px column and simply did not appear, while the
 group rows at depth 0 drew theirs fine. Measured in the running GUI —
-widening column 0 to 60px brought the missing icons back. Putting the text
-in column 0 lets the indentation eat text, which is what indentation is
-for. (`BlockList` puts its icons first because it is a flat list with
-`indentation = 0`.)
+widening column 0 to 60px brought the missing icons back.
 
-- Top level is your groups, in registry order, then `Ungrouped` last.
-- `Ungrouped` holds every layer with no membership. It cannot be renamed or
-  deleted and is not present in the registry.
-- A layer in two groups appears under both. Toggling either instance changes
-  the one layer; the refresh redraws every instance.
-- Group rows carry their own eye and lock, acting on all members. Their
-  drawn state is **derived** from the members every refresh — all on, all
-  off, or mixed. No group visibility is stored, so there is no way to reach
-  a state where the group says off and a member says on.
-- Selection is extended: multiple layers may be selected for group
-  operations. The current layer follows the first selected item, as today.
-- Double-click keeps the stock behaviour: move selection to layer if
-  something is selected, otherwise edit the layer.
+**On and Freeze are separate controls now.** The stock QCAD layer list
+moves both together and the first cut of this palette copied it;
+AutoCAD has given them a column each for thirty years, and a caver who
+freezes a layer to speed up a regeneration means something different
+from one who switches it off.
+
+The four switches live in one `RLayerTreeQt.switches()` table — column,
+getter, setter, icon set — so adding a fifth is one entry rather than
+four edits in four places. Group rows roll their subtree up into
+all-on / all-off / mixed, derived every refresh and never stored.
+
+Colour shows a cached swatch beside its hex: a cave has a dozen distinct
+layer colours and three hundred layers, and building a pixmap per row
+per repaint is the difference between a palette that opens and one that
+hesitates.
+
+Eight columns do not fit a docked palette at its usual width, so
+right-clicking the header offers one checkable entry per column and the
+choice is remembered per user.
+
+## Editing
+
+Clicking a switch column toggles it. Clicking Color, Linetype or
+Lineweight opens a picker seeded from the first layer in the selection,
+so a uniform selection shows what it already is rather than a default.
+
+**The selection wins when the clicked row is part of it.** Click a
+switch on one of eight selected layers and all eight move; click one
+outside the selection and only it moves. That is what every table in
+every CAD program does, and the alternative — always acting on one row
+— makes a multiple selection decorative. A selected group row
+contributes every layer under it. The whole edit is one transaction, so
+a change across forty layers is one undo.
+
+A set is decided once rather than inverted row by row: if any member is
+on, they all go off. Inverting each separately would turn a mixed
+selection into a differently mixed one, which is never what the click
+meant.
+
+One consequence worth writing down: **the current layer changing no
+longer rebuilds the tree.** The stock list rebuilds there, which is
+harmless for a flat list and is not for this one — selecting a row would
+throw away every other row the caver had selected, and editing across a
+selection is the whole point of the table. It also destroys every
+`QTreeWidgetItem` mid-click, which is how this was found.
 
 ## Filter
 
-A `QLineEdit` above the tree, with a clear button and placeholder text.
-Case-insensitive substring match against layer names and group names.
+A `QLineEdit` above the tree, matching layer *and* group names, case
+insensitively. Matching groups auto-expand; clearing restores the
+collapse state that was in effect before typing.
 
-- A layer matches: it shows, and its parent groups show.
-- A group name matches: the group and all its members show.
-- A group with no visible children hides.
-- While a filter is active, matching groups auto-expand. Clearing the filter
-  restores the collapse state that was in effect before typing, rather than
-  leaving every group open.
+**Wildcards when you type one, substring when you do not.** `*` is any
+run of characters and `?` is exactly one, and a pattern is ANCHORED, so
+`CTRL-*` means names that start that way. Plain text stays a substring
+search, because a caver typing `scan` means "show me the scan layers"
+and an anchored `scan` would match nothing and read as broken. Commas
+separate alternatives: `CTRL-*,PROFILE-*` shows both.
+
+This lives in its own file, `LayerFilter.js`, for one reason:
+`RLayerTreeQt.js` subclasses `RTreeWidget` at load time and therefore
+cannot be loaded without Qt, so nothing inside it can be unit tested. A
+filter that quietly matches the wrong thing is a bug a caver blames
+their layer names for, so it is the last thing that should be
+untestable.
 
 ## Group management
 
