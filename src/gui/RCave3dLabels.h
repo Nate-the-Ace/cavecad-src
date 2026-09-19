@@ -70,10 +70,35 @@ public:
      *  its toggle rather than offering a switch that does nothing. */
     bool hasStations() const { return !positions.isEmpty(); }
 
+    /**
+     * The station whose NAME was drawn under this point, or an empty
+     * string.
+     *
+     * A name is drawn beside its station, not on it -- six pixels
+     * right and five up -- so a caver aiming at the text they can read
+     * lands outside any sensible radius around the station's own dot,
+     * and longer names run further still. The rectangles are recorded
+     * as they are painted, which is also the only place that knows
+     * which names survived culling.
+     *
+     * Nearest the camera first, because that is the order they were
+     * painted in and it is the one a caver means when two overlap.
+     */
+    QString stationAtPoint(const QPoint& pos) const;
+
 protected:
     virtual void paintEvent(QPaintEvent* event);
 
 private:
+    struct DrawnLabel {
+        QRect box;
+        QString name;
+    };
+    /** Where each name was last painted. Filled BY the paint, so it is
+     *  written from a const method and therefore mutable: it is a
+     *  record of what happened, not part of what the widget is. */
+    mutable QVector<DrawnLabel> drawn;
+
     QVector<QVector3D> positions;
     QStringList names;
     QMatrix4x4 mvp;

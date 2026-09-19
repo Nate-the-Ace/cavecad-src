@@ -108,7 +108,22 @@ void RCave3dLegend::paintEvent(QPaintEvent*) {
     int top = PAD + LINE_H;
     int y = top;
 
-    if (kind == QString("ramp") && stops.size() >= 2) {
+    // A ramp mode may carry stops that are NOT points on its scale --
+    // "no surface reading" on the cover ramp. They are squares under
+    // the bar; putting them in the gradient would bend the ramp's own
+    // colours and give them a place in an order they have none in.
+    QVector<RCave3dView::LegendStop> bars;
+    QVector<RCave3dView::LegendStop> squares;
+    for (int i = 0; i < stops.size(); i++) {
+        if (stops.at(i).swatch) {
+            squares.append(stops.at(i));
+        } else {
+            bars.append(stops.at(i));
+        }
+    }
+
+    if (kind == QString("ramp") && bars.size() >= 2) {
+        const QVector<RCave3dView::LegendStop>& stops = bars;
         // The stops arrive low to high, so the bar is drawn with the
         // LAST one at the top: a scale with its largest number at the
         // bottom reads backwards.
@@ -136,6 +151,17 @@ void RCave3dLegend::paintEvent(QPaintEvent*) {
                              stops.at(i).label);
         }
         y = top + barH + fm.ascent();
+        // The off-scale swatches, under the bar they are not part of.
+        painter.setFont(font());
+        for (int i = 0; i < squares.size(); i++) {
+            QRect box(PAD, y - SWATCH + 2, SWATCH, SWATCH);
+            painter.fillRect(box, squares.at(i).color);
+            painter.setPen(edge);
+            painter.drawRect(box);
+            painter.setPen(ink);
+            painter.drawText(PAD + SWATCH + GAP, y, squares.at(i).label);
+            y += LINE_H;
+        }
     } else {
         for (int i = 0; i < stops.size(); i++) {
             QRect box(PAD, y, SWATCH, SWATCH);

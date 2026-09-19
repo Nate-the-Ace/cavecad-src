@@ -19,6 +19,7 @@
 #include "RCave3dView.h"
 #include "RCave3dLegend.h"
 #include "RCave3dLabels.h"
+#include "RCave3dCard.h"
 #include "RCave3dTexture.h"
 
 #include <QDebug>
@@ -244,6 +245,17 @@ RCave3dView::RCave3dView(QWidget* parent)
     // to be readable against whatever is behind them, which is why they
     // are painted rather than drawn in GL. Hidden until asked for.
     labels = new RCave3dLabels(this);
+    card = new RCave3dCard(this);
+    // WITHOUT BUTTONS HELD. Qt sends no move events to a widget that
+    // has not asked for tracking, so the passage under the cursor
+    // would only be found while something was being dragged -- which
+    // is the one time a caver is not pointing at anything.
+    setMouseTracking(true);
+    hoverOutline = -1;
+    hoverA = -1;
+    hoverB = -1;
+    hoverT = 0.0f;
+    connect(card, SIGNAL(dismissed()), this, SLOT(onCardDismissed()));
     labels->setShow(false);
 }
 
@@ -642,6 +654,7 @@ void RCave3dView::paintGL() {
     if (labels != NULL) {
         labels->setCamera(mvp);
     }
+    layOutCard();
     drawScene(mvp);
 }
 
@@ -722,6 +735,18 @@ void RCave3dView::drawScene(const QMatrix4x4& mvp) {
         QVector3D outlineEye, outlineLook;
         computeCamera(outlineEye, outlineLook);
         drawOutline(mvp, outlineEye, outlineLook);
+    }
+
+    // THE SECTION UNDER THE CURSOR, from outside. The hoop in mid air
+    // that says nothing while orbiting says everything when the caver
+    // put the cursor there themselves: it is the answer to "what is
+    // the passage doing HERE", which is the one question the outside
+    // of a tube cannot answer.
+    if (hoverA >= 0 && hoverB >= 0) {
+        drawTubeRing(mvp, hoverA, hoverB, hoverT, QColor(255, 190, 60),
+                     2.6f);
+    } else if (hoverOutline >= 0) {
+        drawOutlineRing(mvp, hoverOutline, QColor(255, 190, 60), 2.6f);
     }
 }
 
@@ -1015,10 +1040,15 @@ void RCave3dView::drawFlatLines(const QMatrix4x4& mvp,
  *  contents need. */
 void RCave3dView::setOutlines(const QVector<float>& positions,
                               const QVector<int>& counts,
-                              const QVector<float>& centres) {
+                              const QVector<float>& centres,
+                              const QVector<int>& legs) {
     outlinePositions = positions;
     outlineCounts = counts;
     outlineCentres = centres;
+    outlineLegs = legs;
+    hoverOutline = -1;
+    hoverA = -1;
+    hoverB = -1;
     update();
 }
 
@@ -1034,6 +1064,320 @@ void RCave3dView::setOutlines(const QVector<float>& positions,
  * definition, so half of it is always inside the geometry and would
  * otherwise be eaten by it.
  */
+/** How near the cursor a cross section has to be. Wider than the
+ *  station pick: a caver hovering over a passage is pointing at the
+ *  passage, not at a station, and the nearest section is the answer
+ *  however roughly they point. */
+static const int HOVER_RADIUS_PX = 45;
+
+int RCave3dView::outlineAt(const QPoint& pos) const {
+    if (outlineCounts.isEmpty() || outlineCentres.isEmpty()) {
+        return -1;
+    }
+    QMatrix4x4 mvp = cameraMatrix();
+    int best = -1;
+    float bestDist = float(HOVER_RADIUS_PX * HOVER_RADIUS_PX) + 1.0f;
+    float bestDepth = 0.0f;
+    for (int i = 0; i < outlineCounts.size(); i++) {
+        if (i * 3 + 2 >= outlineCentres.size()) {
+            break;
+        }
+        QVector3D c(outlineCentres.at(i * 3), outlineCentres.at(i * 3 + 1),
+                    outlineCentres.at(i * 3 + 2));
+        QVector4D clip = mvp * QVector4D(c, 1.0f);
+        if (clip.w() <= 0.0f) {
+            continue;                       // behind the eye
+        }
+        float sx = (clip.x() / clip.w() * 0.5f + 0.5f) * width();
+        float sy = (1.0f - (clip.y() / clip.w() * 0.5f + 0.5f)) * height();
+        float dx = sx - pos.x();
+        float dy = sy - pos.y();
+        float d2 = dx * dx + dy * dy;
+        if (d2 > float(HOVER_RADIUS_PX * HOVER_RADIUS_PX)) {
+            continue;
+        }
+        float depth = clip.z() / clip.w();
+        // NEAREST THE CURSOR, then nearest the eye. Two sections the
+        // same distance away on screen are one passage over another,
+        // and the near one is the one being looked at.
+        if (best < 0 || d2 < bestDist - 1e-3f ||
+                (qAbs(d2 - bestDist) <= 1e-3f && depth < bestDepth)) {
+            best = i;
+            bestDist = d2;
+            bestDepth = depth;
+        }
+    }
+    return best;
+}
+
+bool RCave3dView::tubeAt(const QPoint& pos, int& a, int& b,
+                         float& t) const {
+    a = -1;
+    b = -1;
+    t = 0.0f;
+    if (outlineLegs.size() < 2 || outlineCentres.isEmpty()) {
+        return false;
+    }
+    QMatrix4x4 mvp = cameraMatrix();
+
+    // Project every section centre once: a cave's legs share their
+    // ends, so projecting per leg would do the same arithmetic twice
+    // for every station in the cave on every mouse move.
+    int sections = outlineCentres.size() / 3;
+    QVector<QPointF> screen(sections);
+    QVector<float> depth(sections);
+    QVector<bool> visible(sections);
+    for (int i = 0; i < sections; i++) {
+        QVector3D c(outlineCentres.at(i * 3), outlineCentres.at(i * 3 + 1),
+                    outlineCentres.at(i * 3 + 2));
+        QVector4D clip = mvp * QVector4D(c, 1.0f);
+        visible[i] = (clip.w() > 0.0f);
+        if (!visible.at(i)) {
+            continue;
+        }
+        screen[i] = QPointF(
+            (clip.x() / clip.w() * 0.5f + 0.5f) * width(),
+            (1.0f - (clip.y() / clip.w() * 0.5f + 0.5f)) * height());
+        depth[i] = clip.z() / clip.w();
+    }
+
+    float bestDist = float(HOVER_RADIUS_PX * HOVER_RADIUS_PX) + 1.0f;
+    float bestDepth = 0.0f;
+    for (int li = 0; li + 1 < outlineLegs.size(); li += 2) {
+        int ia = outlineLegs.at(li);
+        int ib = outlineLegs.at(li + 1);
+        if (ia < 0 || ib < 0 || ia >= sections || ib >= sections) {
+            continue;
+        }
+        if (!visible.at(ia) || !visible.at(ib)) {
+            // A leg with one end behind the eye is one the caver is
+            // standing inside. Its projection is meaningless, so it
+            // does not compete.
+            continue;
+        }
+        QPointF pa = screen.at(ia);
+        QPointF pb = screen.at(ib);
+        QPointF ab = pb - pa;
+        float len2 = float(ab.x() * ab.x() + ab.y() * ab.y());
+        float u = 0.0f;
+        if (len2 > 1e-6f) {
+            QPointF ap = QPointF(pos) - pa;
+            u = float((ap.x() * ab.x() + ap.y() * ab.y()) / len2);
+            u = qBound(0.0f, u, 1.0f);
+        }
+        QPointF on = pa + ab * qreal(u);
+        float dx = float(on.x() - pos.x());
+        float dy = float(on.y() - pos.y());
+        float d2 = dx * dx + dy * dy;
+        if (d2 > float(HOVER_RADIUS_PX * HOVER_RADIUS_PX)) {
+            continue;
+        }
+        float d = depth.at(ia) + (depth.at(ib) - depth.at(ia)) * u;
+        if (a < 0 || d2 < bestDist - 1e-3f ||
+                (qAbs(d2 - bestDist) <= 1e-3f && d < bestDepth)) {
+            a = ia;
+            b = ib;
+            t = u;
+            bestDist = d2;
+            bestDepth = d;
+        }
+    }
+    return a >= 0;
+}
+
+namespace {
+
+/** One ring, as offsets from its centre with the angle of each about
+ *  the passage's own axis. */
+struct RingSample {
+    QVector<float> angle;
+    QVector<QVector3D> offset;
+};
+
+/** The offset at an angle, interpolated between the two measured wall
+ *  points either side of it -- which is exactly how CsMesh3d's loft
+ *  matches two rings up, and for the same reason: two stations rarely
+ *  have the same number of wall points, and pairing them by list order
+ *  joins one station's floor to the next one's ceiling. */
+QVector3D offsetAtAngle(const RingSample& ring, float want) {
+    if (ring.angle.isEmpty()) {
+        return QVector3D();
+    }
+    int n = ring.angle.size();
+    int best = 0;
+    float bestGap = 0.0f;
+    for (int i = 0; i < n; i++) {
+        float gap = qAbs(ring.angle.at(i) - want);
+        if (gap > float(M_PI)) {
+            gap = float(2.0 * M_PI) - gap;
+        }
+        if (i == 0 || gap < bestGap) {
+            best = i;
+            bestGap = gap;
+        }
+    }
+    return ring.offset.at(best);
+}
+
+} // namespace
+
+void RCave3dView::drawTubeRing(const QMatrix4x4& mvp, int a, int b,
+                               float t, const QColor& color,
+                               float lineWidth) {
+    if (a < 0 || b < 0 || a >= outlineCounts.size() ||
+            b >= outlineCounts.size() ||
+            lineProgram == NULL || !lineProgram->isLinked()) {
+        return;
+    }
+
+    // The passage's own axis here, and a frame square to it. Angles
+    // are measured in that frame, so both rings are described the same
+    // way whatever order their points were collected in.
+    QVector3D ca(outlineCentres.at(a * 3), outlineCentres.at(a * 3 + 1),
+                 outlineCentres.at(a * 3 + 2));
+    QVector3D cb(outlineCentres.at(b * 3), outlineCentres.at(b * 3 + 1),
+                 outlineCentres.at(b * 3 + 2));
+    QVector3D axis = cb - ca;
+    if (axis.lengthSquared() < 1e-9f) {
+        drawOutlineRing(mvp, a, color, lineWidth);
+        return;
+    }
+    axis.normalize();
+    QVector3D across = QVector3D::crossProduct(axis,
+                                               QVector3D(0.0f, 0.0f, 1.0f));
+    if (across.lengthSquared() < 1e-9f) {
+        // Straight up or straight down a shaft: every horizontal
+        // direction is equally "across", so pick one.
+        across = QVector3D(1.0f, 0.0f, 0.0f);
+    }
+    across.normalize();
+    QVector3D up = QVector3D::crossProduct(across, axis).normalized();
+
+    int offsets[2] = { 0, 0 };
+    for (int i = 0; i < a; i++) { offsets[0] += outlineCounts.at(i); }
+    for (int i = 0; i < b; i++) { offsets[1] += outlineCounts.at(i); }
+    int idx[2] = { a, b };
+    QVector3D centre[2] = { ca, cb };
+
+    RingSample sampled[2];
+    for (int r = 0; r < 2; r++) {
+        int n = outlineCounts.at(idx[r]);
+        if (n < 3 || (offsets[r] + n) * 3 > outlinePositions.size()) {
+            return;
+        }
+        sampled[r].angle.reserve(n);
+        sampled[r].offset.reserve(n);
+        for (int k = 0; k < n; k++) {
+            int at = (offsets[r] + k) * 3;
+            QVector3D p(outlinePositions.at(at), outlinePositions.at(at + 1),
+                        outlinePositions.at(at + 2));
+            QVector3D off = p - centre[r];
+            sampled[r].offset.append(off);
+            sampled[r].angle.append(std::atan2(
+                QVector3D::dotProduct(off, up),
+                QVector3D::dotProduct(off, across)));
+        }
+    }
+
+    // As many steps as the busier of the two rings, so a section
+    // measured with a dozen splays keeps its shape.
+    int steps = qMax(outlineCounts.at(a), outlineCounts.at(b));
+    steps = qBound(8, steps, 64);
+    QVector3D here = centre[0] + (centre[1] - centre[0]) * t;
+
+    QVector<QVector3D> loop;
+    loop.reserve(steps);
+    for (int k = 0; k < steps; k++) {
+        float ang = float(-M_PI + 2.0 * M_PI * (double(k) / double(steps)));
+        QVector3D oa = offsetAtAngle(sampled[0], ang);
+        QVector3D ob = offsetAtAngle(sampled[1], ang);
+        loop.append(here + oa + (ob - oa) * t);
+    }
+
+    QVector<float> pos;
+    QVector<float> col;
+    pos.reserve(steps * 6);
+    col.reserve(steps * 6);
+    for (int k = 0; k < steps; k++) {
+        const QVector3D& p0 = loop.at(k);
+        const QVector3D& p1 = loop.at((k + 1) % steps);
+        pos.append(p0.x()); pos.append(p0.y()); pos.append(p0.z());
+        pos.append(p1.x()); pos.append(p1.y()); pos.append(p1.z());
+        for (int c = 0; c < 2; c++) {
+            col.append(float(color.redF()));
+            col.append(float(color.greenF()));
+            col.append(float(color.blueF()));
+        }
+    }
+
+    glDisable(GL_DEPTH_TEST);
+    glLineWidth(lineWidth);
+    lineProgram->bind();
+    lineProgram->setUniformValue("uMvp", mvp);
+    lineProgram->enableAttributeArray(0);
+    lineProgram->enableAttributeArray(1);
+    lineProgram->setAttributeArray(0, pos.constData(), 3);
+    lineProgram->setAttributeArray(1, col.constData(), 3);
+    glDrawArrays(GL_LINES, 0, pos.size() / 3);
+    lineProgram->disableAttributeArray(0);
+    lineProgram->disableAttributeArray(1);
+    lineProgram->release();
+    glLineWidth(1.0f);
+    glEnable(GL_DEPTH_TEST);
+}
+
+void RCave3dView::drawOutlineRing(const QMatrix4x4& mvp, int index,
+                                  const QColor& color, float lineWidth) {
+    if (index < 0 || index >= outlineCounts.size() ||
+            lineProgram == NULL || !lineProgram->isLinked()) {
+        return;
+    }
+    int at = 0;
+    for (int i = 0; i < index; i++) {
+        at += outlineCounts.at(i);
+    }
+    int n = outlineCounts.at(index);
+    if (n < 3 || (at + n) * 3 > outlinePositions.size()) {
+        return;
+    }
+
+    // A closed loop, as pairs.
+    QVector<float> pos;
+    QVector<float> col;
+    pos.reserve(n * 6);
+    col.reserve(n * 6);
+    for (int k = 0; k < n; k++) {
+        int a = (at + k) * 3;
+        int b = (at + ((k + 1) % n)) * 3;
+        pos.append(outlinePositions.at(a));
+        pos.append(outlinePositions.at(a + 1));
+        pos.append(outlinePositions.at(a + 2));
+        pos.append(outlinePositions.at(b));
+        pos.append(outlinePositions.at(b + 1));
+        pos.append(outlinePositions.at(b + 2));
+        for (int c = 0; c < 2; c++) {
+            col.append(float(color.redF()));
+            col.append(float(color.greenF()));
+            col.append(float(color.blueF()));
+        }
+    }
+
+    glDisable(GL_DEPTH_TEST);
+    glLineWidth(lineWidth);
+    lineProgram->bind();
+    lineProgram->setUniformValue("uMvp", mvp);
+    lineProgram->enableAttributeArray(0);
+    lineProgram->enableAttributeArray(1);
+    lineProgram->setAttributeArray(0, pos.constData(), 3);
+    lineProgram->setAttributeArray(1, col.constData(), 3);
+    glDrawArrays(GL_LINES, 0, pos.size() / 3);
+    lineProgram->disableAttributeArray(0);
+    lineProgram->disableAttributeArray(1);
+    lineProgram->release();
+    glLineWidth(1.0f);
+    glEnable(GL_DEPTH_TEST);
+}
+
 void RCave3dView::drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
                               const QVector3D& look) {
     if (outlineCounts.isEmpty() || lineProgram == NULL ||
@@ -1092,48 +1436,10 @@ void RCave3dView::drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
     if (best < 0) {
         return;
     }
-    int at = 0;
-    for (int i = 0; i < best; i++) {
-        at += outlineCounts.at(i);
-    }
-    int n = outlineCounts.at(best);
-    if (n < 3 || (at + n) * 3 > outlinePositions.size()) {
-        return;
-    }
-
-    // A closed loop, as pairs.
-    QVector<float> pos;
-    QVector<float> col;
-    pos.reserve(n * 6);
-    col.reserve(n * 6);
-    for (int k = 0; k < n; k++) {
-        int a = (at + k) * 3;
-        int b = (at + ((k + 1) % n)) * 3;
-        pos.append(outlinePositions.at(a));
-        pos.append(outlinePositions.at(a + 1));
-        pos.append(outlinePositions.at(a + 2));
-        pos.append(outlinePositions.at(b));
-        pos.append(outlinePositions.at(b + 1));
-        pos.append(outlinePositions.at(b + 2));
-        for (int c = 0; c < 6; c++) {
-            col.append(1.0f);
-        }
-    }
-
-    glDisable(GL_DEPTH_TEST);
-    glLineWidth(2.0f);
-    lineProgram->bind();
-    lineProgram->setUniformValue("uMvp", mvp);
-    lineProgram->enableAttributeArray(0);
-    lineProgram->enableAttributeArray(1);
-    lineProgram->setAttributeArray(0, pos.constData(), 3);
-    lineProgram->setAttributeArray(1, col.constData(), 3);
-    glDrawArrays(GL_LINES, 0, pos.size() / 3);
-    lineProgram->disableAttributeArray(0);
-    lineProgram->disableAttributeArray(1);
-    lineProgram->release();
-    glLineWidth(1.0f);
-    glEnable(GL_DEPTH_TEST);
+    // WHITE, and the hover ring is amber: two rings can be on screen
+    // at once -- flying past a section the cursor is over -- and they
+    // answer different questions.
+    drawOutlineRing(mvp, best, QColor(255, 255, 255), 2.0f);
 }
 
 void RCave3dView::computeCamera(QVector3D& eye, QVector3D& look) const {
@@ -1183,10 +1489,158 @@ QVector3D RCave3dView::getLook() const {
 
 void RCave3dView::setStations(const QVector<QVector3D>& positions,
                               const QStringList& names) {
+    stationPositions = positions;
+    stationNames = names;
     if (labels != NULL) {
         labels->setStations(positions, names);
     }
+    // A REBUILT CAVE HAS NO OPEN CARD. The station it described may
+    // not be in this survey any more, and a card left standing would
+    // report the last drawing's numbers over this one's passage.
+    hideStationCard();
     update();
+}
+
+/** How near a click has to land, in pixels. Generous: stations down a
+ *  passage project a few pixels apart and a caver is pointing at a
+ *  place, not at a dot. */
+static const int PICK_RADIUS_PX = 20;
+
+QString RCave3dView::stationAt(const QPoint& pos) const {
+    if (stationPositions.isEmpty()) {
+        return QString();
+    }
+    // THE NAME THE CAVER CAN SEE ANSWERS FIRST. A label is drawn
+    // beside its station and can run well past any radius round the
+    // station's own dot, so clicking the text a caver is reading has
+    // to find that station and not the nearer dot of some other one.
+    if (labels != NULL) {
+        QString named = labels->stationAtPoint(pos);
+        if (!named.isEmpty()) {
+            return named;
+        }
+    }
+    QMatrix4x4 mvp = cameraMatrix();
+    QString best;
+    float bestDist = float(PICK_RADIUS_PX * PICK_RADIUS_PX) + 1.0f;
+    float bestDepth = 0.0f;
+    for (int i = 0; i < stationPositions.size() &&
+                    i < stationNames.size(); i++) {
+        QVector4D clip = mvp * QVector4D(stationPositions.at(i), 1.0f);
+        if (clip.w() <= 0.0f) {
+            continue;                       // behind the eye
+        }
+        float sx = (clip.x() / clip.w() * 0.5f + 0.5f) * width();
+        float sy = (1.0f - (clip.y() / clip.w() * 0.5f + 0.5f)) * height();
+        float dx = sx - pos.x();
+        float dy = sy - pos.y();
+        float d2 = dx * dx + dy * dy;
+        if (d2 > float(PICK_RADIUS_PX * PICK_RADIUS_PX)) {
+            continue;
+        }
+        float depth = clip.z() / clip.w();
+        // NEAREST THE CURSOR FIRST, and only then nearest the eye. Two
+        // stations the same distance from the click are one passage
+        // over another, and the caver is looking at the near one.
+        if (d2 < bestDist - 1e-3f ||
+                (qAbs(d2 - bestDist) <= 1e-3f && depth < bestDepth)) {
+            bestDist = d2;
+            bestDepth = depth;
+            best = stationNames.at(i);
+        }
+    }
+    return best;
+}
+
+int RCave3dView::hoverAt(const QPoint& pos) {
+    int a = -1, b = -1;
+    float t = 0.0f;
+    bool onTube = tubeAt(pos, a, b, t);
+    // A STATION'S OWN RING IS THE FALLBACK, not the answer: a passage
+    // end, a leg with one end behind the eye, or a tools package too
+    // old to send the legs. Between two stations the tube wins.
+    int over = onTube ? -1 : outlineAt(pos);
+    if (a != hoverA || b != hoverB || over != hoverOutline ||
+            qAbs(t - hoverT) > 1e-3f) {
+        hoverA = a;
+        hoverB = b;
+        hoverT = t;
+        hoverOutline = over;
+        update();
+    }
+    return onTube ? a : over;
+}
+
+void RCave3dView::showStationCard(const QString& station,
+                                  const QString& title,
+                                  const QStringList& labelTexts,
+                                  const QStringList& valueTexts) {
+    if (card == NULL) {
+        return;
+    }
+    card->setContent(station, title, labelTexts, valueTexts);
+    card->setVisible(true);
+    card->raise();
+    layOutCard();
+    update();
+}
+
+void RCave3dView::hideStationCard() {
+    if (card != NULL && card->isVisible()) {
+        card->setVisible(false);
+        update();
+    }
+}
+
+void RCave3dView::onCardDismissed() {
+    hideStationCard();
+}
+
+/**
+ * Put the card beside the station it is about.
+ *
+ * RUN FROM THE PAINT, because the paint is the one place that knows
+ * the camera has moved -- the same reason the labels are given their
+ * matrix there. A station that has gone behind the eye or off the
+ * edge takes its card with it: a card pinned to nothing would sit in a
+ * corner labelling whatever happened to be under it.
+ */
+void RCave3dView::layOutCard() {
+    if (card == NULL || !card->isVisible()) {
+        return;
+    }
+    int idx = stationNames.indexOf(card->getStation());
+    if (idx < 0 || idx >= stationPositions.size()) {
+        card->setVisible(false);
+        return;
+    }
+    QMatrix4x4 mvp = cameraMatrix();
+    QVector4D clip = mvp * QVector4D(stationPositions.at(idx), 1.0f);
+    if (clip.w() <= 0.0f) {
+        card->setVisible(false);
+        return;
+    }
+    int sx = int((clip.x() / clip.w() * 0.5f + 0.5f) * width());
+    int sy = int((1.0f - (clip.y() / clip.w() * 0.5f + 0.5f)) * height());
+    if (sx < -40 || sy < -40 || sx > width() + 40 || sy > height() + 40) {
+        card->setVisible(false);
+        return;
+    }
+    QSize want = card->sizeHint();
+    // Beside the station and a little above it, then pushed back
+    // inside the view -- a card half off the edge is the one that had
+    // something worth reading on it.
+    int x = sx + 14;
+    int y = sy - want.height() / 2;
+    if (x + want.width() > width() - 6) {
+        x = sx - 14 - want.width();
+    }
+    if (x < 6) { x = 6; }
+    if (y < 6) { y = 6; }
+    if (y + want.height() > height() - 6) {
+        y = height() - 6 - want.height();
+    }
+    card->setGeometry(x, y, want.width(), want.height());
 }
 
 void RCave3dView::setShowStations(bool on) {
@@ -1263,6 +1717,11 @@ void RCave3dView::layOutLegend() {
         labels->setAvoid(legend->isVisible() ? box : QRect());
     }
     legend->raise();
+    if (card != NULL) {
+        // ABOVE THE LEGEND. The legend is always there; the card is
+        // there because the caver just asked for it.
+        card->raise();
+    }
 }
 
 void RCave3dView::setTriangles(const QVector<float>& positions,
@@ -1464,11 +1923,41 @@ void RCave3dView::viewProfile() {
 
 void RCave3dView::mousePressEvent(QMouseEvent* e) {
     lastMousePos = e->pos();
+    pressPos = e->pos();
+}
+
+/** How far the mouse may travel and still be a click rather than a
+ *  drag. A few pixels: an orbit that ends over a station must not open
+ *  its card, and a hand on a trackpad never holds perfectly still. */
+static const int CLICK_SLOP_PX = 4;
+
+void RCave3dView::mouseReleaseEvent(QMouseEvent* e) {
+    if (e->button() != Qt::LeftButton) {
+        return;
+    }
+    QPoint moved = e->pos() - pressPos;
+    if (qAbs(moved.x()) > CLICK_SLOP_PX || qAbs(moved.y()) > CLICK_SLOP_PX) {
+        return;                              // that was a drag
+    }
+    // A MISS IS AN ANSWER: it arrives as an empty name and closes an
+    // open card. Clicking away from a thing is how every other panel
+    // in this program dismisses it.
+    emit stationPicked(stationAt(e->pos()));
 }
 
 void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
     QPoint delta = e->pos() - lastMousePos;
     lastMousePos = e->pos();
+
+    if (e->buttons() == Qt::NoButton) {
+        // POINTING, not dragging: light up the cross section under the
+        // cursor, so a caver reading a tube from outside can see what
+        // the passage is doing at the place they are looking at. A
+        // tube seen from outside is all wall and says nothing about
+        // its own shape.
+        hoverAt(e->pos());
+        return;
+    }
 
     bool panning = (e->buttons() & Qt::MiddleButton) ||
         ((e->buttons() & Qt::LeftButton) &&
@@ -1529,8 +2018,23 @@ void RCave3dView::wheelEvent(QWheelEvent* e) {
     update();
 }
 
+void RCave3dView::leaveEvent(QEvent* e) {
+    // The cursor is gone, so nothing is being pointed at. A ring left
+    // lit would claim the caver is still looking there.
+    if (hoverOutline >= 0 || hoverA >= 0) {
+        hoverOutline = -1;
+        hoverA = -1;
+        hoverB = -1;
+        update();
+    }
+    QOpenGLWidget::leaveEvent(e);
+}
+
 void RCave3dView::keyPressEvent(QKeyEvent* e) {
     switch (e->key()) {
+    case Qt::Key_Escape:
+        hideStationCard();
+        break;
     case Qt::Key_Home:
         viewAll();
         break;

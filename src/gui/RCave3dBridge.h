@@ -159,6 +159,39 @@ public:
     /** Station names written over the passage. */
     Q_INVOKABLE void setShowStations(int handle, bool on);
 
+    /** Show the facts about one station, beside it in the view.
+     *
+     *  FINISHED STRINGS, not facts: labels and values run together and
+     *  arrive already in the drawing's units, with trips named and
+     *  dates formatted. The renderer must never be a second place that
+     *  knows what a foot is. */
+    Q_INVOKABLE void showStationCard(int handle, const QString& station,
+                                     const QString& title,
+                                     const QStringList& labels,
+                                     const QStringList& values);
+    Q_INVOKABLE void hideStationCard(int handle);
+
+    /**
+     * What a click at this point in the view would pick, and the same
+     * signal a click would send.
+     *
+     * THE TEST DOOR. Synthetic mouse events cannot be posted from
+     * CaveCAD's script engine -- QCoreApplication.sendEvent crashes
+     * the application from there -- so without this the pick is the
+     * one part of the panel no automated check can reach. A real
+     * click goes through the view and never through here.
+     *
+     * Coordinates are the VIEW's own pixels, origin top left.
+     * \return the station picked, or an empty string for a miss.
+     */
+    Q_INVOKABLE QString pickStation(int handle, int x, int y);
+
+    /** What hovering at this point in the view would light up: the
+     *  index of the cross section, or -1. The same test door as
+     *  pickStation, for the same reason -- synthetic mouse events
+     *  crash this script engine. */
+    Q_INVOKABLE int hoverStation(int handle, int x, int y);
+
     /** The flight path down the passage, as a flat [x,y,z,...] list
      *  with the indices where one surveyed run gives way to another. */
     Q_INVOKABLE void setFlyPath(int handle, const QVariantList& points,
@@ -292,6 +325,10 @@ signals:
      *  mean. */
     void colorModeChanged(int handle, const QString& mode);
 
+    /** The caver clicked a station in the view, or clicked nothing --
+     *  which arrives as an empty name and means close the card. */
+    void stationPicked(int handle, const QString& station);
+
     /** An overlay was toggled: "ghost" or "leads". Carried out so the
      *  script side can remember it between sessions. */
     void overlayToggled(int handle, const QString& which, bool on);
@@ -319,6 +356,7 @@ private slots:
     void onPanelCameraModeChanged(const QString& mode);
     void onPanelCameraSpeedChanged(double factor);
     void onPanelExportRequested();
+    void onViewStationPicked(const QString& station);
     void onDockVisibilityChanged(bool visible);
 
 private:

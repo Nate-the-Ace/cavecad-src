@@ -28,6 +28,7 @@
 
 class RCave3dLegend;
 class RCave3dLabels;
+class RCave3dCard;
 class RCave3dTexture;
 class QOpenGLShaderProgram;
 #include <QMatrix4x4>
@@ -71,6 +72,15 @@ public:
     struct LegendStop {
         QColor color;
         QString label;
+        /** Drawn as a square below the bar rather than as part of it.
+         *
+         *  A RAMP MODE CAN HAVE A VALUE OFF ITS SCALE: depth of cover
+         *  has stations the surface has no reading over, and their
+         *  grey is not a point on the scale between thin and deep. Fed
+         *  into the gradient it would bend the ramp's colours and
+         *  claim a place in an order it has none in. */
+        bool swatch;
+        LegendStop() : swatch(false) {}
     };
 
     void setTriangles(const QVector<float>& positions,
@@ -141,6 +151,27 @@ public:
     void setShowStations(bool on);
     bool hasStations() const;
 
+    /**
+     * The station drawn nearest a point on screen, or an empty string.
+     *
+     * EVERY STATION ANSWERS, not only the ones whose names are drawn.
+     * RCave3dLabels culls most of them at any distance -- they collide
+     * at 26 px -- and a passage showing no name must still be
+     * clickable, or the feature is dead everywhere except close up.
+     */
+    QString stationAt(const QPoint& pos) const;
+
+    /** Light the passage's shape under this point, as a hover would.
+     *  \return the nearer section's index, or -1 for nothing there. */
+    int hoverAt(const QPoint& pos);
+
+    /** Show a card of facts beside a station. The strings are finished
+     *  on the script side, units and all; this end only places them. */
+    void showStationCard(const QString& station, const QString& title,
+                         const QStringList& labels,
+                         const QStringList& values);
+    void hideStationCard();
+
     /** How the camera moves on its own: not at all, down the passage,
      *  or slowly round the cave. */
     enum CameraMode { CameraManual, CameraFly, CameraSpin };
@@ -169,7 +200,8 @@ public:
      */
     void setOutlines(const QVector<float>& positions,
                      const QVector<int>& counts,
-                     const QVector<float>& centres);
+                     const QVector<float>& centres,
+                     const QVector<int>& legs = QVector<int>());
 
     void setCameraMode(CameraMode mode);
     CameraMode getCameraMode() const { return cameraMode; }
@@ -274,7 +306,17 @@ public:
     void viewPlan();
     void viewProfile();
 
+signals:
+    /** The caver clicked a station -- or clicked nothing, which arrives
+     *  as an empty name and means the open card should close. The view
+     *  says WHICH station; what there is to say about it is the script
+     *  side's business. */
+    void stationPicked(const QString& station);
+
 private slots:
+    /** The caver dismissed the station card. */
+    void onCardDismissed();
+
     /** The context is about to die: everything GL must be destroyed
      *  HERE, while it is still alive to destroy them against. */
     void onContextAboutToBeDestroyed();
@@ -284,9 +326,11 @@ protected:
     virtual void paintGL();
     virtual void resizeGL(int w, int h);
     virtual void mousePressEvent(QMouseEvent* e);
+    virtual void mouseReleaseEvent(QMouseEvent* e);
     virtual void mouseMoveEvent(QMouseEvent* e);
     virtual void wheelEvent(QWheelEvent* e);
     virtual void keyPressEvent(QKeyEvent* e);
+    virtual void leaveEvent(QEvent* e);
 
 private:
     QMatrix4x4 cameraMatrix() const;
@@ -294,6 +338,7 @@ private:
                        const QVector<float>& positions,
                        const QVector<float>& colors, bool visible);
     void layOutLegend();
+    void layOutCard();
     void uploadScanTextures();
     void forgetScanTextures();
     void dropScanTextures();
@@ -303,6 +348,40 @@ private:
     void uploadTerrainTexture();
     void forgetTerrainTexture();
     void dropTerrainTexture();
+    /** One cross-section loop, by index, in a colour of its own.
+     *  Depth test off: the ring sits on the wall by definition, so half
+     *  of it is always inside the geometry and would be eaten by it. */
+    void drawOutlineRing(const QMatrix4x4& mvp, int index,
+                         const QColor& color, float lineWidth);
+
+    /** The cross section nearest a point on screen, or -1. The centres
+     *  are the MIDDLE of the passage, not the stations, so this
+     *  answers what a caver is pointing AT rather than where the
+     *  instrument happened to sit. */
+    int outlineAt(const QPoint& pos) const;
+
+    /**
+     * Where along the tube a point on screen falls: a leg, and how far
+     * down it.
+     *
+     * ANYWHERE ALONG THE PASSAGE, not at the nearest station. A cave
+     * is measured at the places an instrument stood, which are yards
+     * apart, and a caver pointing half way between two of them is
+     * asking about the passage there. Snapping the answer to a station
+     * would show them a section from somewhere they are not pointing.
+     *
+     * \return true when a leg was found, with a and b the two sections
+     *         and t in 0..1 along it.
+     */
+    bool tubeAt(const QPoint& pos, int& a, int& b, float& t) const;
+
+    /** The section part way along a leg: the two rings resampled by
+     *  ANGLE and mixed. By angle, never by list index -- two rings
+     *  differ in how many wall points were measured, and index order
+     *  would join one station's floor to the next one's ceiling. */
+    void drawTubeRing(const QMatrix4x4& mvp, int a, int b, float t,
+                      const QColor& color, float lineWidth);
+
     void drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
                      const QVector3D& look);
 
@@ -360,6 +439,10 @@ private:
     QVector<float> outlinePositions;
     QVector<int> outlineCounts;
     QVector<float> outlineCentres;
+    /** Pairs of indices into the loops above: which two sections each
+     *  lofted leg joins. Empty on an older tools package, and then the
+     *  hover falls back to the nearest station's own ring. */
+    QVector<int> outlineLegs;
     CameraMode cameraMode;
     double cameraProgress;
     /** Where the caver has dragged the view while the camera is flying:
@@ -399,6 +482,13 @@ private:
 
     RCave3dLegend* legend;
     RCave3dLabels* labels;
+    RCave3dCard* card;
+
+    /** Every station, world coordinates, kept HERE as well as in the
+     *  labels: the labels decide what can be READ, and a click has to
+     *  reach the ones they dropped. */
+    QVector<QVector3D> stationPositions;
+    QStringList stationNames;
 
     /** True while the camera is still where a framing command put it.
      *  A docked panel is resized constantly, and a view that fitted
@@ -408,7 +498,22 @@ private:
      *  camera and a resize leaves it alone. */
     bool cameraUntouched;
 
+    /** The cross section under the mouse, or -1. Hovering is not a
+     *  mode and is never remembered: it follows the cursor and is gone
+     *  when the cursor leaves. */
+    int hoverOutline;
+    /** The leg the cursor is over and how far along it, when the hover
+     *  landed between two stations rather than at one. */
+    int hoverA;
+    int hoverB;
+    float hoverT;
+
     QPoint lastMousePos;
+
+    /** Where the button went down, so a release can tell a click from
+     *  the end of a drag. An orbit that happens to finish over a
+     *  station must not open its card. */
+    QPoint pressPos;
 };
 
 #endif

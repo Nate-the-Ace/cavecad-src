@@ -225,6 +225,10 @@ void RCave3dBridge::build(const QString& title) {
                 this, SLOT(onPanelCameraSpeedChanged(double)));
         connect(panel, SIGNAL(exportRequested()),
                 this, SLOT(onPanelExportRequested()));
+        if (panel->getView() != NULL) {
+            connect(panel->getView(), SIGNAL(stationPicked(QString)),
+                    this, SLOT(onViewStationPicked(QString)));
+        }
     }
 }
 
@@ -361,8 +365,13 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
     for (int i = 0; i < countList.size(); i++) {
         outlineCounts.append(countList.at(i).toInt());
     }
+    QVector<int> outlineLegs;
+    QVariantList legList = outlines.value("legs").toList();
+    for (int i = 0; i < legList.size(); i++) {
+        outlineLegs.append(legList.at(i).toInt());
+    }
     view->setOutlines(toFloats(outlines.value("positions")), outlineCounts,
-                      toFloats(outlines.value("centres")));
+                      toFloats(outlines.value("centres")), outlineLegs);
 
     QVariantMap legend = mesh.value("legend").toMap();
     QVector<RCave3dView::LegendStop> stops;
@@ -375,6 +384,7 @@ void RCave3dBridge::setMesh(int handle, const QVariantMap& mesh) {
             c.value(0).toDouble(), c.value(1).toDouble(),
             c.value(2).toDouble());
         stop.label = sv.value("label").toString();
+        stop.swatch = sv.value("swatch", false).toBool();
         stops.append(stop);
     }
     view->setLegend(legend.value("title").toString(),
@@ -741,6 +751,44 @@ void RCave3dBridge::setShowStations(int h, bool on) {
     }
 }
 
+void RCave3dBridge::showStationCard(int h, const QString& station,
+                                    const QString& title,
+                                    const QStringList& labels,
+                                    const QStringList& values) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->showStationCard(station, title, labels, values);
+    }
+}
+
+void RCave3dBridge::hideStationCard(int h) {
+    RCave3dPanel* p = panelFor(h);
+    if (p != NULL && p->getView() != NULL) {
+        p->getView()->hideStationCard();
+    }
+}
+
+QString RCave3dBridge::pickStation(int h, int x, int y) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return QString();
+    }
+    QString station = p->getView()->stationAt(QPoint(x, y));
+    // The same signal a click sends, miss included: a test that only
+    // got the name back would not exercise the half of this that
+    // builds the card.
+    onViewStationPicked(station);
+    return station;
+}
+
+int RCave3dBridge::hoverStation(int h, int x, int y) {
+    RCave3dPanel* p = panelFor(h);
+    if (p == NULL || p->getView() == NULL) {
+        return -1;
+    }
+    return p->getView()->hoverAt(QPoint(x, y));
+}
+
 void RCave3dBridge::setScanInk(int h, double value) {
     RCave3dPanel* p = panelFor(h);
     if (p != NULL) {
@@ -855,6 +903,12 @@ void RCave3dBridge::onPanelCameraModeChanged(const QString& mode) {
 void RCave3dBridge::onPanelCameraSpeedChanged(double factor) {
     if (handle != 0) {
         emit cameraSpeedChanged(handle, factor);
+    }
+}
+
+void RCave3dBridge::onViewStationPicked(const QString& station) {
+    if (handle != 0) {
+        emit stationPicked(handle, station);
     }
 }
 

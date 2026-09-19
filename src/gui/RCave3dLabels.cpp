@@ -144,6 +144,7 @@ void RCave3dLabels::paintEvent(QPaintEvent* event) {
 
     QVector<QPointF> taken;
     taken.reserve(MAX_LABELS);
+    drawn.clear();
 
     const QColor ink(255, 255, 255);
     const QColor halo(0, 0, 0, 200);
@@ -191,6 +192,19 @@ void RCave3dLabels::paintEvent(QPaintEvent* event) {
         const QString& text = wanted.at(i).text;
         QPointF textAt(at.x() + 6.0, at.y() - 5.0);
 
+        // WHERE THIS NAME LANDED, so a click on the text can find it.
+        // Generous by a few pixels in each direction: the outline
+        // stroke is three wide and a caver aims at a word, not at a
+        // glyph. The dot is inside it too, so clicking the mark works
+        // as well as clicking the name.
+        QRect hit = fm.boundingRect(text);
+        hit.moveTo(int(textAt.x()), int(textAt.y()) - fm.ascent());
+        hit.adjust(-9, -4, 4, 6);
+        DrawnLabel record;
+        record.box = hit;
+        record.name = text;
+        drawn.append(record);
+
         // OUTLINED, not boxed. A survey sketch drawn underneath is
         // mostly pale paper and the passage behind is mostly dark, so
         // neither a light nor a dark label reads on its own -- and a
@@ -208,4 +222,19 @@ void RCave3dLabels::paintEvent(QPaintEvent* event) {
         painter.setBrush(ink);
         painter.drawPath(path);
     }
+}
+
+QString RCave3dLabels::stationAtPoint(const QPoint& pos) const {
+    if (!show) {
+        // A name that is not on screen cannot be clicked. The view
+        // falls back to the station's own position, which is what
+        // makes the passage clickable with the names switched off.
+        return QString();
+    }
+    for (int i = 0; i < drawn.size(); i++) {
+        if (drawn.at(i).box.contains(pos)) {
+            return drawn.at(i).name;
+        }
+    }
+    return QString();
 }
