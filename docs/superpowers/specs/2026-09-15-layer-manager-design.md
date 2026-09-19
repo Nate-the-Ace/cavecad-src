@@ -213,12 +213,21 @@ hand, then **Custom…**. Still a popup in every way that matters, and
 each popup carries the layer's name, or "N layers", across the top.
 
 Every editor here is anchored to the **cell that was clicked**, not to
-the pointer: the bottom-left corner of the cell, so it drops below the
-row the way a combo box does rather than covering the row it is about
-to change, and clamped to stay wholly on that screen. The two are the
-same place for the first popup and stop being the same the moment it
-offers Custom… — by then the pointer is at the bottom of a grid, and
-the dialog would open nowhere near the layer it edits.
+the pointer. The two are the same place for the first popup and stop
+being the same the moment it offers Custom… — by then the pointer is at
+the bottom of a grid, and the dialog would open nowhere near the layer
+it edits.
+
+It **drops below the cell, or flips above it**. A palette docked to the
+full height of the window puts its last rows against the bottom of the
+screen, and an editor that only ever hung downwards would be shoved
+back up by the clamp until it covered the row it was editing — worst
+exactly where the list is longest. Flipping keeps it clear of the row
+either way; sliding is what is left for the horizontal, where there is
+no second choice to make. `cellAnchor` therefore returns both edges of
+the cell, as plain numbers: `QPoint`'s `x` and `y` are functions in
+this binding rather than properties, so every hand-off of one is a
+chance to read the function object and turn the next sum into `NaN`.
 
 Three things about that popup are written down because each was got
 wrong first:

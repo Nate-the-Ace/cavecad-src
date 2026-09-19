@@ -1623,8 +1623,10 @@ RLayerTreeQt.prototype.popupChoice = function(entries, current, extraText, title
     // Dropped from the cell that was clicked, so the menu lines up
     // with the column it edits instead of wherever the pointer
     // happened to be inside it.
-    var chosen = this.choiceMenu.exec(
-        isNull(this.anchor) ? QCursor.pos() : this.anchor);
+    // QMenu does its own flipping near a screen edge, so it is handed
+    // the point below the cell and left to it.
+    var chosen = this.choiceMenu.exec(isNull(this.anchor) ? QCursor.pos() :
+        new QPoint(this.anchor.x, this.anchor.below));
     if (isNull(chosen)) {
         return undefined;   // clicked away
     }
@@ -1842,21 +1844,25 @@ RLayerTreeQt.onCustomColorRequested = function() {
 };
 
 /**
- * \return The bottom-left corner of one cell, in screen coordinates,
- * or undefined if it cannot be worked out.
+ * \return Where an editor for one cell should hang, as plain numbers:
+ * { x, below, above } in screen coordinates, or undefined.
  *
- * Bottom-left so an editor hangs below its cell the way a combo box
- * drops, rather than covering the row it is about to change.
+ * BOTH EDGES, because an editor near the foot of the palette has to go
+ * up instead of down, and deciding that needs the top of the cell as
+ * well as the bottom. Plain numbers rather than QPoints: QPoint's x and
+ * y are FUNCTIONS in this binding and not properties, so every hand-off
+ * is a chance to read one as a property, get the function object, and
+ * turn the next sum into NaN.
  */
 RLayerTreeQt.prototype.cellAnchor = function(item, column) {
     try {
         var rect = this.visualItemRect(item);
         var x = this.header().sectionViewportPosition(column);
-        // QPoint's x and y are FUNCTIONS in this binding, not
-        // properties -- reading them as properties yields the function
-        // object and every sum after it is NaN.
-        return this.viewport().mapToGlobal(
+        var viewport = this.viewport();
+        var top = viewport.mapToGlobal(new QPoint(x, rect.y()));
+        var bottom = viewport.mapToGlobal(
             new QPoint(x, rect.y() + rect.height()));
+        return { x: top.x(), above: top.y(), below: bottom.y() };
     }
     catch (e) {
         return undefined;
@@ -1864,30 +1870,50 @@ RLayerTreeQt.prototype.cellAnchor = function(item, column) {
 };
 
 /**
- * Puts \c widget at \c point, or under the pointer when there is none,
- * wholly on the screen that point is on. Shown first, because its size
- * is not settled until it is.
+ * Places \c widget against \c anchor, or under the pointer when there
+ * is none. Shown first, because its size is not settled until it is.
+ *
+ * DROPS BELOW THE CELL, OR FLIPS ABOVE IT. A palette docked to the full
+ * height of the window puts its last rows against the bottom of the
+ * screen, and an editor that only ever hung downwards would be shoved
+ * back up by the clamp until it covered the row it was editing --
+ * worst exactly where the list is longest. Flipping means it sits
+ * clear of the row either way. Sliding is what is left for the
+ * horizontal, where there is no second choice to make.
  */
-RLayerTreeQt.placeAt = function(widget, point) {
+RLayerTreeQt.placeAt = function(widget, anchor) {
     try {
-        var at = isNull(point) ? QCursor.pos() : point;
-        var x = at.x();
-        var y = at.y();
-        var area = QGuiApplication.screenAt(at).availableGeometry();
+        var at = QCursor.pos();
+        if (isNull(anchor)) {
+            anchor = { x: at.x(), above: at.y(), below: at.y() };
+        }
+        var area = QGuiApplication.screenAt(
+            new QPoint(anchor.x, anchor.below)).availableGeometry();
         var w = widget.width;
         var h = widget.height;
+
+        var x = anchor.x;
         if (x + w > area.x() + area.width()) {
             x = area.x() + area.width() - w;
-        }
-        if (y + h > area.y() + area.height()) {
-            y = area.y() + area.height() - h;
         }
         if (x < area.x()) {
             x = area.x();
         }
-        if (y < area.y()) {
+
+        var y;
+        if (anchor.below + h <= area.y() + area.height()) {
+            y = anchor.below;            // room below: hang down
+        }
+        else if (anchor.above - h >= area.y()) {
+            y = anchor.above - h;        // no room: flip above the cell
+        }
+        else {
+            // Taller than the screen either way: sit at the top and
+            // let it run off the bottom, which at least keeps the
+            // first rows of it readable.
             y = area.y();
         }
+
         widget.move(x, y);
     }
     catch (e) {
