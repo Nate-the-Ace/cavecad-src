@@ -94,6 +94,7 @@ LayerManager.prototype.finishEvent = function() {
 
 LayerManager.uninit = function() {
     LayerManager.tree = undefined;
+    LayerManager.stateMenu = undefined;
     var action = RGuiAction.getByScriptFile("scripts/Widgets/LayerManager/LayerManager.js");
     if (!isNull(action)) {
         action.visible = false;
@@ -274,6 +275,181 @@ LayerManager.deleteState = function() {
 };
 
 
+/**
+ * Renames the selected state.
+ *
+ * Renaming onto a name that already exists replaces it, the way the
+ * group rename merges -- and the confirmation says so, because that one
+ * cannot be undone either.
+ */
+LayerManager.renameState = function() {
+    var name = LayerManager.getSelectedState();
+    if (isNull(name)) {
+        return;
+    }
+    var di = EAction.getDocumentInterface();
+    if (isNull(di)) {
+        return;
+    }
+    var newName = RLayerTreeQt.promptName(qsTr("Rename State"),
+        qsTr("State name:"), name);
+    if (isNull(newName) || newName===name) {
+        return;
+    }
+
+    var existing = LayerStates.listNames(di.getDocument()).indexOf(newName)>=0;
+    if (existing) {
+        var answer = QMessageBox.question(
+            RMainWindowQt.getMainWindow(),
+            qsTr("Rename State"),
+            qsTr("There is already a state called \"%1\". Replace it?").arg(newName),
+            QMessageBox.Yes | QMessageBox.No);
+        if (answer!==QMessageBox.Yes) {
+            return;
+        }
+    }
+
+    LayerStates.rename(di, name, newName);
+    LayerManager.refreshStates();
+
+    var combo = LayerManager.getStateCombo();
+    if (!isNull(combo)) {
+        var idx = combo.findText(newName);
+        if (idx>=0) {
+            combo.blockSignals(true);
+            combo.currentIndex = idx;
+            combo.blockSignals(false);
+        }
+    }
+};
+
+/**
+ * Writes every state in this drawing to a file.
+ *
+ * All of them, not the selected one: states are cheap to carry and a
+ * caver exporting "Tracing" almost always wants "Plot ready" too. Import
+ * is where the choosing happens, and it does not need to, because a
+ * state that does not apply to the drawing is dropped there anyway.
+ */
+LayerManager.exportStates = function() {
+    var di = EAction.getDocumentInterface();
+    if (isNull(di)) {
+        return;
+    }
+    var doc = di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    var names = LayerStates.stateNames(reg);
+    if (names.length===0) {
+        QMessageBox.information(RMainWindowQt.getMainWindow(),
+            qsTr("Export States"),
+            qsTr("This drawing has no layer states to export."));
+        return;
+    }
+
+    var suggested = new QFileInfo(String(doc.getFileName())).completeBaseName();
+    if (suggested.length===0) {
+        suggested = "layers";
+    }
+    var path = QFileDialog.getSaveFileName(RMainWindowQt.getMainWindow(),
+        qsTr("Export Layer States"),
+        QDir.homePath() + "/" + suggested + "." + LayerStates.FILE_SUFFIX,
+        qsTr("CaveCAD layer states") + " (*." + LayerStates.FILE_SUFFIX + ")");
+    // A cancelled dialog can hand back a wrapped empty QString rather
+    // than null, so both are checked.
+    if (isNull(path) || String(path)==="") {
+        return;
+    }
+    path = String(path);
+
+    var data = LayerStates.toExport(reg, undefined, doc.getFileName());
+    var file = new QFile(path);
+    if (!file.open(QIODevice.WriteOnly | QIODevice.Text)) {
+        QMessageBox.warning(RMainWindowQt.getMainWindow(),
+            qsTr("Export States"),
+            qsTr("Could not write %1").arg(path));
+        return;
+    }
+    var stream = new QTextStream(file);
+    stream.writeString(JSON.stringify(data, null, 2));
+    file.close();
+
+    QMessageBox.information(RMainWindowQt.getMainWindow(),
+        qsTr("Export States"),
+        qsTr("Wrote %1 state(s) to %2").arg(names.length).arg(path));
+};
+
+/**
+ * Reads states from a file into this drawing.
+ *
+ * Merged, never replaced wholesale: a state already here under the same
+ * name is overwritten and everything else is left alone, so importing
+ * cannot cost a caver a state they did not know was in the way. A layer
+ * this drawing does not have is dropped, and the report says how many --
+ * importing a cave's states into a different cave is a legitimate thing
+ * to do and a silent partial result would not be.
+ */
+LayerManager.importStates = function() {
+    var di = EAction.getDocumentInterface();
+    if (isNull(di)) {
+        return;
+    }
+
+    var path = QFileDialog.getOpenFileName(RMainWindowQt.getMainWindow(),
+        qsTr("Import Layer States"), QDir.homePath(),
+        qsTr("CaveCAD layer states") + " (*." + LayerStates.FILE_SUFFIX + ")");
+    if (isNull(path) || String(path)==="") {
+        return;
+    }
+    path = String(path);
+
+    var file = new QFile(path);
+    if (!file.open(QIODevice.ReadOnly | QIODevice.Text)) {
+        QMessageBox.warning(RMainWindowQt.getMainWindow(),
+            qsTr("Import States"), qsTr("Could not read %1").arg(path));
+        return;
+    }
+    var stream = new QTextStream(file);
+    var text = String(stream.readAll());
+    file.close();
+
+    var parsed = LayerStates.fromExport(text);
+    if (!isNull(parsed.error)) {
+        QMessageBox.warning(RMainWindowQt.getMainWindow(),
+            qsTr("Import States"), parsed.error);
+        return;
+    }
+
+    var doc = di.getDocument();
+    var reg = LayerGroups.readRegistry(doc);
+    var result = LayerStates.importInto(reg, parsed.states,
+        LayerGroups.layerNamesOf(doc));
+    if (result.imported===0) {
+        QMessageBox.information(RMainWindowQt.getMainWindow(),
+            qsTr("Import States"),
+            qsTr("None of those states mention a layer this drawing has."));
+        return;
+    }
+    LayerGroups.writeRegistry(doc, reg);
+    LayerManager.refreshStates();
+
+    var lines = [qsTr("Imported %1 state(s).").arg(result.imported)];
+    if (result.replaced>0) {
+        lines.push(qsTr("%1 replaced a state of the same name.")
+            .arg(result.replaced));
+    }
+    if (result.dropped>0) {
+        lines.push(qsTr("%1 layer entries were dropped: this drawing has " +
+            "no such layer.").arg(result.dropped));
+    }
+    if (result.skipped>0) {
+        lines.push(qsTr("%1 state(s) were skipped: nothing in them " +
+            "applies here.").arg(result.skipped));
+    }
+    QMessageBox.information(RMainWindowQt.getMainWindow(),
+        qsTr("Import States"), lines.join("\n\n"));
+};
+
+
 // ---------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------
@@ -326,6 +502,27 @@ LayerManager.init = function(basePath) {
     formWidget.findChild("SaveState").clicked.connect(LayerManager.saveState);
     formWidget.findChild("UpdateState").clicked.connect(LayerManager.updateState);
     formWidget.findChild("DeleteState").clicked.connect(LayerManager.deleteState);
+
+    // The less-used state actions, behind one button so the row stays
+    // four wide. The menu is held on LayerManager and not in a local:
+    // popup() returns immediately, and a menu owned only by the function
+    // that opened it goes out of scope while the user is reading it.
+    LayerManager.stateMenu = new QMenu(formWidget);
+    LayerManager.stateMenu.addAction(qsTr("Rename State..."))
+        .triggered.connect(LayerManager.renameState);
+    LayerManager.stateMenu.addSeparator();
+    LayerManager.stateMenu.addAction(qsTr("Export States..."))
+        .triggered.connect(LayerManager.exportStates);
+    LayerManager.stateMenu.addAction(qsTr("Import States..."))
+        .triggered.connect(LayerManager.importStates);
+
+    var stateMenuButton = formWidget.findChild("StateMenu");
+    stateMenuButton.setMenu(LayerManager.stateMenu);
+    // Numeric, not QToolButton.InstantPopup: the enum NAMES are not
+    // bound in this build and read as undefined, which sets popupMode to
+    // 0 (press and hold) -- a menu that looks like it does not open,
+    // with no error anywhere. Probed 2026-08-29.
+    stateMenuButton.popupMode = 2;
     formWidget.findChild("NewGroup").clicked.connect(function() {
         tree.newGroup();
     });

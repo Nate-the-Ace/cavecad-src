@@ -82,6 +82,16 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QToolButton" name="StateMenu">
+       <property name="text">
+        <string>&#8943;</string>
+       </property>
+       <property name="toolTip">
+        <string>Rename, export or import layer states</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item>

@@ -272,3 +272,191 @@ LayerStates.rename = function(di, oldName, newName) {
         LayerGroups.writeRegistry(doc, reg);
     }
 };
+
+
+// ---------------------------------------------------------------------
+// Carrying states between drawings: the .clas file.
+//
+// A state names every layer in the drawing it was saved from, so it is
+// the one part of the arrangement a template cannot carry for you: the
+// groups are a rule, but a state is a photograph. Exporting is how one
+// gets from the cave you built it in to the next one.
+//
+// .clas IS CAVECAD'S OWN AND IS NOT AUTOCAD'S .las. It fills the same
+// role -- named layer states in a file you can hand to somebody -- and
+// that is the whole of the relationship. AutoCAD's .las is an INI-shaped
+// list of layer properties; this is JSON, it carries only the three
+// flags a state here holds, and neither program will read the other's.
+// The distinct extension is the point: a file that will not open should
+// say so by its name rather than by an error halfway through.
+//
+// JSON with an explicit layer-name -> code map, NOT the positional table
+// the drawing stores. This is a file a person may open, read and edit;
+// a positional format would make an innocent edit shift every flag
+// after it.
+// ---------------------------------------------------------------------
+
+/** Marker in the file, so a wrong file chosen by mistake says so. */
+LayerStates.FORMAT = "cavecad-layer-states";
+
+/** Bumped only for a change that an older reader would misread. */
+LayerStates.FORMAT_VERSION = 1;
+
+/**
+ * CaveCAD Layer StateS. Deliberately one letter off AutoCAD's .las, and
+ * deliberately not the same file: see the note above.
+ */
+LayerStates.FILE_SUFFIX = "clas";
+
+/**
+ * \return The export object for the named states, or for all of them
+ * when \c names is omitted.
+ *
+ * \param origin Optional name of the drawing, recorded so a file found
+ *        later says where it came from. Nothing reads it back.
+ */
+LayerStates.toExport = function(reg, names, origin) {
+    var wanted = isNull(names) ? LayerStates.stateNames(reg) : names;
+    var out = [];
+    for (var i=0; i<wanted.length; i++) {
+        var st = LayerStates.findState(reg, wanted[i]);
+        if (isNull(st)) {
+            continue;
+        }
+        // Copied rather than referenced: an export must not hand the
+        // caller a live view of the registry to mutate by accident.
+        var flags = {};
+        for (var layerName in st.flags) {
+            if (st.flags.hasOwnProperty(layerName)) {
+                flags[layerName] = st.flags[layerName];
+            }
+        }
+        out.push({ name: st.name, flags: flags });
+    }
+    return {
+        format: LayerStates.FORMAT,
+        version: LayerStates.FORMAT_VERSION,
+        origin: isNull(origin) ? "" : String(origin),
+        states: out
+    };
+};
+
+/**
+ * Parses an export file.
+ *
+ * \return { states: [ {name, flags} ], error: undefined } on success, or
+ * { states: [], error: "..." } with a translated reason. A reason rather
+ * than a thrown exception, because every caller here has a dialog to put
+ * it in and none of them can do anything else with a failure.
+ */
+LayerStates.fromExport = function(text) {
+    var fail = function(why) {
+        return { states: [], error: why };
+    };
+
+    var data;
+    try {
+        data = JSON.parse(text);
+    }
+    catch (e) {
+        return fail(qsTranslate("LayerStates",
+            "That file is not readable as layer states."));
+    }
+    if (isNull(data) || typeof(data)!=="object" ||
+            data.format!==LayerStates.FORMAT) {
+        return fail(qsTranslate("LayerStates",
+            "That file does not hold layer states."));
+    }
+    // A LOWER version is fine and a higher one is not: this reader knows
+    // every format it is older than, and none that it is newer than.
+    if (typeof(data.version)==="number" &&
+            data.version>LayerStates.FORMAT_VERSION) {
+        return fail(qsTranslate("LayerStates",
+            "That file was written by a newer version of CaveCAD."));
+    }
+    if (!Array.isArray(data.states)) {
+        return fail(qsTranslate("LayerStates",
+            "That file holds no layer states."));
+    }
+
+    var states = [];
+    for (var i=0; i<data.states.length; i++) {
+        var entry = data.states[i];
+        if (isNull(entry) || !LayerStates.isValidName(entry.name) ||
+                isNull(entry.flags) || typeof(entry.flags)!=="object") {
+            continue;
+        }
+        var flags = {};
+        for (var layerName in entry.flags) {
+            // Three characters or it is not a code. A malformed entry is
+            // dropped rather than stored, so it cannot reach applyCode.
+            if (entry.flags.hasOwnProperty(layerName) &&
+                    typeof(entry.flags[layerName])==="string" &&
+                    entry.flags[layerName].length===3) {
+                flags[layerName] = entry.flags[layerName];
+            }
+        }
+        states.push({ name: entry.name, flags: flags });
+    }
+
+    if (states.length===0) {
+        return fail(qsTranslate("LayerStates",
+            "That file holds no layer states this version can read."));
+    }
+    return { states: states, error: undefined };
+};
+
+/**
+ * Merges imported states into \c reg, keeping only the layers this
+ * drawing actually has.
+ *
+ * A layer the drawing does not have is DROPPED rather than remembered
+ * for later: the sweep on the next read would drop it anyway, and a
+ * count a caver can see beats a silent one. A layer the drawing has and
+ * the state does not mention keeps whatever it is doing, which is the
+ * same rule a restore already follows.
+ *
+ * A state whose name is already here is REPLACED. Importing the file you
+ * just exported has to be a no-op rather than a way to end up with
+ * "Tracing" twice.
+ *
+ * \return { imported, replaced, dropped, skipped } -- states written,
+ * how many of those overwrote one, layer entries discarded as unknown,
+ * and states discarded because nothing in them matched this drawing.
+ */
+LayerStates.importInto = function(reg, states, layerNames) {
+    var imported = 0, replaced = 0, dropped = 0, skipped = 0;
+
+    for (var i=0; i<states.length; i++) {
+        var flags = {};
+        var kept = 0;
+        for (var layerName in states[i].flags) {
+            if (!states[i].flags.hasOwnProperty(layerName)) {
+                continue;
+            }
+            if (layerNames.indexOf(layerName)<0) {
+                dropped++;
+                continue;
+            }
+            flags[layerName] = states[i].flags[layerName];
+            kept++;
+        }
+
+        if (kept===0) {
+            // Nothing in it applies here. An empty state would look like
+            // a state that does nothing rather than one that came from
+            // a drawing with no layers in common.
+            skipped++;
+            continue;
+        }
+
+        if (!isNull(LayerStates.findState(reg, states[i].name))) {
+            replaced++;
+        }
+        LayerStates.setState(reg, states[i].name, flags);
+        imported++;
+    }
+
+    return { imported: imported, replaced: replaced,
+             dropped: dropped, skipped: skipped };
+};

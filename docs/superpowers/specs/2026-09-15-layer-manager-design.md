@@ -239,6 +239,57 @@ A combo box at the foot of the palette with Save, Update and Delete.
   is how an elevation datum gets rebased to zero, and the suite has closed
   that door five times already.
 
+## Carrying states between drawings: `.clas`
+
+A state names every layer in the drawing it was saved from, so it is the
+one part of the arrangement a template cannot carry: the groups are a
+rule, a state is a photograph. Export writes them to a file; import
+merges them into another drawing.
+
+**`.clas` is CaveCAD's own and is not AutoCAD's `.las`.** It fills the
+same role — named layer states in a file you can hand to somebody — and
+that is the whole of the relationship. AutoCAD's is an INI-shaped list of
+layer properties; this is JSON, carries only the three flags a state here
+holds, and neither program reads the other's. The distinct extension is
+the point: a file that will not open should say so by its name rather
+than by an error halfway through.
+
+The file keys flags by **layer name**, not by the positional table the
+drawing stores. A person may open and edit this file, and a positional
+format would make one innocent edit shift every flag after it.
+
+```json
+{ "format": "cavecad-layer-states", "version": 1,
+  "origin": "Truitt Cave.dxf",
+  "states": [ { "name": "Tracing", "flags": { "BORDER": "110" } } ] }
+```
+
+Import rules, each chosen so a surprise is impossible rather than
+unlikely:
+
+- **Merged, never wholesale.** A state already here under the same name
+  is replaced; everything else is untouched. Importing what you just
+  exported is a no-op, not a way to end up with two `Tracing`s.
+- **A layer this drawing does not have is dropped, and counted.** The
+  sweep would drop it on the next read anyway; importing one cave's
+  states into another is a legitimate thing to do, and a silent partial
+  result would not be.
+- **A state with nothing in common is skipped**, not imported empty — an
+  empty state looks like one that does nothing.
+- A file from a newer version is refused rather than half-read; a
+  malformed flag is dropped rather than stored, so it can never reach
+  `applyCode`.
+
+Export takes every state rather than the selected one: states are cheap
+to carry and someone exporting `Tracing` almost always wants `Plot ready`
+too. The choosing happens at import, and does not need to, because a
+state that does not apply is dropped there.
+
+The UI is one `⋯` button in the state row, holding Rename, Export and
+Import — four buttons wide is the row's budget. Its `popupMode` is set
+numerically: the `QToolButton.InstantPopup` enum name is unbound in this
+build and reads as `undefined`, which silently sets press-and-hold.
+
 ## Cave Survey side
 
 **Group Layers** (`gl`), in `cavecad-tools`, with the classifier in
