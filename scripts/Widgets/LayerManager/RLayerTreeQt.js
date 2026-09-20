@@ -1272,6 +1272,27 @@ RLayerTreeQt.prototype.selectCurrentLayer = function() {
     }
     var name = layer.getName();
 
+    // ALREADY ON IT: LEAVE THE CAVER'S ROW ALONE.
+    //
+    // A layer can be shown in more than one group -- a per-run variant
+    // appears both under its own kind and under the trip that made it
+    // -- and findLayerRow answers the FIRST row with that name, which
+    // is the one in the main group. So clicking the row inside a trip
+    // group set the current layer, the current layer came back round
+    // through this listener, and the selection jumped up the tree to
+    // the other row for the same layer: the caver was thrown out of
+    // the trip they were working in, on every single click (Nathan,
+    // 2026-09-19).
+    //
+    // Nothing needs moving in that case. The whole job here is to show
+    // where the caver is drawing, and a row for that very layer is
+    // already the one they are on. This only moves the selection when
+    // the current layer was set from SOMEWHERE ELSE -- drawing an
+    // entity, another palette -- and no row for it is selected.
+    if (this.namedRowIsSelected(name)) {
+        return;
+    }
+
     this.blockSignals(true);
     for (var i=0; i<this.getTopLevelCount(); i++) {
         var found = this.findLayerRow(this.topLevelItem(i), name);
@@ -1281,6 +1302,33 @@ RLayerTreeQt.prototype.selectCurrentLayer = function() {
         }
     }
     this.blockSignals(false);
+};
+
+/**
+ * \return True when a row for layer \c name is the current row, or is
+ * among the selected ones.
+ *
+ * The selection is checked as well as the current item because a
+ * multiple selection is a group edit in progress, and dragging the
+ * current row out of it to a different row for one of the same layers
+ * breaks the edit as surely as moving a single selection does.
+ */
+RLayerTreeQt.prototype.namedRowIsSelected = function(name) {
+    var current = this.currentItem();
+    if (!isNull(current) && !this.isGroupItem(current) &&
+        this.getItemName(current)===name) {
+
+        return true;
+    }
+    var items = this.selectedItems();
+    for (var i=0; i<items.length; i++) {
+        if (!this.isGroupItem(items[i]) &&
+            this.getItemName(items[i])===name) {
+
+            return true;
+        }
+    }
+    return false;
 };
 
 /** \return The first visible row for layer \c name under \c item. */
