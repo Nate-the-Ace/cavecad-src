@@ -167,11 +167,38 @@ int RCave3dBridge::open(const QString& caveName) {
     if (dock == NULL) {
         return 0;
     }
-    if (!docked) {
-        // Put back what prewarm took out.
+    // PUT BACK WHAT PREWARM TOOK OUT -- but only if it is really out.
+    //
+    // THE BUG THIS GUARD EXISTS FOR (Nathan, 2026-09-19: "in the 3D
+    // View, when you refresh it resets the pallet window"). prewarm()
+    // builds the dock before the main window is shown and takes it
+    // straight back out of the layout, leaving `docked` false. Qt then
+    // restores the saved window state, which HAS an entry for this
+    // dock because it carries an objectName -- so the panel comes back
+    // at the size and place the caver left it, put there by Qt and not
+    // by us. `docked` is still false, and nothing ever told the bridge
+    // otherwise.
+    //
+    // The first refresh of the session then went through open(), saw
+    // that stale false, and called addDockWidget on a dock that was
+    // already in the layout. Qt does not treat that as a no-op: it
+    // lifts the dock out of wherever it is and appends it to the
+    // bottom of the right-hand area at its size hint. A panel the
+    // caver had filling the column collapsed to a couple of hundred
+    // pixels at the foot of the window, once per launch, on the first
+    // Refresh.
+    //
+    // So ask Qt where the dock actually is rather than believing a
+    // flag. A dock the caver has torn off answers NoDockWidgetArea as
+    // well, which is why floating is checked too -- dragging a
+    // floating panel back into the dock area is the one thing this
+    // must not do behind their back.
+    const bool reallyDocked =
+        appWin->dockWidgetArea(dock) != Qt::NoDockWidgetArea;
+    if (!reallyDocked && !dock->isFloating()) {
         appWin->addDockWidget(Qt::RightDockWidgetArea, dock);
-        docked = true;
     }
+    docked = true;
     dock->setWindowTitle(title);
     dock->show();
     dock->raise();
