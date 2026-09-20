@@ -186,6 +186,7 @@ RCave3dView::RCave3dView(QWidget* parent)
       showSurface(true),
       showLines(true),
       showGhost(false),
+      orthographic(false),
       showLeads(false),
       showSections(false),
       showScans(false),
@@ -608,7 +609,26 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         far = near * 1000.0f;
     }
     QMatrix4x4 projection;
-    projection.perspective(FOV_DEGREES, aspect, near, far);
+    if (orthographic && cameraMode != CameraFly) {
+        // MATCHED AT THE TARGET. Half the height the perspective
+        // frustum spans where the caver is actually looking, so
+        // switching projection does not change how big the cave
+        // appears -- only whether the far end of it converges.
+        float half = distance *
+            std::tan(qDegreesToRadians(FOV_DEGREES * 0.5f));
+        if (half < 1e-4f) {
+            half = 1e-4f;
+        }
+        // The depth range has to reach BEHIND the eye as well: a
+        // parallel projection has no vanishing point pulling the near
+        // half of the cave in front of the camera, so geometry between
+        // the eye and the target plane sits at negative depth and is
+        // clipped away by a near plane at zero.
+        projection.ortho(-half * aspect, half * aspect, -half, half,
+                         -(distance + span * 3.0f), distance + span * 3.0f);
+    } else {
+        projection.perspective(FOV_DEGREES, aspect, near, far);
+    }
 
     float useYaw = yaw;
     if (cameraMode == CameraSpin) {
@@ -1903,6 +1923,14 @@ void RCave3dView::viewAll() {
     }
     distance = needed * 1.05f;   // a little air around the edges
     cameraUntouched = true;
+    update();
+}
+
+void RCave3dView::setOrthographic(bool on) {
+    if (orthographic == on) {
+        return;
+    }
+    orthographic = on;
     update();
 }
 

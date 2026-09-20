@@ -25,11 +25,14 @@ const int CAMERA_TICKS = 600;
 #include "RCave3dView.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QComboBox>
 #include <QLabel>
+#include <QMenu>
 #include <QSlider>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 RCave3dPanel::RCave3dPanel(QWidget* parent)
@@ -37,7 +40,8 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
       fillingCombo(false), ghostAction(NULL), leadsAction(NULL), sectionsAction(NULL), scansAction(NULL), terrainAction(NULL),
       terrainContoursAction(NULL), terrainLabel(NULL), terrainSlider(NULL),
       terrainLabelAction(NULL), terrainSliderAction(NULL),
-      fillingTerrain(false), stationsAction(NULL), flyAction(NULL),
+      fillingTerrain(false), stationsAction(NULL),
+      perspectiveAction(NULL), orthographicAction(NULL), flyAction(NULL),
       spinAction(NULL), speedLabel(NULL), speedSlider(NULL),
       speedLabelAction(NULL), speedSliderAction(NULL), scrubbing(false),
       cameraT(0.0),
@@ -94,22 +98,78 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
 
     row1->addSeparator();
 
-    // Plan and profile are here because they are the two views a
+    // WHERE THE CAMERA LOOKS FROM, in one menu (Nathan, 2026-09-19:
+    // "top buttons on 3d view are crowded, consolidate"). Refresh,
+    // Export, three view buttons and a colour dropdown do not fit
+    // across a 420px dock, and what does not fit goes into Qt's own
+    // overflow chevron -- an unlabelled arrow that hides whichever
+    // controls happened to be last. A menu the caver can see is better
+    // than a row that silently truncates.
+    //
+    // Plan and profile are in it because they are the two views a
     // cartographer checks the map against, and reaching them by
     // hand-orbiting is imprecise in a way that matters when you are
     // comparing against a drawing.
-    QAction* all = row1->addAction(tr("All"));
+    QMenu* viewMenu = new QMenu(this);
+
+    QAction* all = viewMenu->addAction(tr("All"));
     all->setStatusTip(tr("Frame the whole cave"));
     connect(all, &QAction::triggered, [this]() { view->viewAll(); });
 
-    QAction* plan = row1->addAction(tr("Plan"));
+    QAction* plan = viewMenu->addAction(tr("Plan"));
     plan->setStatusTip(tr("Look straight down, the way the map is drawn"));
     connect(plan, &QAction::triggered, [this]() { view->viewPlan(); });
 
-    QAction* profile = row1->addAction(tr("Profile"));
+    QAction* profile = viewMenu->addAction(tr("Profile"));
     profile->setStatusTip(tr("Look north, the way the extended elevation "
                              "is drawn"));
     connect(profile, &QAction::triggered, [this]() { view->viewProfile(); });
+
+    viewMenu->addSeparator();
+
+    // PERSPECTIVE OR NOT. Perspective is what the passage LOOKS like
+    // and the only thing that makes sense while flying down it;
+    // orthographic is the one that can be COMPARED against the map,
+    // because it draws two passages of the same width the same width.
+    // They belong in this menu rather than beside it: a caver picks a
+    // way of looking, and the projection is part of that choice.
+    QActionGroup* projection = new QActionGroup(this);
+    projection->setExclusive(true);
+
+    perspectiveAction = viewMenu->addAction(tr("Perspective"));
+    perspectiveAction->setCheckable(true);
+    perspectiveAction->setChecked(true);
+    perspectiveAction->setStatusTip(tr("Near passage drawn larger, the "
+                                       "way it looks from inside"));
+    projection->addAction(perspectiveAction);
+    connect(perspectiveAction, &QAction::triggered,
+            [this]() { view->setOrthographic(false); });
+
+    orthographicAction = viewMenu->addAction(tr("Orthographic"));
+    orthographicAction->setCheckable(true);
+    orthographicAction->setStatusTip(tr("No perspective: one scale "
+                                        "everywhere, to compare against "
+                                        "the map"));
+    projection->addAction(orthographicAction);
+    connect(orthographicAction, &QAction::triggered,
+            [this]() { view->setOrthographic(true); });
+
+    QToolButton* viewButton = new QToolButton(this);
+    viewButton->setObjectName("Cave3dViewButton");
+    viewButton->setText(tr("View"));
+    viewButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    // InstantPopup, so the button IS the menu: with the default mode a
+    // click runs the button's own (absent) action and the menu only
+    // opens on a press-and-hold, which reads as a dead button.
+    viewButton->setPopupMode(QToolButton::InstantPopup);
+    viewButton->setMenu(viewMenu);
+    // ROOM FOR THE ARROW. An InstantPopup button draws its menu
+    // indicator in the corner of its own rectangle, and a text-only
+    // button sizes that rectangle to the text -- so the arrow lands on
+    // top of the last letter and the label reads as a typo.
+    viewButton->setMinimumWidth(
+        viewButton->fontMetrics().horizontalAdvance(viewButton->text()) + 28);
+    row1->addWidget(viewButton);
 
     row1->addSeparator();
 
@@ -121,20 +181,35 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     row1->addWidget(modeCombo);
 
     // ---- row 2: what is drawn, and the build animation ----
+    //
+    // NINE THINGS TO DRAW, IN ONE MENU. Passage, centreline, ghost,
+    // leads, sections, scans, terrain, contours and station names were
+    // nine toggle buttons in a row across a dock 420px wide, ahead of
+    // two sliders, three animation buttons and a scrubber. Most of
+    // them lived in the overflow chevron, which is where a control
+    // goes to be forgotten. As menu entries they are all readable at
+    // once, with their ticks, and the row keeps its width for the
+    // controls that have to be dragged.
+    //
+    // THE ACTIONS THEMSELVES ARE UNCHANGED -- same objects, same
+    // checked state, same enabling. Everything that syncs them
+    // (syncGhostAvailable and friends) goes on working, because what
+    // moved is where they are shown, not what they are.
+    QMenu* showMenu = new QMenu(this);
 
-    QAction* surface = row2->addAction(tr("Passage"));
+    QAction* surface = showMenu->addAction(tr("Passage"));
     surface->setCheckable(true);
     surface->setChecked(true);
     connect(surface, &QAction::toggled,
             [this](bool on) { view->setShowSurface(on); });
 
-    QAction* lines = row2->addAction(tr("Centerline"));
+    QAction* lines = showMenu->addAction(tr("Centerline"));
     lines->setCheckable(true);
     lines->setChecked(true);
     connect(lines, &QAction::toggled,
             [this](bool on) { view->setShowLines(on); });
 
-    ghostAction = row2->addAction(tr("Ghost"));
+    ghostAction = showMenu->addAction(tr("Ghost"));
     ghostAction->setCheckable(true);
     ghostAction->setStatusTip(tr("The survey as recorded, before loop "
                                  "closure moved anything"));
@@ -143,7 +218,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
         emit overlayToggled(QString("ghost"), on);
     });
 
-    leadsAction = row2->addAction(tr("Leads"));
+    leadsAction = showMenu->addAction(tr("Leads"));
     leadsAction->setCheckable(true);
     leadsAction->setStatusTip(tr("Mark every station where passage was "
                                  "left going"));
@@ -152,7 +227,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
         emit overlayToggled(QString("leads"), on);
     });
 
-    sectionsAction = row2->addAction(tr("Sections"));
+    sectionsAction = showMenu->addAction(tr("Sections"));
     sectionsAction->setCheckable(true);
     sectionsAction->setStatusTip(tr("Stand every captured cross section "
                                     "beside the passage it was drawn of"));
@@ -161,7 +236,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
         emit overlayToggled(QString("sections"), on);
     });
 
-    scansAction = row2->addAction(tr("Scans"));
+    scansAction = showMenu->addAction(tr("Scans"));
     scansAction->setCheckable(true);
     scansAction->setStatusTip(tr("Lay the scanned sketches onto the "
                                  "passage they were drawn of"));
@@ -182,6 +257,16 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     // ONLY WHILE SCANS ARE ON. It tunes nothing otherwise, and a dead
     // slider in a crowded toolbar is a question the caver has to answer
     // every time they look at it.
+    QToolButton* showButton = new QToolButton(this);
+    showButton->setObjectName("Cave3dShowButton");
+    showButton->setText(tr("Show"));
+    showButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    showButton->setPopupMode(QToolButton::InstantPopup);
+    showButton->setMenu(showMenu);
+    showButton->setMinimumWidth(
+        showButton->fontMetrics().horizontalAdvance(showButton->text()) + 28);
+    row2->addWidget(showButton);
+
     inkLabel = new QLabel(tr("Ink"), this);
     inkLabel->setContentsMargins(6, 0, 2, 0);
     inkLabelAction = row2->addWidget(inkLabel);
@@ -208,7 +293,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     // survey alone cannot say. The surface answers it -- the ground
     // from 3DEP with the aerial photograph draped over it, standing
     // where the cave's own datum anchor says it stands.
-    terrainAction = row2->addAction(tr("Terrain"));
+    terrainAction = showMenu->addAction(tr("Terrain"));
     terrainAction->setCheckable(true);
     terrainAction->setStatusTip(tr("Show the ground above the cave, with "
                                    "the aerial photograph draped over it"));
@@ -218,7 +303,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
         emit overlayToggled(QString("terrain"), on);
     });
 
-    terrainContoursAction = row2->addAction(tr("Contours"));
+    terrainContoursAction = showMenu->addAction(tr("Contours"));
     terrainContoursAction->setCheckable(true);
     terrainContoursAction->setStatusTip(tr("Draw the surface contour lines "
                                            "on the ground above the cave"));
@@ -258,7 +343,7 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     // a name on it, and the question a cartographer asks of it first is
     // which bend they are looking at. The names are painted over the
     // view rather than drawn in it: see RCave3dLabels.
-    stationsAction = row2->addAction(tr("Stations"));
+    stationsAction = showMenu->addAction(tr("Stations"));
     stationsAction->setCheckable(true);
     stationsAction->setStatusTip(tr("Write the station names over the "
                                     "passage"));

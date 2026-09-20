@@ -200,6 +200,11 @@ private:
      *  programmatic fill is not mistaken for the caver dragging it. */
     bool fillingTerrain;
     QAction* stationsAction;
+
+    /** The projection pair in the View menu, kept so the panel can
+     *  show which one is on when it is set from elsewhere. */
+    QAction* perspectiveAction;
+    QAction* orthographicAction;
     QAction* flyAction;
     QAction* spinAction;
     QLabel* speedLabel;

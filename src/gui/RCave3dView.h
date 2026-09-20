@@ -306,6 +306,26 @@ public:
     void viewPlan();
     void viewProfile();
 
+    /**
+     * Draw without perspective: parallel projection, the way a map is.
+     *
+     * WHY A CAVE WANTS BOTH. Perspective is what the passage LOOKS
+     * like -- it is how you tell a big chamber from a small one you are
+     * close to, and flying down the centreline in anything else is
+     * nonsense. But it also means two passages of the same width are
+     * drawn different widths, so a 3D view cannot be COMPARED against
+     * the plan the cartographer is drawing. Orthographic is the one
+     * that can: looking straight down in it gives the same shape the
+     * map has, at one scale everywhere.
+     *
+     * The framing is matched at the target, so switching does not jump
+     * the cave's apparent size -- what changes is the convergence, not
+     * the zoom. Ignored while flying: inside the passage a parallel
+     * projection has no meaning.
+     */
+    void setOrthographic(bool on);
+    bool isOrthographic() const { return orthographic; }
+
 signals:
     /** The caver clicked a station -- or clicked nothing, which arrives
      *  as an empty name and means the open card should close. The view
@@ -474,6 +494,10 @@ private:
     bool showSurface;
     bool showLines;
     bool showGhost;
+
+    /** Parallel projection rather than perspective. See
+     *  setOrthographic. */
+    bool orthographic;
     bool showLeads;
     bool showSections;
 
