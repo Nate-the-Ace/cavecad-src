@@ -99,14 +99,16 @@ jobs:
           tools/strip-runtime.sh AppDir/usr/bin
           sed 's/^Exec=cavecad /Exec=cavecad-bin /' cavecad.desktop > AppDir/usr/share/applications/org.cavecad.CaveCAD.desktop
           cp scripts/cavecad_icon.png AppDir/usr/share/icons/hicolor/256x256/apps/org.cavecad.CaveCAD.png
-          cat > AppDir/AppRun <<'SH'
+          # written OUTSIDE AppDir: linuxdeploy copies --custom-apprun to
+          # AppDir/AppRun and fails when that is the file itself
+          cat > AppRun.sh <<'SH'
           #!/bin/bash
           APPDIR="$(dirname "$(readlink -f "$0")")"
           export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/bin:$LD_LIBRARY_PATH"
           export QT_PLUGIN_PATH="$APPDIR/usr/plugins"
           exec "$APPDIR/usr/bin/cavecad-bin" "$@"
           SH
-          chmod +x AppDir/AppRun
+          chmod +x AppRun.sh
 
       - name: Check Qt plugin dependencies
         run: |
@@ -132,7 +134,7 @@ jobs:
             --executable AppDir/usr/bin/cavecad-bin \
             --desktop-file AppDir/usr/share/applications/org.cavecad.CaveCAD.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/org.cavecad.CaveCAD.png \
-            --custom-apprun AppDir/AppRun \
+            --custom-apprun AppRun.sh \
             $(for p in AppDir/usr/bin/plugins/*.so AppDir/usr/bin/plugins/designer/*.so; do printf -- '--deploy-deps-only %s ' "$p"; done) \
             --plugin qt --output appimage
 

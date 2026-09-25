@@ -95,9 +95,11 @@ jobs:
           # the bundle must not reach outside itself for any library
           find dist/CaveCAD.app -type f | while read -r f; do
             file "$f" | grep -q Mach-O || continue
-            # a dylib's own install name is listed too; it is not a dependency
-            self="$(otool -D "$f" | tail -n +2)"
-            otool -L "$f" | tail -n +2 | awk '{print $1}' \
+            # Qt is universal, so read the arm64 slice only (otool prints a
+            # header per slice otherwise), and skip the dylib's own install
+            # name, which -L lists too
+            self="$(otool -arch arm64 -D "$f" | tail -n +2)"
+            otool -arch arm64 -L "$f" | awk '/^\t/{print $1}' \
               | grep -vxF -- "${self:-/nonexistent}" \
               | grep -vE '^(@|/usr/lib|/System)' | sed "s|^|$f -> |"
           done > outside.txt
