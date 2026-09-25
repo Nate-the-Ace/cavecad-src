@@ -50,8 +50,13 @@ RE_FIRST = re.compile(r'\b(?:new\s+)?(%s)\(\s*(%s)(\s*,)?' % ("|".join(UI_FIRST)
 # helper -- SketchScans.setText("sketchButton", qsTr(...)) -- not UI text.
 IDENT = re.compile(r'^[A-Za-z_]\w*$')
 RE_SECOND = re.compile(r'\b(%s)\(\s*[^,()]+,\s*(%s)' % ("|".join(UI_SECOND), LIT))
+# Property assignments the bridge exposes: dlg.windowTitle = "Declination".
+RE_PROP = re.compile(r'\.(windowTitle|toolTip|statusTip|placeholderText|'
+                     r'text|title|plainText|whatsThis)\s*=\s*(%s)' % LIT)
 RE_DYNAMIC = re.compile(r'\bqsTr\(\s*(?!["\'])([^)]*)\)')
 RE_CONCAT = re.compile(r'qsTr\(%s\)\s*\+|\+\s*qsTr\(' % LIT)
+RE_WRAPPED = re.compile(r'qsTr\(\s*%s(?:\s*\+\s*%s)*' % (LIT, LIT))
+RE_SANDWICH = re.compile(r'qsTr\(%s\)\s*\+\s*[^"\'\s+][^+]*\+\s*qsTr\(' % LIT)
 RE_NUMBER = re.compile(r'\b(?:parseFloat|parseInt|Number)\(\s*[\w.\[\]]*\.(?:text|displayText|currentText)\b')
 LETTERS = re.compile(r'[A-Za-z]{2,}')
 
@@ -69,13 +74,22 @@ def scan_line(line):
             continue
         if has_words(m.group(2)):
             yield "UNWRAPPED", m.group(1)
+    for m in RE_PROP.finditer(code):
+        if has_words(m.group(2)):
+            yield "UNWRAPPED", m.group(1)
     for m in RE_SECOND.finditer(code):
         if has_words(m.group(2)):
             yield "UNWRAPPED", m.group(1)
     for m in RE_DYNAMIC.finditer(code):
         yield "DYNAMIC", m.group(1).strip()[:40]
     if RE_CONCAT.search(code):
-        yield "CONCAT", ""
+        # only when words sit OUTSIDE the qsTr -- "\n\n" + qsTr(...) is fine
+        # and a value sandwiched between two translated halves is the
+        # classic glued sentence: qsTr("Found ") + n + qsTr(" stations")
+        rest = RE_WRAPPED.sub("", code)
+        if (RE_SANDWICH.search(code) or
+                any(has_words(m.group(0)) for m in re.finditer(LIT, rest))):
+            yield "CONCAT", ""
     if RE_NUMBER.search(code):
         yield "NUMBER", ""
 
@@ -123,7 +137,8 @@ def js_literals(code):
             last, word = c, ""
             continue
         if c.isalnum() or c in "_$":
-            word = word + c if last.isalnum() or last in "_$" else c
+            joined = i > 0 and (code[i - 1].isalnum() or code[i - 1] in "_$")
+            word = word + c if joined else c
             last = c
         elif c == "(":
             stack.append(word)
