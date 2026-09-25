@@ -1,0 +1,228 @@
+name: Assemble latest build
+
+# CaveCAD + the Cave Survey tools, for every platform, published as the
+# rolling "latest" pre-release:
+#   https://github.com/Nate-the-Ace/cavecad-src/releases/tag/latest
+#
+# Nothing is compiled here. The platform workflows keep the bare app on
+# the internal "app-base" release; this adds the tools to it and repacks.
+# A tools-only change therefore reaches the download in minutes.
+#
+# Runs when a platform build finishes, on a schedule that notices new
+# tools commits (no token needed in the tools repo), or by hand.
+
+on:
+  workflow_run:
+    workflows: [Windows build, Linux AppImage, macOS build]
+    types: [completed]
+    branches: [cavecad]
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release to publish into (default: the rolling latest)"
+        type: string
+        default: latest
+
+permissions:
+  contents: write
+
+env:
+  TOOLS_REPO: Nate-the-Ace/CaveCAD
+  TOOLS_REF: legacy-map
+  TAG: ${{ inputs.tag || 'latest' }}
+
+concurrency:
+  group: assemble-${{ inputs.tag || 'latest' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      go: ${{ steps.plan.outputs.go }}
+      tools_sha: ${{ steps.plan.outputs.tools_sha }}
+      app_sha: ${{ steps.plan.outputs.app_sha }}
+      key: ${{ steps.plan.outputs.key }}
+    steps:
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tools_sha=$(git ls-remote "https://github.com/$TOOLS_REPO" "refs/heads/$TOOLS_REF" | cut -f1)
+          [ -n "$tools_sha" ] || { echo "cannot read $TOOLS_REPO@$TOOLS_REF"; exit 1; }
+          mkdir base && cd base
+          gh release download app-base -R "$GITHUB_REPOSITORY" -p 'base-*.commit' || true
+          for p in windows-x64 linux-x86_64 macos-arm64; do
+            if [ ! -f "base-$p.commit" ]; then
+              # the first builds finish one at a time; wait for the last
+              echo "::notice::no $p app base yet -- nothing to assemble until it builds"
+              echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          done
+          key="tools=$tools_sha win=$(cat base-windows-x64.commit) linux=$(cat base-linux-x86_64.commit) mac=$(cat base-macos-arm64.commit)"
+          current=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null \
+            | sed -n 's/.*<!-- key: \(.*\) -->.*/\1/p')
+          go=true
+          if [ "$current" = "$key" ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then go=false; fi
+          echo "key: $key"; echo "published: ${current:-none}"; echo "go: $go"
+          {
+            echo "go=$go"; echo "tools_sha=$tools_sha"
+            echo "app_sha=$(cat base-windows-x64.commit)"; echo "key=$key"
+          } >> "$GITHUB_OUTPUT"
+
+  addon:
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.TOOLS_REPO }}
+          ref: ${{ needs.plan.outputs.tools_sha }}
+      - name: Stage the Cave Survey add-on
+        run: |
+          # The add-on's own structural checks run here; the script parse
+          # needs CaveCAD installed and is skipped (it runs on publish.sh).
+          tools/make_package.sh --stage-only --version "$(cat VERSION)"
+          mkdir addon && cp -R dist/CaveSurveyTools-*/CaveSurvey addon/
+          cat VERSION > addon/VERSION
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon
+          path: addon/
+
+  windows-linux:
+    needs: [plan, addon]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - name: Fetch the app bases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download app-base -R "$GITHUB_REPOSITORY" \
+            -p base-windows-x64.zip -p base-linux-x86_64.AppImage
+
+      - name: Windows
+        run: |
+          mkdir CaveCAD
+          unzip -q base-windows-x64.zip -d CaveCAD
+          cp -R addon/CaveSurvey CaveCAD/scripts/CaveSurvey
+          cat > CaveCAD/README-FIRST.txt <<'TXT'
+          CaveCAD with the Cave Survey tools
+          ==================================
+
+          Run cavecad.exe. Nothing needs installing: the Microsoft Visual C++
+          runtime ships in this folder.
+
+          If Windows still says VCRUNTIME140.dll or MSVCP140.dll "was not
+          found", install Microsoft's Visual C++ Redistributable (x64):
+            https://aka.ms/vs/17/release/vc_redist.x64.exe
+
+          "Windows protected your PC": this build is not code-signed yet.
+          Click "More info", then "Run anyway". A work PC may block it
+          outright; that is a policy only its IT department can lift.
+          TXT
+          sed -i 's/^          //; s/$/\r/' CaveCAD/README-FIRST.txt
+          zip -q -9 -r CaveCAD-windows-x64.zip CaveCAD
+
+      - name: Linux
+        run: |
+          chmod +x base-linux-x86_64.AppImage
+          ./base-linux-x86_64.AppImage --appimage-extract >/dev/null
+          cp -R addon/CaveSurvey squashfs-root/usr/bin/scripts/CaveSurvey
+          curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool -n squashfs-root CaveCAD-linux-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: assembled-windows-linux
+          path: |
+            CaveCAD-windows-x64.zip
+            CaveCAD-linux-x86_64.AppImage
+          if-no-files-found: error
+
+  macos:
+    needs: [plan, addon]
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - name: Assemble
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download app-base -R "$GITHUB_REPOSITORY" -p base-macos-arm64.dmg
+          hdiutil attach -quiet -nobrowse -readonly -mountpoint base base-macos-arm64.dmg
+          ditto base/CaveCAD.app CaveCAD.app
+          hdiutil detach -quiet base
+          ditto addon/CaveSurvey CaveCAD.app/Contents/Resources/scripts/CaveSurvey
+          codesign --force --deep -s - CaveCAD.app
+          codesign --verify --deep --strict CaveCAD.app
+          hdiutil create -quiet -volname CaveCAD -srcfolder CaveCAD.app -ov \
+            -format UDZO CaveCAD-macos-arm64.dmg
+      - uses: actions/upload-artifact@v7
+        with:
+          name: assembled-macos
+          path: CaveCAD-macos-arm64.dmg
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, addon, windows-linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: assembled-*
+          merge-multiple: true
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_SHA: ${{ needs.plan.outputs.app_sha }}
+          TOOLS_SHA: ${{ needs.plan.outputs.tools_sha }}
+          KEY: ${{ needs.plan.outputs.key }}
+        run: |
+          ls -l dist
+          cat > notes.md <<EOF
+          CaveCAD with the Cave Survey tools $(cat addon/VERSION), rebuilt automatically whenever either changes.
+
+          | Platform | Download |
+          |---|---|
+          | Windows 10/11 (64-bit) | CaveCAD-windows-x64.zip -- unzip, run \`cavecad.exe\` |
+          | macOS (Apple Silicon) | CaveCAD-macos-arm64.dmg |
+          | Linux (x86_64) | CaveCAD-linux-x86_64.AppImage -- \`chmod +x\`, run |
+
+          Not code-signed yet. Windows: "More info" then "Run anyway". macOS: right-click the app, Open.
+          If Windows reports VCRUNTIME140.dll missing: https://aka.ms/vs/17/release/vc_redist.x64.exe
+
+          App: $GITHUB_REPOSITORY@${APP_SHA:0:8} -- Tools: $TOOLS_REPO@${TOOLS_SHA:0:8}
+
+          <!-- key: $KEY -->
+          EOF
+          sed -i 's/^          //' notes.md
+          if [ "$TAG" = latest ]; then
+            # Recreated, not edited, so the tag moves to the app commit and
+            # the release sorts as new. Asset names never change, so
+            # releases/download/latest/<name> links keep working.
+            gh release delete latest -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
+            gh release create latest dist/* -R "$GITHUB_REPOSITORY" --prerelease \
+              --target "$APP_SHA" --title "CaveCAD latest build" --notes-file notes.md
+          else
+            gh release create "$TAG" dist/* -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "CaveCAD $TAG" --notes-file notes.md
+          fi

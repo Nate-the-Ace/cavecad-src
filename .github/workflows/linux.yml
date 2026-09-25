@@ -10,6 +10,9 @@ on:
       - '.github/workflows/macos.yml'
       - '.github/workflows/release.yml'
 
+permissions:
+  contents: write
+
 env:
   QT_VERSION: 6.10.3
   QT_ARCH: linux_gcc_64
@@ -35,13 +38,13 @@ jobs:
             libfontconfig1-dev libfreetype6-dev libx11-xcb-dev libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
-            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev libcups2 ccache
+            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev libcups2 libtiff5 libwebp7 libwebpdemux2 libwebpmux3 ccache
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A cold build is ~90 min; with a warm cache a packaging-only change
       # rebuilds in minutes.
-      - uses: hendrikmuhs/ccache-action@v1.2
+      - uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           key: linux-gcc
           max-size: 2G
@@ -93,6 +96,7 @@ jobs:
           for d in scripts libraries patterns linetypes fonts themes ts defaults; do
             [ -d "$d" ] && cp -a "$d" AppDir/usr/bin/
           done
+          tools/strip-runtime.sh AppDir/usr/bin
           sed 's/^Exec=cavecad /Exec=cavecad-bin /' cavecad.desktop > AppDir/usr/share/applications/org.cavecad.CaveCAD.desktop
           cp scripts/cavecad_icon.png AppDir/usr/share/icons/hicolor/256x256/apps/org.cavecad.CaveCAD.png
           cat > AppDir/AppRun <<'SH'
@@ -103,6 +107,15 @@ jobs:
           exec "$APPDIR/usr/bin/cavecad-bin" "$@"
           SH
           chmod +x AppDir/AppRun
+
+      - name: Check Qt plugin dependencies
+        run: |
+          # List every system library a Qt plugin needs and the container
+          # lacks, all at once -- linuxdeploy stops at the first one.
+          QTDIR="/opt/Qt/$QT_VERSION/gcc_64"
+          missing=$(for f in "$QTDIR"/plugins/*/*.so; do
+            ldd "$f" 2>/dev/null | awk '/not found/{print $1}'; done | sort -u)
+          echo "missing: ${missing:-none}"
 
       - name: Build AppImage
         run: |
@@ -124,8 +137,33 @@ jobs:
             --plugin qt --output appimage
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cavecad-linux-x86_64-appimage
           path: CaveCAD-x86_64.AppImage
           if-no-files-found: error
+
+  # The bare app, kept on the internal "app-base" release. assemble.yml
+  # adds the Cave Survey tools to it and publishes the "latest" build, so
+  # a tools change never has to recompile anything. A job of its own
+  # because the build container has no gh.
+  store-base:
+    needs: appimage
+    if: github.ref == 'refs/heads/cavecad'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: cavecad-linux-x86_64-appimage
+      - name: Store as the app base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv CaveCAD-x86_64.AppImage base-linux-x86_64.AppImage
+          echo "$GITHUB_SHA" > base-linux-x86_64.commit
+          gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create app-base -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "App base (internal)" \
+              --notes "Bare CaveCAD builds the latest build is assembled from. Not for download: get CaveCAD from the latest release." ||
+            gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload app-base base-linux-x86_64.AppImage base-linux-x86_64.commit --clobber -R "$GITHUB_REPOSITORY"

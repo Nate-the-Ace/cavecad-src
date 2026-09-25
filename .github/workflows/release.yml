@@ -1,7 +1,9 @@
 name: Release
 
-# Push a tag like v0.9.5 to build every platform and publish a GitHub
-# pre-release with the Windows zip, Linux AppImage and macOS dmg attached.
+# Push a tag like v0.9.5 to publish a numbered pre-release: the same
+# assembly as the rolling "latest" build (current app base + current
+# Cave Survey tools), under the tag's name. Tag the cavecad head, after
+# its platform builds have finished.
 on:
   push:
     tags: ['v*']
@@ -10,36 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    uses: ./.github/workflows/windows.yml
-  linux:
-    uses: ./.github/workflows/linux.yml
-  macos:
-    uses: ./.github/workflows/macos.yml
-
-  publish:
-    needs: [windows, linux, macos]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Name the assets
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          mkdir dist
-          (cd artifacts/cavecad-windows-x64 && zip -qr "../../dist/CaveCAD-${tag}-windows-x64.zip" .)
-          cp artifacts/cavecad-linux-x86_64-appimage/CaveCAD-x86_64.AppImage "dist/CaveCAD-${tag}-linux-x86_64.AppImage"
-          cp artifacts/cavecad-macos-arm64/CaveCAD.dmg "dist/CaveCAD-${tag}-macos-arm64.dmg"
-          ls -l dist
-
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "CaveCAD $GITHUB_REF_NAME" \
-            --generate-notes \
-            --prerelease
+  assemble:
+    uses: ./.github/workflows/assemble.yml
+    with:
+      tag: ${{ github.ref_name }}

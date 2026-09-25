@@ -10,6 +10,9 @@ on:
       - '.github/workflows/macos.yml'
       - '.github/workflows/release.yml'
 
+permissions:
+  contents: write
+
 env:
   QT_VERSION: 6.10.3
   QT_ARCH: win64_msvc2022_64
@@ -21,9 +24,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -39,7 +42,7 @@ jobs:
 
       # A cold build is ~90 min; with a warm cache a packaging-only change
       # rebuilds in minutes.
-      - uses: hendrikmuhs/ccache-action@v1.2
+      - uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           variant: sccache
           key: windows-msvc
@@ -115,16 +118,54 @@ jobs:
           }
           $global:LASTEXITCODE = 0
           Remove-Item release\*.exp,release\*.lib,release\plugins\*.exp,release\plugins\*.lib -ErrorAction SilentlyContinue
+          # The MSVC runtime, app-local, so CaveCAD starts on a PC without the
+          # Visual C++ Redistributable ("VCRUNTIME140.dll was not found").
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC14*.CRT" -Directory |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "MSVC runtime redist folder not found under $vs" }
+          Copy-Item "$($crt.FullName)\*.dll" release\
+          foreach ($d in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll') {
+            if (-not (Test-Path "release\$d")) { throw "$d missing after runtime copy" }
+          }
+          # Database drivers for servers CaveCAD never talks to; each needs a
+          # client DLL (libpq, oci, fbclient, ...) no user has. SQLite stays.
+          Remove-Item release\sqldrivers\* -Exclude qsqlite.dll -ErrorAction SilentlyContinue
+          # QML debugger plugins and Qt's own translations: CaveCAD is not a
+          # QML app, and its UI strings come from ts/.
+          Remove-Item -Recurse -Force release\qmltooling,release\translations -ErrorAction SilentlyContinue
+
+      - name: Strip
+        shell: bash
+        run: tools/strip-runtime.sh release
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cavecad-windows-x64
           path: release/
 
+      # The bare app, kept on the internal "app-base" release. assemble.yml
+      # adds the Cave Survey tools to it and publishes the "latest" build,
+      # so a tools change never has to recompile anything.
+      - name: Store as the app base
+        if: github.ref == 'refs/heads/cavecad'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd release && 7z a -tzip -mx=9 -bd ../base-windows-x64.zip . >/dev/null)
+          echo "$GITHUB_SHA" > base-windows-x64.commit
+          gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create app-base -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "App base (internal)" \
+              --notes "Bare CaveCAD builds the latest build is assembled from. Not for download: get CaveCAD from the latest release." ||
+            gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload app-base base-windows-x64.zip base-windows-x64.commit --clobber -R "$GITHUB_REPOSITORY"
+
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-logs
           path: |

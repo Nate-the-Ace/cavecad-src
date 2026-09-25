@@ -37,6 +37,7 @@ cp "$SRC"/plugins/designer/libcavecadcustomwidgets.dylib \
 for d in scripts patterns linetypes fonts ts themes libraries defaults; do
     ditto "$SRC/$d" "$APP/Contents/Resources/$d"
 done
+"$SRC/tools/strip-runtime.sh" "$APP/Contents/Resources"
 
 BIN="$APP/Contents/MacOS/CaveCAD"
 install_name_tool -add_rpath @executable_path/../Frameworks "$BIN"
@@ -58,6 +59,13 @@ for p in "$APP"/Contents/PlugIns/*.dylib "$APP"/Contents/PlugIns/designer/*.dyli
 done
 "$MACDEPLOYQT" "$APP" -verbose=1 "$@" \
     -libpath="$APP/Contents/Frameworks"
+
+# Qt's database drivers for servers CaveCAD never talks to link client
+# libraries from wherever Qt was built (Postgres.app, Homebrew,
+# /usr/local), which no user's Mac has. Only SQLite is kept.
+rm -f "$APP"/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib \
+      "$APP"/Contents/PlugIns/sqldrivers/libqsqlodbc.dylib \
+      "$APP"/Contents/PlugIns/sqldrivers/libqsqlmimer.dylib
 
 # macdeployqt re-signs what it touched; sign the whole bundle once more so
 # the seal covers the resources and plugins copied in above.

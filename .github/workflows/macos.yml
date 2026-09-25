@@ -10,6 +10,9 @@ on:
       - '.github/workflows/windows.yml'
       - '.github/workflows/release.yml'
 
+permissions:
+  contents: write
+
 env:
   QT_VERSION: 6.10.3
   QTJSAPI_REV: c82731320fdc7b61dae56d4cf046bac9376bb2b4
@@ -22,9 +25,9 @@ jobs:
     runs-on: macos-15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -38,7 +41,7 @@ jobs:
 
       # A cold build is ~90 min; with a warm cache a packaging-only change
       # rebuilds in minutes.
-      - uses: hendrikmuhs/ccache-action@v1.2
+      - uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           key: macos-clang
           max-size: 2G
@@ -92,14 +95,35 @@ jobs:
           # the bundle must not reach outside itself for any library
           find dist/CaveCAD.app -type f | while read -r f; do
             file "$f" | grep -q Mach-O || continue
+            # a dylib's own install name is listed too; it is not a dependency
+            self="$(otool -D "$f" | tail -n +2)"
             otool -L "$f" | tail -n +2 | awk '{print $1}' \
+              | grep -vxF -- "${self:-/nonexistent}" \
               | grep -vE '^(@|/usr/lib|/System)' | sed "s|^|$f -> |"
           done > outside.txt
           if [ -s outside.txt ]; then cat outside.txt; exit 1; fi
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cavecad-macos-arm64
           path: dist/CaveCAD.dmg
           if-no-files-found: error
+
+      # The bare app, kept on the internal "app-base" release. assemble.yml
+      # adds the Cave Survey tools to it and publishes the "latest" build,
+      # so a tools change never has to recompile anything.
+      - name: Store as the app base
+        if: github.ref == 'refs/heads/cavecad'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/CaveCAD.dmg base-macos-arm64.dmg
+          echo "$GITHUB_SHA" > base-macos-arm64.commit
+          gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create app-base -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "App base (internal)" \
+              --notes "Bare CaveCAD builds the latest build is assembled from. Not for download: get CaveCAD from the latest release." ||
+            gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload app-base base-macos-arm64.dmg base-macos-arm64.commit --clobber -R "$GITHUB_REPOSITORY"
