@@ -153,6 +153,12 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     projection->addAction(orthographicAction);
     connect(orthographicAction, &QAction::triggered,
             [this]() { view->setOrthographic(true); });
+    // The ViewCube's menu switches projection too; keep these ticks
+    // telling the truth.
+    connect(view, &RCave3dView::orthographicChanged, [this](bool on) {
+        orthographicAction->setChecked(on);
+        perspectiveAction->setChecked(!on);
+    });
 
     QToolButton* viewButton = new QToolButton(this);
     viewButton->setObjectName("Cave3dViewButton");

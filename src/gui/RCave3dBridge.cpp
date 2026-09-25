@@ -462,14 +462,14 @@ void RCave3dBridge::viewAll(int handle) {
 void RCave3dBridge::viewPlan(int handle) {
     RCave3dPanel* p = panelFor(handle);
     if (p != NULL && p->getView() != NULL) {
-        p->getView()->viewPlan();
+        p->getView()->viewPlan(false);
     }
 }
 
 void RCave3dBridge::viewProfile(int handle) {
     RCave3dPanel* p = panelFor(handle);
     if (p != NULL && p->getView() != NULL) {
-        p->getView()->viewProfile();
+        p->getView()->viewProfile(false);
     }
 }
 

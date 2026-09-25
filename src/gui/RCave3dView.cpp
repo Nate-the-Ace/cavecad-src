@@ -21,6 +21,8 @@
 #include "RCave3dLabels.h"
 #include "RCave3dCard.h"
 #include "RCave3dTexture.h"
+#include "RCave3dViewCube.h"
+#include "RSettings.h"
 
 #include <QDebug>
 #include <QLinearGradient>
@@ -33,6 +35,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QSurfaceFormat>
+#include <QTimer>
 #include <QtMath>
 
 namespace {
@@ -169,6 +172,38 @@ const char* LINE_FRAGMENT =
     "    gl_FragColor = vec4(vColor, 1.0);\n"
     "}\n";
 
+/** A camera looking along f with screen-up as near u as it can be. */
+QQuaternion lookAlong(const QVector3D& f, const QVector3D& u) {
+    QVector3D back = -f.normalized();
+    QVector3D right = QVector3D::crossProduct(u, back);
+    if (right.lengthSquared() < 1e-12f) {
+        right = QVector3D::crossProduct(QVector3D(0.0f, 1.0f, 0.0f), back);
+    }
+    right.normalize();
+    QVector3D up = QVector3D::crossProduct(back, right);
+    return QQuaternion::fromAxes(right, up, back).normalized();
+}
+
+/** World up -- or north, when looking straight up or down. */
+QVector3D naturalUp(const QVector3D& f) {
+    return (qAbs(f.z()) > 0.999f) ? QVector3D(0.0f, 1.0f, 0.0f)
+                                  : QVector3D(0.0f, 0.0f, 1.0f);
+}
+
+QVector3D snapAxis(const QVector3D& v) {
+    return QVector3D(qRound(v.x()), qRound(v.y()), qRound(v.z()));
+}
+
+/** Three-quarter view from the south-east, 30 degrees down: the
+ *  ViewCube's home in cavway-assistant-web too. */
+QQuaternion defaultHome() {
+    float y = qDegreesToRadians(-30.0f);
+    float p = qDegreesToRadians(30.0f);
+    QVector3D f(std::sin(y) * std::cos(p), std::cos(y) * std::cos(p),
+                -std::sin(p));
+    return lookAlong(f, QVector3D(0.0f, 0.0f, 1.0f));
+}
+
 } // namespace
 
 RCave3dView::RCave3dView(QWidget* parent)
@@ -179,8 +214,6 @@ RCave3dView::RCave3dView(QWidget* parent)
       terrainProgram(NULL),
       boundsMin(-1.0f, -1.0f, -1.0f),
       boundsMax(1.0f, 1.0f, 1.0f),
-      yaw(0.0f),
-      pitch(20.0f),
       distance(10.0f),
       target(0.0f, 0.0f, 0.0f),
       showSurface(true),
@@ -197,7 +230,7 @@ RCave3dView::RCave3dView(QWidget* parent)
       showTerrainContours(false),
       terrainOpacity(RCave3dView::DEFAULT_TERRAIN_OPACITY),
       cameraMode(RCave3dView::CameraManual), cameraProgress(0.0),
-      flyYaw(0.0f), flyPitch(0.0f), spinFromYaw(0.0f),
+      flyYaw(0.0f), flyPitch(0.0f),
       scansNeedUpload(false),
       progressTriangles(-1),
       progressLines(-1),
@@ -257,6 +290,33 @@ RCave3dView::RCave3dView(QWidget* parent)
     hoverB = -1;
     hoverT = 0.0f;
     connect(card, SIGNAL(dismissed()), this, SLOT(onCardDismissed()));
+
+    // THE CAMERA STARTS AT HOME -- the caver's saved one if there is
+    // one. Four numbers, w x y z; anything else is ignored.
+    homeOrientation = defaultHome();
+    QVariantList saved = RSettings::getValue("Cave3D/HomeView",
+                                             QVariantList()).toList();
+    if (saved.size() == 4) {
+        QQuaternion q(saved.at(0).toFloat(), saved.at(1).toFloat(),
+                      saved.at(2).toFloat(), saved.at(3).toFloat());
+        if (q.length() > 0.5f) {
+            homeOrientation = q.normalized();
+        }
+    }
+    orientation = homeOrientation;
+    spinFrom = orientation;
+
+    tweenRefit = false;
+    tweenDistanceFrom = distance;
+    tweenDistanceDest = distance;
+    tweenTimer = new QTimer(this);
+    tweenTimer->setInterval(16);
+    connect(tweenTimer, SIGNAL(timeout()), this, SLOT(onTweenTick()));
+
+    // A CHILD WIDGET like the legend and the card, for the same reason:
+    // painting inside paintGL draws nothing here.
+    viewCube = new RCave3dViewCube(this);
+    viewCube->show();
     labels->setShow(false);
 }
 
@@ -372,23 +432,48 @@ void RCave3dView::resizeGL(int w, int h) {
     }
 }
 
+QQuaternion RCave3dView::viewOrientation() const {
+    if (cameraMode == CameraSpin) {
+        // A SLOW TURN ROUND THE CAVE: one whole revolution about world
+        // up over the length of the animation, so an exported loop
+        // joins up with itself.
+        return QQuaternion::fromAxisAndAngle(0.0f, 0.0f, 1.0f,
+            float(cameraProgress) * 360.0f) * spinFrom;
+    }
+    return orientation;
+}
+
+void RCave3dView::setViewOrientation(const QQuaternion& q) {
+    if (cameraMode == CameraSpin) {
+        // Keep spinning, from the new place: undo the turn the spin
+        // has made so far, and start it from there.
+        QQuaternion turned = QQuaternion::fromAxisAndAngle(
+            0.0f, 0.0f, 1.0f, float(cameraProgress) * 360.0f);
+        spinFrom = (turned.conjugated() * q).normalized();
+        return;
+    }
+    orientation = q.normalized();
+}
+
 void RCave3dView::cameraBasis(QVector3D& forward, QVector3D& right,
                               QVector3D& up) const {
-    float yawRad = qDegreesToRadians(yaw);
-    float pitchRad = qDegreesToRadians(pitch);
-    // The direction the camera looks, which is the negative of the
-    // offset cameraMatrix puts the eye at.
-    forward = QVector3D(-std::cos(pitchRad) * std::sin(yawRad),
-                        std::cos(pitchRad) * std::cos(yawRad),
-                        -std::sin(pitchRad));
-    right = QVector3D::crossProduct(forward, QVector3D(0.0f, 0.0f, 1.0f));
-    if (right.lengthSquared() < 1e-12f) {
-        // Straight up or straight down: every horizontal direction is
-        // equally "right", so pick one and be consistent.
-        right = QVector3D(1.0f, 0.0f, 0.0f);
-    }
-    right.normalize();
-    up = QVector3D::crossProduct(right, forward).normalized();
+    QQuaternion q = viewOrientation();
+    right = q.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    up = q.rotatedVector(QVector3D(0.0f, 1.0f, 0.0f));
+    forward = -q.rotatedVector(QVector3D(0.0f, 0.0f, 1.0f));
+}
+
+float RCave3dView::getYaw() const {
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    return float(qRadiansToDegrees(std::atan2(-forward.x(), forward.y())));
+}
+
+float RCave3dView::getPitch() const {
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    float z = qBound(-1.0f, forward.z(), 1.0f);
+    return float(qRadiansToDegrees(std::asin(-z)));
 }
 
 /**
@@ -437,7 +522,7 @@ void RCave3dView::setCameraMode(CameraMode mode) {
     if (mode == CameraSpin) {
         // Turn from where they left it: snapping to north first would
         // throw away the view they chose to spin.
-        spinFromYaw = yaw;
+        spinFrom = orientation;
     }
     cameraMode = mode;
     // Neither mode is the caver placing the camera, so a rebuild is
@@ -630,14 +715,6 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         projection.perspective(FOV_DEGREES, aspect, near, far);
     }
 
-    float useYaw = yaw;
-    if (cameraMode == CameraSpin) {
-        // A SLOW TURN ROUND THE CAVE, which is what a cave is usually
-        // shown doing: one whole revolution over the length of the
-        // animation, so an exported loop joins up with itself.
-        useYaw = spinFromYaw + float(cameraProgress) * 360.0f;
-    }
-
     QVector3D eyeNow, lookNow;
     computeCamera(eyeNow, lookNow);
     lastEye = eyeNow;
@@ -653,15 +730,12 @@ QMatrix4x4 RCave3dView::cameraMatrix() const {
         return projection * flyView;
     }
 
-    float yawRad = qDegreesToRadians(useYaw);
-    float pitchRad = qDegreesToRadians(pitch);
-    QVector3D eye(
-        target.x() + distance * std::cos(pitchRad) * std::sin(yawRad),
-        target.y() - distance * std::cos(pitchRad) * std::cos(yawRad),
-        target.z() + distance * std::sin(pitchRad));
-
+    // The camera's own up, not world Z: a trackball can be rolled, and
+    // looking straight down no longer needs an 89.9-degree dodge.
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
     QMatrix4x4 view;
-    view.lookAt(eye, target, QVector3D(0.0f, 0.0f, 1.0f));
+    view.lookAt(target - forward * distance, target, up);
     return projection * view;
 }
 
@@ -675,6 +749,9 @@ void RCave3dView::paintGL() {
         labels->setCamera(mvp);
     }
     layOutCard();
+    if (viewCube != NULL) {
+        viewCube->update();
+    }
     drawScene(mvp);
 }
 
@@ -1480,19 +1557,10 @@ void RCave3dView::computeCamera(QVector3D& eye, QVector3D& look) const {
         look = tilt.map(dir).normalized();
         return;
     }
-    float useYaw = yaw;
-    if (cameraMode == CameraSpin) {
-        useYaw = spinFromYaw + float(cameraProgress) * 360.0f;
-    }
-    float yawRad = qDegreesToRadians(useYaw);
-    float pitchRad = qDegreesToRadians(pitch);
-    eye = QVector3D(
-        target.x() + distance * std::cos(pitchRad) * std::sin(yawRad),
-        target.y() - distance * std::cos(pitchRad) * std::cos(yawRad),
-        target.z() + distance * std::sin(pitchRad));
-    QVector3D dir = target - eye;
-    look = (dir.lengthSquared() < 1e-12f)
-        ? QVector3D(0.0f, 1.0f, 0.0f) : dir.normalized();
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    eye = target - forward * distance;
+    look = forward;
 }
 
 QVector3D RCave3dView::getEye() const {
@@ -1712,7 +1780,18 @@ QImage RCave3dView::renderFrame(int w, int h) {
     return shot.copy(mine).toImage();
 }
 
+void RCave3dView::layOutViewCube() {
+    if (viewCube == NULL) {
+        return;
+    }
+    QSize want = viewCube->sizeHint();
+    viewCube->setGeometry(width() - want.width() - 4, 4,
+                          want.width(), want.height());
+    viewCube->raise();
+}
+
 void RCave3dView::layOutLegend() {
+    layOutViewCube();
     // The labels cover the whole view: they place themselves by where
     // the stations land, not by a corner.
     if (labels != NULL) {
@@ -1883,7 +1962,14 @@ void RCave3dView::setShowLines(bool on) {
 }
 
 void RCave3dView::viewAll() {
-    target = (boundsMin + boundsMax) * 0.5f;
+    fitCamera(viewOrientation(), target, distance);
+    cameraUntouched = true;
+    update();
+}
+
+void RCave3dView::fitCamera(const QQuaternion& q, QVector3D& fitTarget,
+                            float& fitDistance) const {
+    fitTarget = (boundsMin + boundsMax) * 0.5f;
 
     // FIT THE BOX AS IT IS SEEN, not its diagonal. A cave is long and
     // thin, so its bounding-sphere radius is set almost entirely by its
@@ -1894,8 +1980,9 @@ void RCave3dView::viewAll() {
     // So each of the eight corners is put into view space and asked how
     // far back the camera must be for it to fall inside the frustum.
     // The answer is the largest of those.
-    QVector3D forward, right, up;
-    cameraBasis(forward, right, up);
+    QVector3D right = q.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    QVector3D up = q.rotatedVector(QVector3D(0.0f, 1.0f, 0.0f));
+    QVector3D forward = -q.rotatedVector(QVector3D(0.0f, 0.0f, 1.0f));
 
     float aspect = float(width()) / float(qMax(1, height()));
     float tanY = std::tan(qDegreesToRadians(FOV_DEGREES * 0.5f));
@@ -1907,7 +1994,7 @@ void RCave3dView::viewAll() {
             (i & 1) ? boundsMax.x() : boundsMin.x(),
             (i & 2) ? boundsMax.y() : boundsMin.y(),
             (i & 4) ? boundsMax.z() : boundsMin.z());
-        QVector3D v = corner - target;
+        QVector3D v = corner - fitTarget;
         float depth = QVector3D::dotProduct(v, forward);
         float dx = std::fabs(QVector3D::dotProduct(v, right));
         float dy = std::fabs(QVector3D::dotProduct(v, up));
@@ -1921,9 +2008,7 @@ void RCave3dView::viewAll() {
         // A single station, or a cave with no extent yet.
         needed = 1.0f;
     }
-    distance = needed * 1.05f;   // a little air around the edges
-    cameraUntouched = true;
-    update();
+    fitDistance = needed * 1.05f;   // a little air around the edges
 }
 
 void RCave3dView::setOrthographic(bool on) {
@@ -1932,21 +2017,126 @@ void RCave3dView::setOrthographic(bool on) {
     }
     orthographic = on;
     update();
+    emit orthographicChanged(on);
 }
 
-void RCave3dView::viewPlan() {
-    yaw = 0.0f;
-    // Not 90: looking straight down the pole makes the up vector
-    // parallel to the view direction, lookAt degenerates, and the view
-    // rolls to whatever the arithmetic happens to produce.
-    pitch = 89.9f;
-    viewAll();
+void RCave3dView::viewPlan(bool animate) {
+    // Straight down, north up. Exactly 90 now: the camera carries its
+    // own up, so the pole is not a singularity any more.
+    tweenTo(lookAlong(QVector3D(0.0f, 0.0f, -1.0f),
+                      QVector3D(0.0f, 1.0f, 0.0f)), true, animate);
 }
 
-void RCave3dView::viewProfile() {
-    yaw = 0.0f;
-    pitch = 0.0f;
-    viewAll();
+void RCave3dView::viewProfile(bool animate) {
+    tweenTo(lookAlong(QVector3D(0.0f, 1.0f, 0.0f),
+                      QVector3D(0.0f, 0.0f, 1.0f)), true, animate);
+}
+
+void RCave3dView::viewHome() {
+    tweenTo(homeOrientation, true);
+}
+
+void RCave3dView::setHomeView(bool reset) {
+    homeOrientation = reset ? defaultHome() : viewOrientation();
+    QVariantList v;
+    v << homeOrientation.scalar() << homeOrientation.x()
+      << homeOrientation.y() << homeOrientation.z();
+    RSettings::setValue("Cave3D/HomeView", reset ? QVariant() : QVariant(v));
+}
+
+void RCave3dView::orbit(int dx, int dy) {
+    stopTween();
+    // About the screen's own axes, so what was grabbed follows the
+    // pointer: sideways turns about screen-up, up and down about
+    // screen-right. 0.4 degrees a pixel, as before.
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    QQuaternion r =
+        QQuaternion::fromAxisAndAngle(up, -dx * 0.4f) *
+        QQuaternion::fromAxisAndAngle(right, -dy * 0.4f);
+    setViewOrientation(r * viewOrientation());
+    cameraUntouched = false;
+    update();
+}
+
+void RCave3dView::lookFrom(const QVector3D& side) {
+    QVector3D f = -side.normalized();
+    tweenTo(lookAlong(f, naturalUp(f)), false);
+}
+
+bool RCave3dView::isFaceAligned() const {
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    return qMax(qAbs(forward.x()), qMax(qAbs(forward.y()),
+                qAbs(forward.z()))) > 0.9998f;
+}
+
+void RCave3dView::stepView(const QString& kind) {
+    QVector3D forward, right, up;
+    cameraBasis(forward, right, up);
+    // Only offered while face-aligned, so every axis here is within a
+    // degree of a world axis: round it onto that axis exactly.
+    QVector3D f, u;
+    if (kind == "up") { f = -up; u = forward; }
+    else if (kind == "down") { f = up; u = -forward; }
+    else if (kind == "left") { f = right; u = up; }
+    else if (kind == "right") { f = -right; u = up; }
+    else if (kind == "cw") { f = forward; u = -right; }
+    else if (kind == "ccw") { f = forward; u = right; }
+    else { return; }
+    tweenTo(lookAlong(snapAxis(f), snapAxis(u)), false);
+}
+
+void RCave3dView::tweenTo(const QQuaternion& q, bool refit, bool animate) {
+    stopTween();
+    tweenFrom = viewOrientation();
+    tweenDest = q.normalized();
+    tweenRefit = refit;
+    tweenTargetFrom = target;
+    tweenDistanceFrom = distance;
+    tweenTargetDest = target;
+    tweenDistanceDest = distance;
+    if (refit) {
+        fitCamera(tweenDest, tweenTargetDest, tweenDistanceDest);
+    }
+    if (!animate || !isVisible()) {
+        // Nothing is painting, so there is nothing to watch turn.
+        setViewOrientation(tweenDest);
+        target = tweenTargetDest;
+        distance = tweenDistanceDest;
+        cameraUntouched = refit;
+        update();
+        return;
+    }
+    tweenClock.start();
+    tweenTimer->start();
+}
+
+void RCave3dView::stopTween() {
+    if (tweenTimer != NULL) {
+        tweenTimer->stop();
+    }
+}
+
+void RCave3dView::onTweenTick() {
+    const float MS = 300.0f;
+    float t = qMin(1.0f, float(tweenClock.elapsed()) / MS);
+    float e = t * t * (3.0f - 2.0f * t);
+    setViewOrientation(QQuaternion::slerp(tweenFrom, tweenDest, e));
+    if (tweenRefit) {
+        target = tweenTargetFrom + (tweenTargetDest - tweenTargetFrom) * e;
+        // Geometric, so a big change of zoom does not rush its first half.
+        float a = qMax(tweenDistanceFrom, 1e-4f);
+        float b = qMax(tweenDistanceDest, 1e-4f);
+        distance = a * std::pow(b / a, e);
+    }
+    if (t >= 1.0f) {
+        tweenTimer->stop();
+        cameraUntouched = tweenRefit;
+    } else {
+        cameraUntouched = false;
+    }
+    update();
 }
 
 void RCave3dView::mousePressEvent(QMouseEvent* e) {
@@ -2021,16 +2211,7 @@ void RCave3dView::mouseMoveEvent(QMouseEvent* e) {
             update();
             return;
         }
-        yaw += delta.x() * 0.4f;
-        pitch += delta.y() * 0.4f;
-        if (pitch > 89.9f) {
-            pitch = 89.9f;
-        }
-        if (pitch < -89.9f) {
-            pitch = -89.9f;
-        }
-        cameraUntouched = false;
-        update();
+        orbit(delta.x(), delta.y());
     }
 }
 

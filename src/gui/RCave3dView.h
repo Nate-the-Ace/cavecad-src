@@ -29,6 +29,8 @@
 class RCave3dLegend;
 class RCave3dLabels;
 class RCave3dCard;
+class RCave3dViewCube;
+class QTimer;
 class RCave3dTexture;
 class QOpenGLShaderProgram;
 #include <QMatrix4x4>
@@ -37,6 +39,8 @@ class QOpenGLShaderProgram;
 #include <QStringList>
 #include <QPoint>
 #include <QVector3D>
+#include <QQuaternion>
+#include <QElapsedTimer>
 #include <QVector>
 
 /**
@@ -259,8 +263,11 @@ public:
      *  only, and exposed so that "a rebuild keeps your viewpoint" is a
      *  thing a test can assert rather than a thing someone has to
      *  notice going wrong. */
-    float getYaw() const { return yaw; }
-    float getPitch() const { return pitch; }
+    /** Compass bearing and tilt of the view direction, DERIVED from
+     *  the orientation: the camera is a quaternion now and has no yaw
+     *  or pitch of its own. Kept so getCamera reads the same. */
+    float getYaw() const;
+    float getPitch() const;
     float getDistance() const { return distance; }
     QVector3D getTarget() const { return target; }
     bool isCameraUntouched() const { return cameraUntouched; }
@@ -303,8 +310,47 @@ public:
     bool getShowLines() const { return showLines; }
 
     void viewAll();
-    void viewPlan();
-    void viewProfile();
+    /** Plan and profile turn to their view and re-frame. Animated from
+     *  the panel; the bridge passes false so a script reading the
+     *  camera straight after gets the finished view, not a frame of
+     *  the turn. */
+    void viewPlan(bool animate = true);
+    void viewProfile(bool animate = true);
+
+    /**
+     * TRACKBALL, the whole camera. The orientation is a quaternion and
+     * a drag turns it about the SCREEN'S own axes, so whatever the
+     * caver grabbed follows the pointer at every angle -- including
+     * straight down and past it. The yaw/pitch turntable this replaced
+     * clamped at the poles and turned about world Z whatever the view,
+     * so a drag near plan view spun the cave instead of tilting it
+     * (Nathan, 2026-09-25: "not very intuitive to change views").
+     * Same camera as cavway-assistant-web's src/view3d.js.
+     */
+    void orbit(int dx, int dy);
+
+    /** Look at the cave FROM `side` (a ViewCube face, edge or corner
+     *  direction), with world up kept up -- or north, looking straight
+     *  up or down. Turns there; does not re-frame. */
+    void lookFrom(const QVector3D& side);
+
+    /** The ViewCube's arrows, while looking straight at a face: "up",
+     *  "down", "left", "right" turn 90 degrees to the neighbouring face;
+     *  "cw", "ccw" roll the picture 90 degrees. */
+    void stepView(const QString& kind);
+
+    /** Looking straight at a cube face, within about a degree. */
+    bool isFaceAligned() const;
+
+    /** Home: the orientation the caver saved, or the default three-
+     *  quarter view from the south-east. Remembered across sessions. */
+    void viewHome();
+    void setHomeView(bool reset);
+
+    /** The camera's own axes as they stand. One source for framing,
+     *  panning and the ViewCube. */
+    void cameraBasis(QVector3D& forward, QVector3D& right,
+                     QVector3D& up) const;
 
     /**
      * Draw without perspective: parallel projection, the way a map is.
@@ -333,6 +379,10 @@ signals:
      *  side's business. */
     void stationPicked(const QString& station);
 
+    /** The projection changed -- from the ViewCube's menu as well as
+     *  the panel's, so the panel's own radio items follow. */
+    void orthographicChanged(bool on);
+
 private slots:
     /** The caver dismissed the station card. */
     void onCardDismissed();
@@ -340,6 +390,9 @@ private slots:
     /** The context is about to die: everything GL must be destroyed
      *  HERE, while it is still alive to destroy them against. */
     void onContextAboutToBeDestroyed();
+
+    /** One frame of a turn started by tweenTo. */
+    void onTweenTick();
 
 protected:
     virtual void initializeGL();
@@ -405,12 +458,20 @@ private:
     void drawOutline(const QMatrix4x4& mvp, const QVector3D& eye,
                      const QVector3D& look);
 
-    /** The camera's own axes at the current yaw and pitch. One source
-     *  for framing and for panning: they were derived separately once,
-     *  and the pan copy used world Z as its up, which is only right
-     *  while the camera is level. */
-    void cameraBasis(QVector3D& forward, QVector3D& right,
-                     QVector3D& up) const;
+    /** The orientation actually drawn: the caver's, or during a spin
+     *  the one the spin started from turned about world Z. */
+    QQuaternion viewOrientation() const;
+    /** Set the orientation the caver sees now, whichever of the two
+     *  above that has to go into. */
+    void setViewOrientation(const QQuaternion& q);
+    /** Where viewAll would put the target and eye for orientation q. */
+    void fitCamera(const QQuaternion& q, QVector3D& fitTarget,
+                   float& fitDistance) const;
+    /** Turn to q over a third of a second (or at once, when hidden or
+     *  not animated). With refit the framing moves with it. */
+    void tweenTo(const QQuaternion& q, bool refit, bool animate = true);
+    void stopTween();
+    void layOutViewCube();
 
     QOpenGLShaderProgram* surfaceProgram;
     QOpenGLShaderProgram* lineProgram;
@@ -470,9 +531,9 @@ private:
      *  around without stopping. */
     float flyYaw;
     float flyPitch;
-    /** The yaw the spin started from, so it turns from where the caver
-     *  left the camera rather than snapping to north. */
-    float spinFromYaw;
+    /** The orientation the spin started from, so it turns from where
+     *  the caver left the camera rather than snapping to north. */
+    QQuaternion spinFrom;
     /** Set by cameraMatrix, which is const, so that anything can ask
      *  where the camera really is. */
     mutable QVector3D lastEye;
@@ -485,10 +546,21 @@ private:
     QVector3D boundsMin;
     QVector3D boundsMax;
 
-    // Spherical camera about a target point.
-    float yaw;
-    float pitch;
+    // Trackball camera about a target point: orientation takes camera
+    // axes (x right, y up, z back) to world axes.
+    QQuaternion orientation;
+    QQuaternion homeOrientation;
     float distance;
+
+    QTimer* tweenTimer;
+    QElapsedTimer tweenClock;
+    QQuaternion tweenFrom;
+    QQuaternion tweenDest;
+    bool tweenRefit;
+    QVector3D tweenTargetFrom;
+    QVector3D tweenTargetDest;
+    float tweenDistanceFrom;
+    float tweenDistanceDest;
     QVector3D target;
 
     bool showSurface;
@@ -507,6 +579,7 @@ private:
     RCave3dLegend* legend;
     RCave3dLabels* labels;
     RCave3dCard* card;
+    RCave3dViewCube* viewCube;
 
     /** Every station, world coordinates, kept HERE as well as in the
      *  labels: the labels decide what can be READ, and a click has to
