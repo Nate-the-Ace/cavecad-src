@@ -2,10 +2,13 @@ name: Windows build
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches: [cavecad]
     paths-ignore:
       - '.github/workflows/linux.yml'
+      - '.github/workflows/macos.yml'
+      - '.github/workflows/release.yml'
 
 env:
   QT_VERSION: 6.10.3
@@ -28,11 +31,19 @@ jobs:
         shell: cmd
         run: |
           pip install aqtinstall
-          aqt install-qt windows desktop %QT_VERSION% %QT_ARCH% -m qt5compat -O %GITHUB_WORKSPACE%\Qt
+          aqt install-qt windows desktop %QT_VERSION% %QT_ARCH% -m qt5compat qtimageformats -O %GITHUB_WORKSPACE%\Qt
 
       - name: Install Ninja
         shell: cmd
         run: choco install ninja -y --no-progress
+
+      # A cold build is ~90 min; with a warm cache a packaging-only change
+      # rebuilds in minutes.
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: windows-msvc
+          max-size: 2G
 
       - name: Fetch JS API sources
         shell: cmd
@@ -51,7 +62,7 @@ jobs:
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
           set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON -DCMAKE_PREFIX_PATH=%QTDIR%
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build build
           if errorlevel 1 exit /b 1
@@ -61,7 +72,7 @@ jobs:
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
           set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
-          cmake -S ..\qtjsapi -B ..\qtjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR%
+          cmake -S ..\qtjsapi -B ..\qtjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qtjsapi\build
           if errorlevel 1 exit /b 1
@@ -74,7 +85,7 @@ jobs:
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
           set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
-          cmake -S ..\qcadjsapi -B ..\qcadjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR%
+          cmake -S ..\qcadjsapi -B ..\qcadjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qcadjsapi\build
           if errorlevel 1 exit /b 1
@@ -91,10 +102,18 @@ jobs:
           $targets = @("release\cavecad.exe")
           $targets += (Get-ChildItem release\*.dll).FullName
           $targets += (Get-ChildItem release\plugins\*.dll -ErrorAction SilentlyContinue).FullName
+          # the custom widget plugin; without it autostart aborts before the main window
+          $targets += (Get-ChildItem release\plugins\designer\*.dll -ErrorAction SilentlyContinue).FullName
+          # windeployqt exits non-zero on DLLs that don't link Qt (opennurbs,
+          # spatialindex, ...). Only the executable has to succeed.
           foreach ($t in $targets) {
             & "$qt\bin\windeployqt.exe" --release --no-quick-import --dir release $t
-            if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $t" }
+            if ($LASTEXITCODE -ne 0) {
+              if ($t -like '*\cavecad.exe') { throw "windeployqt failed for $t" }
+              Write-Host "windeployqt skipped $t (not a Qt binary)"
+            }
           }
+          $global:LASTEXITCODE = 0
           Remove-Item release\*.exp,release\*.lib,release\plugins\*.exp,release\plugins\*.lib -ErrorAction SilentlyContinue
 
       - name: Upload build

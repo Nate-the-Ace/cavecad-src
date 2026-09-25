@@ -2,10 +2,13 @@ name: Linux AppImage
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches: [cavecad]
     paths-ignore:
       - '.github/workflows/windows.yml'
+      - '.github/workflows/macos.yml'
+      - '.github/workflows/release.yml'
 
 env:
   QT_VERSION: 6.10.3
@@ -32,14 +35,21 @@ jobs:
             libfontconfig1-dev libfreetype6-dev libx11-xcb-dev libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
-            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev
+            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev libcups2 ccache
 
       - uses: actions/checkout@v4
+
+      # A cold build is ~90 min; with a warm cache a packaging-only change
+      # rebuilds in minutes.
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: linux-gcc
+          max-size: 2G
 
       - name: Install Qt ${{ env.QT_VERSION }}
         run: |
           pip3 install --quiet aqtinstall
-          python3 -m aqt install-qt linux desktop "$QT_VERSION" "$QT_ARCH" -m qt5compat -O /opt/Qt
+          python3 -m aqt install-qt linux desktop "$QT_VERSION" "$QT_ARCH" -m qt5compat qtimageformats -O /opt/Qt
 
       - name: Fetch JS API sources
         run: |
@@ -55,14 +65,14 @@ jobs:
       - name: Build CaveCAD
         run: |
           export QTDIR="/opt/Qt/$QT_VERSION/gcc_64"
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON -DCMAKE_PREFIX_PATH="$QTDIR"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
 
       - name: Build qtjsapi
         run: |
           export QTDIR="/opt/Qt/$QT_VERSION/gcc_64"
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QTDIR"
+          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qtjsapi/build
           cp qtjsapi/build/out/libqtjsapi.so "$GITHUB_WORKSPACE/release/"
 
@@ -70,7 +80,7 @@ jobs:
         run: |
           export QTDIR="/opt/Qt/$QT_VERSION/gcc_64"
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QTDIR"
+          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qcadjsapi/build
 
       - name: Assemble AppDir
@@ -110,6 +120,7 @@ jobs:
             --desktop-file AppDir/usr/share/applications/org.cavecad.CaveCAD.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/org.cavecad.CaveCAD.png \
             --custom-apprun AppDir/AppRun \
+            $(for p in AppDir/usr/bin/plugins/*.so AppDir/usr/bin/plugins/designer/*.so; do printf -- '--deploy-deps-only %s ' "$p"; done) \
             --plugin qt --output appimage
 
       - name: Upload AppImage

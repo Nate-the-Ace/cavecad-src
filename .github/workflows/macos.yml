@@ -1,0 +1,105 @@
+name: macOS build
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [cavecad]
+    paths-ignore:
+      - '.github/workflows/linux.yml'
+      - '.github/workflows/windows.yml'
+      - '.github/workflows/release.yml'
+
+env:
+  QT_VERSION: 6.10.3
+  QTJSAPI_REV: c82731320fdc7b61dae56d4cf046bac9376bb2b4
+  QCADJSAPI_REV: 2b2b0e86328416dc57ca57a035e10d5dfd919db6
+
+jobs:
+  build:
+    # Apple Silicon only. An Intel slice would need CMAKE_OSX_ARCHITECTURES
+    # and roughly doubles the build.
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt ${{ env.QT_VERSION }}
+        run: |
+          pip install aqtinstall
+          aqt install-qt mac desktop "$QT_VERSION" clang_64 -m qt5compat qtimageformats -O "$RUNNER_TEMP/Qt"
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      # A cold build is ~90 min; with a warm cache a packaging-only change
+      # rebuilds in minutes.
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: macos-clang
+          max-size: 2G
+
+      - name: Fetch JS API sources
+        run: |
+          cd "$(dirname "$GITHUB_WORKSPACE")"
+          # qcadjsapi expects the CaveCAD tree as a sibling directory named "cavecad"
+          ln -sfn "$GITHUB_WORKSPACE" cavecad
+          git clone -q https://github.com/qcad/qtjsapi.git qtjsapi
+          git -C qtjsapi checkout -q "$QTJSAPI_REV"
+          git clone -q https://github.com/qcad/qcadjsapi.git qcadjsapi
+          git -C qcadjsapi checkout -q "$QCADJSAPI_REV"
+          git -C qcadjsapi apply --verbose "$GITHUB_WORKSPACE/tools/qcadjsapi-cavecad.patch"
+
+      - name: Build CaveCAD
+        run: |
+          QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON \
+            -DCMAKE_PREFIX_PATH="$QTDIR" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build
+
+      - name: Build qtjsapi
+        run: |
+          QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
+          cd "$(dirname "$GITHUB_WORKSPACE")"
+          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QTDIR" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build qtjsapi/build
+          # qcadjsapi links against qtjsapi via the CaveCAD release directory
+          cp qtjsapi/build/out/libqtjsapi.dylib "$GITHUB_WORKSPACE/release/"
+
+      - name: Build cavecadjsapi plugin
+        run: |
+          QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
+          cd "$(dirname "$GITHUB_WORKSPACE")"
+          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QTDIR" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build qcadjsapi/build
+
+      - name: Package
+        run: |
+          tools/package-macos.sh release \
+            "$RUNNER_TEMP/Qt/$QT_VERSION/macos/bin/macdeployqt" dist
+
+      - name: Smoke test
+        run: |
+          # the bundle must not reach outside itself for any library
+          find dist/CaveCAD.app -type f | while read -r f; do
+            file "$f" | grep -q Mach-O || continue
+            otool -L "$f" | tail -n +2 | awk '{print $1}' \
+              | grep -vE '^(@|/usr/lib|/System)' | sed "s|^|$f -> |"
+          done > outside.txt
+          if [ -s outside.txt ]; then cat outside.txt; exit 1; fi
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cavecad-macos-arm64
+          path: dist/CaveCAD.dmg
+          if-no-files-found: error
