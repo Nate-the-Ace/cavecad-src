@@ -301,6 +301,80 @@ def plan_mixed(code):
     return kept
 
 
+# --- messages carried in data: { error: "..." }, out.error = "..." -------
+
+MSG_PUSH = re.compile(r'\b(?:lines|parts|out|notes|warnings|bits|problems|'
+                      r'messages|said|report|summary)\.push\(\s*')
+MSG_RETURN = re.compile(r'(?<![\w$.])return\s+(?=["\w(])')
+MSG_KEY = re.compile(r'(?<![\w$.])(error|warning|message|why|hint)\s*:\s*(?!:)')
+MSG_ASSIGN = re.compile(r'(?:\.(?:error|warning|message)|(?<![\w$.])'
+                        r'(?:lastError|errorText|msg|message))\s*=\s*(?![=>])')
+
+
+def expr_end(code, i, stops):
+    """Offset where the expression starting at i ends: the first char in
+    `stops` at bracket depth 0, outside strings. None if a comment or a
+    regex gets in the way."""
+    depth, n = 0, len(code)
+    while i < n:
+        c = code[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n and code[j] != c:
+                j += 2 if code[j] == "\\" else 1
+            i = j + 1
+            continue
+        if code.startswith("//", i) or code.startswith("/*", i):
+            return None
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return i if c in stops else None
+            depth -= 1
+        elif depth == 0 and c in stops:
+            return i
+        i += 1
+    return None
+
+
+def plan_messages(code, extra=()):
+    edits = []
+    for rx, stops in ((MSG_KEY, ",}"), (MSG_ASSIGN, ";")) + tuple(extra):
+        for m in rx.finditer(code):
+            s = m.end()
+            # skip matches inside comments or strings: the line up to here
+            ls = code.rfind("\n", 0, m.start()) + 1
+            head = code[ls:m.start()]
+            if "//" in head or head.lstrip().startswith("*") or \
+                    head.count('"') % 2 == 1:
+                continue
+            e = expr_end(code, s, stops)
+            if e is None:
+                continue
+            raw = code[s:e]
+            expr = raw.rstrip()
+            if not expr or "qsTr(" in expr or "i18n-ok" in code[ls:code.find("\n", e)]:
+                continue
+            terms = split_plus(expr)
+            if terms is None:
+                continue
+            lits = [t for t in terms if LIT_ONLY.match(t)]
+            # sentence-like only: a machine code ("no-leg") has no space
+            if not any(" " in t for t in lits):
+                continue
+            line = code[ls:code.find("\n", s)]
+            indent = len(line) - len(line.lstrip())
+            if len(lits) == len(terms):
+                rep = "qsTr(" + expr + ")"
+            else:
+                rep = rewrite_mixed(expr, indent, s - ls)
+            if rep is not None:
+                edits.append((s, s + len(expr), rep))
+    edits.sort()
+    return edits
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
@@ -314,6 +388,12 @@ def main():
     ap.add_argument("--mixed", action="store_true",
                     help="rewrite \"text \" + x + \" more\" arguments as "
                          "qsTr(\"text %1 more\").arg(String(x))")
+    ap.add_argument("--messages", action="store_true",
+                    help="wrap sentence text carried as { error: ... }, "
+                         "x.error = ..., lastError = ...")
+    ap.add_argument("--sentences", action="store_true",
+                    help="with --messages: also lines.push(...) and "
+                         "return ... when the text reads as a sentence")
     ap.add_argument("--calls", default="",
                     help="extra helper names whose FIRST TWO args are UI text")
     args = ap.parse_args()
@@ -327,7 +407,11 @@ def main():
     total = 0
     for path in args.files:
         code = open(path, encoding="utf-8").read()
-        if args.mixed:
+        if args.messages:
+            extra = ((MSG_PUSH, ")"), (MSG_RETURN, ";")) if args.sentences else ()
+            edits = [x for x in plan_messages(code, extra)
+                     if lo <= code.count("\n", 0, x[0]) + 1 <= hi]
+        elif args.mixed:
             edits = [x for x in plan_mixed(code)
                      if lo <= code.count("\n", 0, x[0]) + 1 <= hi]
         else:
