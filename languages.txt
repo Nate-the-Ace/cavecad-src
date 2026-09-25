@@ -1,0 +1,5 @@
+# Languages to keep a catalog for, one Qt locale code per line.
+# Adding a line and running tools/extract.sh creates the new catalog.
+de
+es
+fr
