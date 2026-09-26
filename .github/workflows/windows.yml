@@ -165,6 +165,16 @@ jobs:
           tools/strip-runtime.sh release
           printf '{"platform": "windows-%s", "app_commit": "%s"}\n' "$ARCH" "$GITHUB_SHA" > release/cavecad-build.json
 
+      # The updater's engine tests, in the binary just built: nothing else
+      # runs its Windows command lines (System32 tar/curl/powershell, the
+      # detached helper). bash, so Git's MSYS tools are on PATH as on many
+      # users' machines. Result lines come through CAVECAD_TEST_OUT, since a
+      # GUI-subsystem exe's stdout may not reach the console.
+      - name: Updater tests
+        shell: bash
+        timeout-minutes: 20
+        run: python tests/updater/run_ci.py release/cavecad.exe
+
       - name: Upload build
         uses: actions/upload-artifact@v7
         with:

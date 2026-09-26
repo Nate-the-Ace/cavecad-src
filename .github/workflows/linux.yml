@@ -132,6 +132,17 @@ jobs:
           SH
           chmod +x AppRun.sh
 
+      # The updater's engine tests, in the binary just built (the AppDir's
+      # runtime tree, with Qt from the install for the offscreen platform).
+      - name: Updater tests
+        timeout-minutes: 20
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          export LD_LIBRARY_PATH="$PWD/AppDir/usr/bin:$QTDIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export QT_PLUGIN_PATH="$QTDIR/plugins"
+          python3 tests/updater/run_ci.py AppDir/usr/bin/cavecad-bin
+
       - name: Check Qt plugin dependencies
         run: |
           # List every system library a Qt plugin needs and the container
