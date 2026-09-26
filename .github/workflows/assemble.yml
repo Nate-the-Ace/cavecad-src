@@ -67,6 +67,7 @@ jobs:
           key="tools=$tools_sha win=$(cat base-windows-x64.commit) linux=$(cat base-linux-x86_64.commit) mac=$(cat base-macos-arm64.commit)"
           # Windows ARM64 is optional: until it has built, the rest ships without it
           if [ -f base-windows-arm64.commit ]; then key="$key winarm=$(cat base-windows-arm64.commit)"; fi
+          if [ -f base-linux-aarch64.commit ]; then key="$key linuxarm=$(cat base-linux-aarch64.commit)"; fi
           current=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null \
             | sed -n 's/.*<!-- key: \(.*\) -->.*/\1/p')
           go=true
@@ -157,6 +158,35 @@ jobs:
             CaveCAD-linux-x86_64.AppImage
           if-no-files-found: error
 
+  # Optional like Windows ARM64: skipped cleanly until its base exists.
+  # Repacked on an ARM runner so appimagetool embeds the aarch64 runtime.
+  linux-arm:
+    needs: [plan, addon]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - name: Linux aarch64
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release download app-base -R "$GITHUB_REPOSITORY" -p base-linux-aarch64.AppImage; then
+            echo "::notice::no Linux aarch64 base yet -- published without it"; exit 0
+          fi
+          chmod +x base-linux-aarch64.AppImage
+          ./base-linux-aarch64.AppImage --appimage-extract >/dev/null
+          cp -R addon/CaveSurvey squashfs-root/usr/bin/scripts/CaveSurvey
+          curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool -n squashfs-root CaveCAD-linux-aarch64.AppImage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: assembled-linux-arm
+          path: CaveCAD-linux-aarch64.AppImage
+          if-no-files-found: ignore
+
   macos:
     needs: [plan, addon]
     runs-on: macos-15
@@ -185,7 +215,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [plan, addon, windows-linux, macos]
+    needs: [plan, addon, windows-linux, linux-arm, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -209,6 +239,12 @@ jobs:
           if [ -f dist/CaveCAD-windows-arm64.zip ]; then
             armrow='| Windows 11 on ARM (Snapdragon laptops, Surface Pro X) | CaveCAD-windows-arm64.zip |'
           fi
+          linuxarmrow=""
+          if [ -f dist/CaveCAD-linux-aarch64.AppImage ]; then
+            linuxarmrow='| Linux on ARM (aarch64) | CaveCAD-linux-aarch64.AppImage |'
+          fi
+          # joined without blank lines: an empty line would end the table
+          extrarows=$(printf '%s\n' "$armrow" "$linuxarmrow" | sed '/^$/d')
           cat > notes.md <<EOF
           CaveCAD with the Cave Survey tools $(cat addon/VERSION), rebuilt automatically whenever either changes.
 
@@ -217,7 +253,7 @@ jobs:
           | Windows 10/11 (Intel/AMD, 64-bit) | CaveCAD-windows-x64.zip -- unzip, run \`cavecad.exe\` |
           | macOS (Apple Silicon) | CaveCAD-macos-arm64.dmg |
           | Linux (x86_64) | CaveCAD-linux-x86_64.AppImage -- \`chmod +x\`, run |
-          $armrow
+          $extrarows
 
           Not code-signed yet. Windows: "More info" then "Run anyway". macOS: right-click the app, Open.
           If Windows reports VCRUNTIME140.dll missing: https://aka.ms/vs/17/release/vc_redist.x64.exe (ARM: vc_redist.arm64.exe)
