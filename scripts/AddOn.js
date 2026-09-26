@@ -677,6 +677,52 @@ AddOn.getLocalAddOns = function() {
     return dataDir.entryList([], fs, sf);
 };
 
+/**
+ * CaveCAD: one copy per add-on. The app ships an add-on (CaveSurvey) in
+ * its own scripts folder, and the updater installs newer ones into the
+ * per-user scripts folder. Loading both registers every tool twice, so
+ * for each folder name in both roots that carries a VERSION file on both
+ * sides, only the higher VERSION loads; a tie goes to the per-user copy.
+ */
+AddOn.readVersion = function(dir) {
+    var f = new QFile(dir + "/VERSION");
+    if (!f.open(QIODevice.ReadOnly | QIODevice.Text)) { return "0"; }
+    var v = String(new QTextStream(f).readAll()).trim();
+    f.close();
+    return v === "" ? "0" : v;
+};
+
+AddOn.compareVersions = function(a, b) {
+    var pa = String(a).split("."), pb = String(b).split(".");
+    for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+        var x = parseInt(pa[i] || "0", 10) || 0, y = parseInt(pb[i] || "0", 10) || 0;
+        if (x !== y) { return x - y; }
+    }
+    return 0;
+};
+
+AddOn.precedenceIgnores = function(appScripts, userScripts) {
+    var out = [];
+    var app = new QDir(appScripts), user = new QDir(userScripts);
+    if (!app.exists() || !user.exists()) { return out; }
+    var names = user.entryList([], QDir.Dirs | QDir.NoDotAndDotDot, 0);
+    for (var i = 0; i < names.length; i++) {
+        var a = app.absolutePath() + "/" + names[i], u = user.absolutePath() + "/" + names[i];
+        if (!new QFileInfo(a).isDir()) { continue; }
+        // Only VERSIONED add-ons compete. A same-named folder without a
+        // VERSION on both sides (a per-user Widgets/LayerManager override,
+        // say) is a partial overlay of QCAD's own scripts, and skipping
+        // the app's copy would drop every core widget with it.
+        if (!new QFileInfo(a + "/VERSION").exists() || !new QFileInfo(u + "/VERSION").exists()) {
+            continue;
+        }
+        out.push(AddOn.compareVersions(AddOn.readVersion(a), AddOn.readVersion(u)) > 0 ? u : a);
+    }
+    return out;
+};
+
+AddOn.precedence = null;
+
 AddOn.isIgnored = function(path) {
     if (isNull(AddOn.ignores)) {
         var args = RSettings.getOriginalArguments();
@@ -689,6 +735,19 @@ AddOn.isIgnored = function(path) {
                 }
                 AddOn.ignores.push(args[i]);
             }
+        }
+    }
+
+    if (AddOn.precedence === null) {
+        AddOn.precedence = AddOn.precedenceIgnores(
+            new QFileInfo("scripts").absoluteFilePath(),
+            RSettings.getDataLocation() + "/scripts");
+    }
+    var abs = new QFileInfo(path).absoluteFilePath();
+    for (var q = 0; q < AddOn.precedence.length; ++q) {
+        var skip = AddOn.precedence[q];
+        if (abs === skip || abs.indexOf(skip + "/") === 0) {
+            return true;
         }
     }
 
