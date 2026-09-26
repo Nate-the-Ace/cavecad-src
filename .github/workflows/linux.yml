@@ -27,18 +27,22 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
+            image: ubuntu:22.04
             qt_host: linux
             qt_arch: linux_gcc_64
           # Native on GitHub's ARM runner (free for public repos). An AppImage
           # is distro-agnostic, not CPU-agnostic: ARM needs its own.
+          # Qt's own arm64 binaries are built against glibc 2.38, so this
+          # one builds in 24.04 and needs Ubuntu 24.04 (or equivalent) to run.
           - arch: aarch64
             runner: ubuntu-24.04-arm
+            image: ubuntu:24.04
             qt_host: linux_arm64
             qt_arch: linux_gcc_arm64
     runs-on: ${{ matrix.runner }}
-    # Built inside 22.04 so the AppImage's glibc floor stays at 2.35 no matter
-    # which image GitHub's runner points at.
-    container: ubuntu:22.04
+    # A fixed image, not the runner's own, so each AppImage's glibc floor
+    # (x86_64: 2.35) does not move when GitHub updates its runners.
+    container: ${{ matrix.image }}
     env:
       ARCH: ${{ matrix.arch }}
       QT_HOST: ${{ matrix.qt_host }}
@@ -56,7 +60,7 @@ jobs:
             libfontconfig1-dev libfreetype6-dev libx11-xcb-dev libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 \
-            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev libcups2 libtiff5 libwebp7 libwebpdemux2 libwebpmux3 ccache
+            libxrender1 libsm6 libice6 zlib1g-dev libdbus-1-dev libcups2-dev libtiff-dev libwebp-dev ccache
 
       - uses: actions/checkout@v7
 
@@ -69,8 +73,8 @@ jobs:
 
       - name: Install Qt ${{ env.QT_VERSION }}
         run: |
-          pip3 install --quiet aqtinstall
-          python3 -m aqt install-qt "$QT_HOST" desktop "$QT_VERSION" "$QT_ARCH" -m qt5compat qtimageformats -O /opt/Qt
+          python3 -m venv /opt/aqt && /opt/aqt/bin/pip install --quiet aqtinstall
+          /opt/aqt/bin/python -m aqt install-qt "$QT_HOST" desktop "$QT_VERSION" "$QT_ARCH" -m qt5compat qtimageformats -O /opt/Qt
           # gcc_64 or gcc_arm64; every later step reads it from here
           echo "QTDIR=$(ls -d /opt/Qt/"$QT_VERSION"/gcc_*)" >> "$GITHUB_ENV"
 
