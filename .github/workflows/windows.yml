@@ -9,6 +9,7 @@ on:
       - '.github/workflows/linux.yml'
       - '.github/workflows/macos.yml'
       - '.github/workflows/release.yml'
+      - '.github/workflows/assemble.yml'
 
 permissions:
   contents: write

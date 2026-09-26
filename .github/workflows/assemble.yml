@@ -1,8 +1,9 @@
 name: Assemble latest build
 
 # CaveCAD + the Cave Survey tools, for every platform, published as the
-# rolling "latest" pre-release:
-#   https://github.com/Nate-the-Ace/cavecad-src/releases/tag/latest
+# rolling "latest-build" pre-release (not "latest": GitHub reserves
+# releases/latest for its own newest-release redirect):
+#   https://github.com/Nate-the-Ace/cavecad-src/releases/tag/latest-build
 #
 # Nothing is compiled here. The platform workflows keep the bare app on
 # the internal "app-base" release; this adds the tools to it and repacks.
@@ -22,9 +23,9 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Release to publish into (default: the rolling latest)"
+        description: "Release to publish into (default: the rolling latest-build)"
         type: string
-        default: latest
+        default: latest-build
 
 permissions:
   contents: write
@@ -32,10 +33,10 @@ permissions:
 env:
   TOOLS_REPO: Nate-the-Ace/CaveCAD
   TOOLS_REF: legacy-map
-  TAG: ${{ inputs.tag || 'latest' }}
+  TAG: ${{ inputs.tag || 'latest-build' }}
 
 concurrency:
-  group: assemble-${{ inputs.tag || 'latest' }}
+  group: assemble-${{ inputs.tag || 'latest-build' }}
   cancel-in-progress: true
 
 jobs:
@@ -215,13 +216,13 @@ jobs:
           <!-- key: $KEY -->
           EOF
           sed -i 's/^          //' notes.md
-          if [ "$TAG" = latest ]; then
-            # Recreated, not edited, so the tag moves to the app commit and
-            # the release sorts as new. Asset names never change, so
-            # releases/download/latest/<name> links keep working.
-            gh release delete latest -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
-            gh release create latest dist/* -R "$GITHUB_REPOSITORY" --prerelease \
-              --target "$APP_SHA" --title "CaveCAD latest build" --notes-file notes.md
+          if [ "$TAG" = latest-build ]; then
+            # Recreated, not edited, so the release sorts as new (the app
+            # commit it holds is in the notes). Asset names never change, so
+            # releases/download/latest-build/<name> links keep working.
+            gh release delete latest-build -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
+            gh release create latest-build dist/* -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "CaveCAD latest build" --notes-file notes.md
           else
             gh release create "$TAG" dist/* -R "$GITHUB_REPOSITORY" --prerelease \
               --title "CaveCAD $TAG" --notes-file notes.md
