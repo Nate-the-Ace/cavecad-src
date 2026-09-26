@@ -118,6 +118,7 @@ jobs:
             [ -d "$d" ] && cp -a "$d" AppDir/usr/bin/
           done
           tools/strip-runtime.sh AppDir/usr/bin
+          printf '{"platform": "linux-%s", "app_commit": "%s"}\n' "$ARCH" "$GITHUB_SHA" > AppDir/usr/bin/cavecad-build.json
           sed 's/^Exec=cavecad /Exec=cavecad-bin /' cavecad.desktop > AppDir/usr/share/applications/org.cavecad.CaveCAD.desktop
           cp scripts/cavecad_icon.png AppDir/usr/share/icons/hicolor/256x256/apps/org.cavecad.CaveCAD.png
           # written OUTSIDE AppDir: linuxdeploy copies --custom-apprun to

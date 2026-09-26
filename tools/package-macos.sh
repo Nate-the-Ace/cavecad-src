@@ -39,6 +39,10 @@ for d in scripts patterns linetypes fonts ts themes libraries defaults; do
 done
 "$SRC/tools/strip-runtime.sh" "$APP/Contents/Resources"
 
+# what the updater compares against latest.json (dev packages: "dev")
+printf '{"platform": "macos-arm64", "app_commit": "%s"}\n' "${GITHUB_SHA:-dev}" \
+    > "$APP/Contents/Resources/cavecad-build.json"
+
 BIN="$APP/Contents/MacOS/CaveCAD"
 install_name_tool -add_rpath @executable_path/../Frameworks "$BIN"
 # drop build-tree rpaths so the app never loads libraries from a checkout

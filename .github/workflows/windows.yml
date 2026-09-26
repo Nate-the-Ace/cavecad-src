@@ -161,7 +161,9 @@ jobs:
 
       - name: Strip
         shell: bash
-        run: tools/strip-runtime.sh release
+        run: |
+          tools/strip-runtime.sh release
+          printf '{"platform": "windows-%s", "app_commit": "%s"}\n' "$ARCH" "$GITHUB_SHA" > release/cavecad-build.json
 
       - name: Upload build
         uses: actions/upload-artifact@v7

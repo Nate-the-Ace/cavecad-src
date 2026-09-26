@@ -94,6 +94,7 @@ jobs:
           tools/make_package.sh --stage-only --version "$(cat VERSION)"
           mkdir addon && cp -R dist/CaveSurveyTools-*/CaveSurvey addon/
           cat VERSION > addon/VERSION
+          git rev-parse HEAD > addon/COMMIT
       - uses: actions/upload-artifact@v7
         with:
           name: addon
@@ -139,6 +140,10 @@ jobs:
               "outright; that is a policy only its IT department can lift." \
               > CaveCAD/README-FIRST.txt
             zip -q -9 -r "CaveCAD-windows-$arch.zip" CaveCAD
+            # the commit INSIDE this package, for latest.json (see publish)
+            if [ -f CaveCAD/cavecad-build.json ]; then
+              python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["app_commit"])' CaveCAD/cavecad-build.json > "CaveCAD-windows-$arch.zip.appcommit"
+            fi
           done
 
       - name: Linux
@@ -149,6 +154,9 @@ jobs:
           curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool -n squashfs-root CaveCAD-linux-x86_64.AppImage
+          if [ -f squashfs-root/usr/bin/cavecad-build.json ]; then
+            python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["app_commit"])' squashfs-root/usr/bin/cavecad-build.json > CaveCAD-linux-x86_64.AppImage.appcommit
+          fi
 
       - uses: actions/upload-artifact@v7
         with:
@@ -156,6 +164,7 @@ jobs:
           path: |
             CaveCAD-windows-*.zip
             CaveCAD-linux-x86_64.AppImage
+            *.appcommit
           if-no-files-found: error
 
   # Optional like Windows ARM64: skipped cleanly until its base exists.
@@ -181,10 +190,15 @@ jobs:
           curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
           chmod +x appimagetool
           APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool -n squashfs-root CaveCAD-linux-aarch64.AppImage
+          if [ -f squashfs-root/usr/bin/cavecad-build.json ]; then
+            python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["app_commit"])' squashfs-root/usr/bin/cavecad-build.json > CaveCAD-linux-aarch64.AppImage.appcommit
+          fi
       - uses: actions/upload-artifact@v7
         with:
           name: assembled-linux-arm
-          path: CaveCAD-linux-aarch64.AppImage
+          path: |
+            CaveCAD-linux-aarch64.AppImage
+            CaveCAD-linux-aarch64.AppImage.appcommit
           if-no-files-found: ignore
 
   macos:
@@ -202,6 +216,9 @@ jobs:
           gh release download app-base -R "$GITHUB_REPOSITORY" -p base-macos-arm64.dmg
           hdiutil attach -quiet -nobrowse -readonly -mountpoint base base-macos-arm64.dmg
           ditto base/CaveCAD.app CaveCAD.app
+          if [ -f CaveCAD.app/Contents/Resources/cavecad-build.json ]; then
+            python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["app_commit"])' CaveCAD.app/Contents/Resources/cavecad-build.json > CaveCAD-macos-arm64.dmg.appcommit
+          fi
           hdiutil detach -quiet base
           ditto addon/CaveSurvey CaveCAD.app/Contents/Resources/scripts/CaveSurvey
           codesign --force --deep -s - CaveCAD.app
@@ -211,13 +228,18 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: assembled-macos
-          path: CaveCAD-macos-arm64.dmg
+          path: |
+            CaveCAD-macos-arm64.dmg
+            CaveCAD-macos-arm64.dmg.appcommit
           if-no-files-found: error
 
   publish:
     needs: [plan, addon, windows-linux, linux-arm, macos]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cavecad-src
       - uses: actions/download-artifact@v8
         with:
           pattern: assembled-*
@@ -234,6 +256,21 @@ jobs:
           TOOLS_SHA: ${{ needs.plan.outputs.tools_sha }}
           KEY: ${{ needs.plan.outputs.key }}
         run: |
+          (cd addon && zip -q -9 -r ../dist/CaveSurvey-tools.zip CaveSurvey)
+          # Each platform's app commit is the one recorded INSIDE the package
+          # that was assembled (its cavecad-build.json) -- not app-base's
+          # current .commit, which a build can move mid-run. A mismatch
+          # would make every installed copy update forever.
+          mkdir -p meta && mv dist/*.appcommit meta/ 2>/dev/null || true
+          set --
+          for p in windows-x64:CaveCAD-windows-x64.zip windows-arm64:CaveCAD-windows-arm64.zip \
+                   macos-arm64:CaveCAD-macos-arm64.dmg linux-x86_64:CaveCAD-linux-x86_64.AppImage \
+                   linux-aarch64:CaveCAD-linux-aarch64.AppImage; do
+            f="meta/${p#*:}.appcommit"
+            if [ -s "$f" ]; then set -- "$@" "${p%%:*}=$(cat "$f")"; fi
+          done
+          python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" dist "$(cat addon/VERSION)" "$(cat addon/COMMIT)" "$@"
+          (cd dist && sha256sum -c --quiet ./*.sha256)
           ls -l dist
           armrow=""
           if [ -f dist/CaveCAD-windows-arm64.zip ]; then
