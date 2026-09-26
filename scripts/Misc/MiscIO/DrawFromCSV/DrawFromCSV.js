@@ -371,7 +371,7 @@ DrawFromCSV.prototype.DrawFromCSVFile = function(di, fileName) {
                 } // End NOT valid
             } // End hasProxy
             else {    // Without proxy >
-                msg = qsTr("Rounding polylines requires QCAD Professional, ignored. Text line: %1").arg(textLineCount);
+                msg = qsTr("Rounding polylines is not supported, ignored. Text line: %1").arg(textLineCount);
                 EAction.handleUserWarning(msg);    // Push warning to history (Win)
                 qDebug(msg);    // Push warning to stdout
             } // End without proxy
@@ -1165,7 +1165,7 @@ DrawFromCSV.prototype.DrawFromCSVFile = function(di, fileName) {
         case "FITSPLINE":
             // Create new fit point Spline entity:
             try {    // Try to create an entity from a shape >
-                if (!RSpline.hasProxy()) throw qsTr("Unsupported QCAD Professional feature.");
+                if (!RSpline.hasProxy()) throw qsTr("Unsupported feature.");
                 if (fieldsCount < 8) throw qsTr("3th degree fit point Spline, less than 3 references.");
                 if ((fieldsCount - 8)%2 !== 0) throw qsTr("Odd field count.");
                 refs = [];    // Empty

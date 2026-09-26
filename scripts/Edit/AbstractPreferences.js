@@ -429,7 +429,7 @@ AbstractPreferences.prototype.save = function() {
         var appWin = EAction.getMainWindow();
         QMessageBox.warning(appWin,
                 qsTr("Restart required"),
-                qsTr("Please restart QCAD for\nthe preference changes to take effect.")
+                qsTr("Please restart CaveCAD for\nthe preference changes to take effect.")
         );
         this.restartWarningShown = true;
     }

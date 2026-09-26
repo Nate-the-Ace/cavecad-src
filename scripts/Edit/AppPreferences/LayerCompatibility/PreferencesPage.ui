@@ -20,7 +20,7 @@
       <item>
        <widget class="QRadioButton" name="QCAD">
         <property name="text">
-         <string>Layer 0 behaves like a regular layer (QCAD)</string>
+         <string>Layer 0 behaves like a regular layer (CaveCAD default)</string>
         </property>
         <property name="checked">
          <bool>true</bool>

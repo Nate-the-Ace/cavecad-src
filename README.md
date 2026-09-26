@@ -30,7 +30,7 @@ Source availability
 The complete, buildable source code for CaveCAD — including every modification
 to upstream QCAD — is public at:
 
-    https://github.com/ndschonegg/cavecad-src (branch: cavecad)
+    https://github.com/Nate-the-Ace/cavecad-src (branch: cavecad)
 
 Upstream QCAD source: https://github.com/qcad/qcad
 

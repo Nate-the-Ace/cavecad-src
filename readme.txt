@@ -13,6 +13,6 @@ optional exceptions (see LICENSE.txt, gpl-3.0.txt and gpl-3.0-exceptions.txt
 for details). Complete source code, including all modifications, is
 available at:
 
-    https://github.com/ndschonegg/cavecad-src (branch: cavecad)
+    https://github.com/Nate-the-Ace/cavecad-src (branch: cavecad)
 
 A summary of modifications from upstream QCAD is in NOTICE.md.

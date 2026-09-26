@@ -11,7 +11,7 @@ Run through this before shipping any CaveCAD binary (DMG, zip, installer):
    - readme.txt
 
 2. **Push first.** The exact source used for the build must be public on the
-   `cavecad` branch at https://github.com/ndschonegg/cavecad-src *before* binaries
+   `cavecad` branch at https://github.com/Nate-the-Ace/cavecad-src *before* binaries
    go out. Tag the release commit (e.g. `cavecad-v1.0`) so the binary can be
    matched to its source.
 

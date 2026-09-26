@@ -99,7 +99,7 @@ About.prototype.beginEvent = function() {
 
 // CaveCAD: where the complete source code lives, as GPLv3 section 6 requires
 // it to be offered. Shown in the About dialog and referenced by NOTICE.md.
-About.sourceUrl = "https://github.com/ndschonegg/cavecad-src";
+About.sourceUrl = "https://github.com/Nate-the-Ace/cavecad-src";
 
 About.prototype.initAboutApp = function(textBrowser) {
     // CaveCAD: the application's own version (VERSION at the root of the

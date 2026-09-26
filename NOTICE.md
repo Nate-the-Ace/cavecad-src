@@ -9,7 +9,7 @@ This file summarizes the modifications, as required by GPLv3 section 5(a).
 The complete, authoritative record of every change (with dates and diffs) is
 the git history of the `cavecad` branch at:
 
-    https://github.com/ndschonegg/cavecad-src
+    https://github.com/Nate-the-Ace/cavecad-src
 
 Summary of modifications (August 2026 onward)
 ---------------------------------------------

@@ -1,7 +1,7 @@
 CaveCAD is a modified version of QCAD Community Edition 3.33 by
 RibbonSoft GmbH. All modifications made for CaveCAD are licensed under
 GPL version 3. See NOTICE.md for a summary of modifications; complete
-source is available at https://github.com/ndschonegg/qcad (branch: cavecad).
+source is available at https://github.com/Nate-the-Ace/cavecad-src (branch: cavecad).
 
 The QCAD 3 source code is open source and distributed under GPL version 3
 with optional exceptions.

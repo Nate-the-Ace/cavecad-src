@@ -14,7 +14,7 @@
    <item>
     <widget class="QLabel" name="label_2">
      <property name="text">
-      <string>These settings affect the resolution and scale of the QCAD user interface. These preferences can be adjusted if there are problems with the user interface of QCAD, such as very large or very small icons or text labels.</string>
+      <string>These settings affect the resolution and scale of the CaveCAD user interface. These preferences can be adjusted if there are problems with the user interface of CaveCAD, such as very large or very small icons or text labels.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
