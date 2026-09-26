@@ -3071,7 +3071,10 @@ function getDontUseNativeDialog() {
         return true;
     }
 
-    return RSettings.getBoolValue("SaveAs/UseSystemFileDialog", true)===false;
+    // CaveCAD defaults to Qt's own file dialog on every platform: the
+    // platform pickers are what differs between the systems it ships on.
+    // Preferences > Save As can still opt in to the system dialog.
+    return RSettings.getBoolValue("SaveAs/UseSystemFileDialog", false)===false;
 };
 
 function autoPath(path) {
