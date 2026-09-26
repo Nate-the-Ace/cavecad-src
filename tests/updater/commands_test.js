@@ -1,0 +1,43 @@
+include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexOf("-autostart") + 2] + "/tests/updater/harness.js");
+load("scripts/Help/CheckForUpdates/UpdateCommands.js");
+load("scripts/Help/CheckForUpdates/UpdateRun.js");
+
+var mac = UpdateCommands.hash("osx", "/a b/c.zip");
+eqs(mac.program, "shasum", "macOS hashes with shasum");
+eqs(mac.args.join("|"), "-a|256|/a b/c.zip", "path is its own argument");
+eqs(UpdateCommands.hash("linux", "/x").program, "sha256sum", "Linux sha256sum");
+var win = UpdateCommands.hash("win", "C:/it's.zip");
+eqs(win.program, "powershell", "Windows Get-FileHash");
+ok(win.args.join(" ").indexOf("it's") < 0, "Windows path is not spliced into the command");
+eqs(win.env.CAVECAD_HASH_PATH, "C:/it's.zip", "Windows path travels in the environment");
+var hex = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+eqs(UpdateCommands.parseHash(hex + "  /tmp/x\n"), hex, "shasum/sha256sum output");
+eqs(UpdateCommands.parseHash(hex.toUpperCase() + "\r\n"), hex, "Get-FileHash output");
+ok(UpdateCommands.parseHash("") === null, "empty output is no hash");
+eqs(UpdateCommands.fetch("win", "https://u", "C:/o").program, "curl.exe", "Windows uses its curl.exe");
+eqs(UpdateCommands.fetch("osx", "https://u", "/o").args.join("|"), "-fsSL|--retry|2|-o|/o|https://u", "curl follows redirects, fails on HTTP errors");
+eqs(UpdateCommands.fetchFallback("linux", "https://u", "/o").program, "python3", "Linux fallback python");
+eqs(UpdateCommands.unzip("osx", "/z.zip", "/d").args.join("|"), "-xf|/z.zip|-C|/d", "tar unzip");
+eqs(UpdateCommands.unzip("linux", "/z.zip", "/d").program, "python3", "zipfile on Linux");
+eqs(UpdateCommands.detach("osx", "/t/h.sh").args[1], "nohup /bin/sh \"$0\" >/dev/null 2>&1 &", "detached via nohup");
+eqs(UpdateCommands.detach("win", "C:/t/h.ps1").program, "cmd", "detached via start");
+
+// real runs on this machine
+var dir = QDir.tempPath() + "/cc-updater-test";
+(new QDir(dir)).removeRecursively(); (new QDir()).mkpath(dir);
+var f = new QFile(dir + "/abc.txt"); f.open(QIODevice.WriteOnly); f.write("abc"); f.close();
+var loop = new QEventLoop(), got = null;
+UpdateRun.run(UpdateCommands.hash(RS.getSystemId(), dir + "/abc.txt"), 20, function(r) { got = r; loop.quit(); });
+loop.exec();
+ok(got !== null && got.ok, "hash command ran: " + (got ? got.error : "no callback"));
+eqs(got ? UpdateCommands.parseHash(got.stdout) : null, hex, "SHA-256 of abc");
+got = null;
+UpdateRun.run(UpdateCommands.fetch(RS.getSystemId(), "file://" + dir + "/abc.txt", dir + "/copy.txt"), 20, function(r) { got = r; loop.quit(); });
+loop.exec();
+ok(got !== null && got.ok && new QFileInfo(dir + "/copy.txt").size() === 3, "curl fetched a file:// URL");
+got = null;
+UpdateRun.run({ program: "false", args: [] }, 20, function(r) { got = r; loop.quit(); });
+loop.exec();
+ok(got !== null && !got.ok, "a failing program reports ok=false");
+(new QDir(dir)).removeRecursively();
+finish("commands_test.js");
