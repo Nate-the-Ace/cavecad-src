@@ -15,7 +15,14 @@ ok(UpdateCore.validate(manifest()).ok, "a good manifest validates");
 var bad = manifest(); bad.schema = 2;
 ok(!UpdateCore.validate(bad).ok, "unknown schema refused");
 bad = manifest(); bad.platforms["windows-x64"].asset = "../evil.zip";
-ok(!UpdateCore.validate(bad).ok, "path in asset name refused");
+bad.platforms["macos-arm64"] = { app_commit: "cc", asset: "CaveCAD-macos-arm64.dmg", sha256: hex, size: 30 };
+var vb = UpdateCore.validate(bad);
+ok(vb.ok, "one bad platform entry does not fail the manifest");
+eqs(vb.dropped.join(","), "windows-x64", "the bad platform entry is dropped");
+ok(!UpdateCore.has(vb.manifest.platforms, "windows-x64"), "dropped entry is absent from the cleaned manifest");
+eqs(UpdateCore.decide(vb.manifest, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0" }).kind, "none", "decide never sees a dropped entry");
+eqs(UpdateCore.decide(vb.manifest, { platform: "macos-arm64", appCommit: "aaaa", toolsVersion: "0" }).kind, "full", "other platforms still update");
+eqs(UpdateCore.decide(bad, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0" }).kind, "none", "decide refuses an invalid entry even uncleaned");
 bad = manifest(); bad.tools.asset = "a/b.zip";
 ok(!UpdateCore.validate(bad).ok, "slash in tools asset refused");
 bad = manifest(); bad.tools.sha256 = "xyz";
@@ -35,5 +42,40 @@ eqs(UpdateCore.decide(manifest(), { platform: "windows-x64", appCommit: "bb12aac
 eqs(UpdateCore.parseSidecar(hex.toUpperCase() + "  CaveCAD-windows-x64.zip\n"), hex, "sidecar parsed, lowercased");
 ok(UpdateCore.parseSidecar("nope") === null, "junk sidecar is null");
 eqs(UpdateCore.assetUrl("latest.json"), "https://github.com/Nate-the-Ace/cavecad-src/releases/download/latest-build/latest.json", "fixed base URL");
-eqs(UpdateCore.key(manifest()), "e7b4095|windows-x64=bb12aac6", "skip key covers tools and every platform");
+
+// the skip key names the offer only
+var offer = UpdateCore.decide(manifest(), { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" });
+eqs(UpdateCore.key(offer), "full|CaveCAD-windows-x64.zip|" + hex, "skip key = kind|asset|sha256");
+var m2 = manifest();
+m2.platforms["macos-arm64"] = { app_commit: "zzzz", asset: "CaveCAD-macos-arm64.dmg", sha256: hex, size: 1 };
+m2.published = "2026-09-27T00:00:00Z";
+eqs(UpdateCore.key(UpdateCore.decide(m2, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })), UpdateCore.key(offer),
+    "an unrelated platform's rebuild does not change the key");
+var m3 = manifest(); m3.platforms["windows-x64"].sha256 = "a" + hex.substring(1);
+ok(UpdateCore.key(UpdateCore.decide(m3, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })) !== UpdateCore.key(offer),
+    "a new build of our own asset changes the key");
+eqs(UpdateCore.key({ kind: "none" }), "", "nothing offered: empty key");
+
+// dev builds
+eqs(UpdateCore.decide(manifest(), { platform: "windows-x64", appCommit: "dev", toolsVersion: "0" }).kind, "dev", "app commit 'dev' is a dev build");
+eqs(UpdateCore.decide(manifest(), { platform: "windows-x64", toolsVersion: "0" }).kind, "dev", "missing app commit is a dev build");
+
+// prototype keys are not platforms
+eqs(UpdateCore.decide(manifest(), { platform: "constructor", appCommit: "x", toolsVersion: "0" }).kind, "none", "'constructor' is not an inherited platform");
+eqs(UpdateCore.decide(manifest(), { platform: "hasOwnProperty", appCommit: "x", toolsVersion: "0" }).kind, "none", "'hasOwnProperty' is not a platform");
+var mc = JSON.parse(JSON.stringify(manifest()));
+mc.platforms["constructor"] = { app_commit: "c1", asset: "CaveCAD-c.zip", sha256: hex, size: 1 };
+var vc = UpdateCore.validate(mc);
+eqs(UpdateCore.decide(vc.manifest, { platform: "constructor", appCommit: "c0", toolsVersion: "0" }).asset, "CaveCAD-c.zip", "a real 'constructor' platform key works");
+var mp = JSON.parse('{"schema":1,"tools":{"version":"1","asset":"t.zip","sha256":"' + hex + '"},"platforms":{"__proto__":{"app_commit":"x","asset":"a.zip","sha256":"' + hex + '"}}}');
+var vp = UpdateCore.validate(mp);
+ok(vp.ok && vp.dropped.indexOf("__proto__") >= 0 && Object.getPrototypeOf(vp.manifest.platforms) === Object.prototype, "a '__proto__' platform key is dropped, not applied");
+
+// hostile names
+["", ".", "..", "../x", "a/b", "a\\b", ".hidden", "-rf", "a b.zip", "a..zip", "x.zip\n", "C:x", "%2e%2e", "\u0000", "a\u0000b", "é.zip", null, undefined, 5, {}]
+    .forEach(function(n) { ok(!UpdateCore.safeName(n), "unsafe name refused: " + JSON.stringify(n)); });
+["CaveSurvey-tools.zip", "CaveCAD-windows-x64.zip", "latest.json", "a_b.c-d"]
+    .forEach(function(n) { ok(UpdateCore.safeName(n), "safe name accepted: " + n); });
+var threw = false; try { UpdateCore.assetUrl("../latest.json"); } catch (e) { threw = true; }
+ok(threw, "assetUrl refuses an unsafe name itself");
 finish("core_test.js");

@@ -35,7 +35,7 @@ UpdateDownload.manifest = function(done) {
         var m;
         try { m = JSON.parse(text); } catch (e) { done({ ok: false, manifest: null, error: "manifest is not JSON" }); return; }
         var v = UpdateCore.validate(m);
-        done({ ok: v.ok, manifest: v.ok ? m : null, error: v.error });
+        done({ ok: v.ok, manifest: v.manifest, error: v.error, dropped: v.dropped });
     });
 };
 
