@@ -692,6 +692,12 @@ AddOn.readVersion = function(dir) {
     return v === "" ? "0" : v;
 };
 
+/**
+ * Dotted integer versions, >0 when a is newer. A deliberate copy of
+ * UpdateCore.compareVersions (scripts/Help/CheckForUpdates/UpdateCore.js):
+ * AddOn.js loads long before the updater, so it cannot use that one.
+ * Change both together.
+ */
 AddOn.compareVersions = function(a, b) {
     var pa = String(a).split("."), pb = String(b).split(".");
     for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -723,6 +729,12 @@ AddOn.precedenceIgnores = function(appScripts, userScripts) {
 
 AddOn.precedence = null;
 
+/** The two scripts roots that compete: the app's (cwd-relative) and the per-user one. */
+AddOn.precedenceRoots = function() {
+    return { app: new QFileInfo("scripts").absoluteFilePath(),
+             user: RSettings.getDataLocation() + "/scripts" };
+};
+
 AddOn.isIgnored = function(path) {
     if (isNull(AddOn.ignores)) {
         var args = RSettings.getOriginalArguments();
@@ -739,9 +751,8 @@ AddOn.isIgnored = function(path) {
     }
 
     if (AddOn.precedence === null) {
-        AddOn.precedence = AddOn.precedenceIgnores(
-            new QFileInfo("scripts").absoluteFilePath(),
-            RSettings.getDataLocation() + "/scripts");
+        var roots = AddOn.precedenceRoots();
+        AddOn.precedence = AddOn.precedenceIgnores(roots.app, roots.user);
     }
     var abs = new QFileInfo(path).absoluteFilePath();
     for (var q = 0; q < AddOn.precedence.length; ++q) {

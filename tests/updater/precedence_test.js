@@ -17,7 +17,7 @@ var root = QDir.tempPath() + "/cc-prec";
 // QByteArray(jsString) does not marshal correctly through this JS bridge
 // (QFile.write ends up writing zero bytes) -- QFile.write() accepts a plain
 // JS string directly, so use that instead.
-function mk(p, v) { (new QDir()).mkpath(p); if (v !== null) { var f = new QFile(p + "/VERSION"); f.open(QIODevice.WriteOnly); f.write(v + "\n"); f.close(); } }
+function mk(p, v) { (new QDir()).mkpath(p); if (v !== null) { writeFile(p + "/VERSION", v + "\n"); } }
 mk(root + "/app/CaveSurvey", "0.9.180.1"); mk(root + "/user/CaveSurvey", "0.9.181.0");
 mk(root + "/app/Other", null);
 mk(root + "/app/Older", "2.0"); mk(root + "/user/Older", "1.0");
@@ -35,6 +35,29 @@ eqs(AddOn.readVersion(root + "/app/Other"), "0", "no VERSION reads as 0");
 AddOn.precedence = ign;
 ok(AddOn.isIgnored(root + "/app/CaveSurvey/Core/CsAll.js"), "files inside a skipped copy are ignored");
 ok(!AddOn.isIgnored(root + "/user/CaveSurvey/Core/CsAll.js"), "the winning copy is not");
+AddOn.precedence = null;
+
+// Lazy initialization, the way discovery calls it: cwd-relative
+// "scripts/<Name>/..." paths, with the app root found from the cwd.
+var savedCwd = QDir.currentPath(), savedRoots = AddOn.precedenceRoots;
+(new QDir()).mkpath(root + "/appdir");
+(new QDir()).rename(root + "/app", root + "/appdir/scripts");
+QDir.setCurrent(root + "/appdir");
+AddOn.precedenceRoots = function() { return { app: new QFileInfo("scripts").absoluteFilePath(), user: root + "/user" }; };
+AddOn.precedence = null;
+ok(AddOn.isIgnored("scripts/CaveSurvey/Core/CsAll.js"), "lazy init: a relative path into the older app copy is ignored");
+ok(AddOn.precedence !== null && AddOn.precedence.length > 0, "lazy init filled the precedence list");
+ok(!AddOn.isIgnored("scripts/Other/Other.js"), "lazy init: an app-only add-on still loads");
+ok(!AddOn.isIgnored("scripts/CaveSurveyExtra/x.js"), "a sibling whose name only starts the same is not ignored");
+ok(AddOn.isIgnored(root + "/user/Older/x.js"), "lazy init: the older per-user copy is ignored");
+QDir.setCurrent(savedCwd);
+AddOn.precedenceRoots = savedRoots;
+
+// and with the real roots of this run: builds without throwing
+AddOn.precedence = null;
+var threw = null;
+try { AddOn.isIgnored("scripts/Help/CheckForUpdates/UpdateCore.js"); } catch (e) { threw = String(e); }
+ok(threw === null && AddOn.precedence !== null, "real-root lazy init works: " + threw);
 AddOn.precedence = null;
 (new QDir(root)).removeRecursively();
 finish("precedence_test.js");
