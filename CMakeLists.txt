@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
 
+# Link the classic libGL.so.1, not GLVND's libOpenGL.so.0 + libGLX. Qt's
+# OpenGL module passes this choice on to every CaveCAD library and plugin,
+# and AppImages deliberately leave GL libraries to the system: stock
+# Ubuntu ships libGL.so.1 (libgl1) but not libOpenGL.so.0 (libopengl0), so
+# the GLVND default made the Linux AppImage fail to start at all ("error
+# while loading shared libraries: libOpenGL.so.0"), found on an Ubuntu
+# 26.04 ARM64 VM, 2026-09-26. No effect on macOS or Windows.
+set(OpenGL_GL_PREFERENCE LEGACY)
+
 include(CMakeInclude.txt)
 
 project(cavecad VERSION 1.0 LANGUAGES CXX)

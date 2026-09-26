@@ -169,6 +169,20 @@ jobs:
             $(for p in AppDir/usr/bin/plugins/*.so AppDir/usr/bin/plugins/designer/*.so; do printf -- '--deploy-deps-only %s ' "$p"; done) \
             --plugin qt --output appimage
 
+      # Stock desktops ship libGL.so.1 but not GLVND's libOpenGL.so.0, and
+      # an AppImage leaves GL to the system, so nothing in it may need that
+      # one (see OpenGL_GL_PREFERENCE in CMakeLists.txt).
+      - name: Check the AppImage runs without libOpenGL.so.0
+        run: |
+          bad=$(for f in AppDir/usr/bin/cavecad-bin AppDir/usr/bin/*.so* AppDir/usr/lib/*.so* \
+                         AppDir/usr/bin/plugins/*.so AppDir/usr/bin/plugins/*/*.so \
+                         AppDir/usr/plugins/*/*.so; do
+                  [ -f "$f" ] || continue
+                  readelf -d "$f" 2>/dev/null | grep -q 'NEEDED.*\[libOpenGL\.so\.0\]' && echo "$f" || true
+                done)
+          if [ -n "$bad" ]; then echo "needs libOpenGL.so.0:"; echo "$bad"; exit 1; fi
+          echo "no binary needs libOpenGL.so.0"
+
       - name: Upload AppImage
         uses: actions/upload-artifact@v7
         with:
