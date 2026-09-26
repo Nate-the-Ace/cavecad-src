@@ -4,11 +4,31 @@ var UpdateApply = {};
 
 UpdateApply.stamp = function() { return String((new Date()).getTime()); };
 
-/** Tools-only: unpack beside the per-user CaveSurvey and swap by rename. */
-UpdateApply.installTools = function(zipPath, expectedVersion, userScripts, done) {
-    var staging = userScripts + "/.update-" + UpdateApply.stamp();
-    var fail = function(err) { (new QDir(staging)).removeRecursively(); done({ ok: false, error: err }); };
+/**
+ * Where installTools stages and parks the old copy: <dataLocation>/update-tmp,
+ * beside -- never inside -- the per-user scripts root. AddOn discovery
+ * recurses into that root (dot folders are not hidden on Windows), so a
+ * staging or renamed-aside copy there would load every tool twice after an
+ * interrupted swap. Same volume as the scripts root, so renames stay renames.
+ */
+UpdateApply.workDir = function(userScripts) {
+    var parent = new QFileInfo(String(userScripts).replace(/[\\\/]+$/, "")).absolutePath();
+    return parent + "/update-tmp";
+};
+
+/**
+ * Tools-only: unpack into the work dir and swap by rename with
+ * <userScripts>/CaveSurvey. work defaults to workDir(userScripts); anything
+ * left there by an interrupted install is removed first.
+ */
+UpdateApply.installTools = function(zipPath, expectedVersion, userScripts, done, work) {
+    work = work || UpdateApply.workDir(userScripts);
+    (new QDir(work)).removeRecursively();
+    var stamp = UpdateApply.stamp();
+    var staging = work + "/stage-" + stamp;
+    var fail = function(err) { (new QDir(work)).removeRecursively(); done({ ok: false, error: err }); };
     if (!(new QDir()).mkpath(staging)) { done({ ok: false, error: "cannot create " + staging }); return; }
+    if (!(new QDir()).mkpath(userScripts)) { fail("cannot create " + userScripts); return; }
     UpdateRun.run(UpdateCommands.unzip(RS.getSystemId(), zipPath, staging), 300, function(r) {
         if (!r.ok) { fail(r.error); return; }
         var fresh = staging + "/CaveSurvey";
@@ -16,7 +36,7 @@ UpdateApply.installTools = function(zipPath, expectedVersion, userScripts, done)
             fail("the download holds tools " + AddOn.readVersion(fresh) + ", expected " + expectedVersion);
             return;
         }
-        var dest = userScripts + "/CaveSurvey", old = userScripts + "/CaveSurvey.old-" + UpdateApply.stamp();
+        var dest = userScripts + "/CaveSurvey", old = work + "/old-" + stamp;
         var hadOld = new QFileInfo(dest).exists();
         if (hadOld && !(new QDir()).rename(dest, old)) { fail("cannot move the old tools aside"); return; }
         if (!(new QDir()).rename(fresh, dest)) {
@@ -24,8 +44,7 @@ UpdateApply.installTools = function(zipPath, expectedVersion, userScripts, done)
             fail("cannot move the new tools into place");
             return;
         }
-        if (hadOld) { (new QDir(old)).removeRecursively(); }
-        (new QDir(staging)).removeRecursively();
+        (new QDir(work)).removeRecursively();
         done({ ok: true, error: "" });
     });
 };

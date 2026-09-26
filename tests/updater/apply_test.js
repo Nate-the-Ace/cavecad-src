@@ -7,27 +7,46 @@ load("scripts/Help/CheckForUpdates/UpdateApply.js");
 
 var root = QDir.tempPath() + "/cc-apply";
 (new QDir(root)).removeRecursively();
-// new QByteArray("text") is EMPTY in this engine -- write files with plain strings.
-function mk(p, v) { (new QDir()).mkpath(p); var f = new QFile(p + "/VERSION"); f.open(QIODevice.WriteOnly); f.write(v); f.close(); }
+function mk(p, v) { (new QDir()).mkpath(p); writeFile(p + "/VERSION", v); }
 mk(root + "/new/CaveSurvey", "0.9.182.0");
 mk(root + "/user/CaveSurvey", "0.9.181.0");
 var loop = new QEventLoop(), r = null;
-var zipCmd = RS.getSystemId() === "osx"
-    ? { program: "/usr/bin/ditto", args: ["-c", "-k", "--keepParent", root + "/new/CaveSurvey", root + "/tools.zip"] }
-    : { program: "zip", args: ["-r", "-q", root + "/tools.zip", "CaveSurvey"], workingDirectory: root + "/new" };
-UpdateRun.run(zipCmd, 30, function(x) { r = x; loop.quit(); }); loop.exec();
+UpdateRun.run(zipCmd(root + "/new", "CaveSurvey", root + "/tools.zip"), 60, function(x) { r = x; loop.quit(); }); loop.exec();
 ok(r.ok, "made a tools zip: " + r.error);
 
 r = null;
 UpdateApply.installTools(root + "/tools.zip", "9.9.9", root + "/user", function(x) { r = x; loop.quit(); }); loop.exec();
 ok(!r.ok, "wrong version refused");
+ok(!new QFileInfo(root + "/update-tmp").exists(), "work dir removed after a refusal");
 eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.181.0", "old copy untouched after a refusal");
 
 r = null;
 UpdateApply.installTools(root + "/tools.zip", "0.9.182.0", root + "/user", function(x) { r = x; loop.quit(); }); loop.exec();
 ok(r.ok, "tools installed: " + r.error);
 eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.182.0", "new copy in place");
-eqs(new QDir(root + "/user").entryList([".update-*", "CaveSurvey.old*"], QDir.Dirs | QDir.Hidden, 0).length, 0, "no staging or old folder left");
+eqs(new QDir(root + "/user").entryList([], QDir.Dirs | QDir.Hidden | QDir.NoDotAndDotDot, 0).join(","), "CaveSurvey", "nothing but CaveSurvey in the scripts root");
+ok(!new QFileInfo(root + "/update-tmp").exists(), "work dir removed after the swap");
+eqs(UpdateApply.workDir(root + "/user"), new QFileInfo(root).absoluteFilePath() + "/update-tmp", "work dir sits beside the scripts root");
+eqs(UpdateApply.workDir(root + "/user/"), UpdateApply.workDir(root + "/user"), "a trailing slash changes nothing");
+
+// an interrupted earlier install left staging and an old copy behind:
+// they are cleared, and never inside the scripts root
+(new QDir()).mkpath(root + "/update-tmp/stage-1/CaveSurvey");
+mk(root + "/update-tmp/old-1", "0.9.1.0");
+mk(root + "/new/CaveSurvey", "0.9.183.0");
+QFile.remove(root + "/tools.zip");
+r = null;
+UpdateRun.run(zipCmd(root + "/new", "CaveSurvey", root + "/tools.zip"), 60, function(x) { r = x; loop.quit(); }); loop.exec();
+r = null;
+UpdateApply.installTools(root + "/tools.zip", "0.9.183.0", root + "/user", function(x) { r = x; loop.quit(); }); loop.exec();
+ok(r.ok, "install over leftovers: " + r.error);
+eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.183.0", "newest copy in place");
+ok(!new QFileInfo(root + "/update-tmp").exists(), "leftovers from an interrupted install cleared");
+
+// first update on a machine with no per-user scripts folder yet
+r = null;
+UpdateApply.installTools(root + "/tools.zip", "0.9.183.0", root + "/fresh/scripts", function(x) { r = x; loop.quit(); }); loop.exec();
+ok(r.ok && AddOn.readVersion(root + "/fresh/scripts/CaveSurvey") === "0.9.183.0", "installs into a new scripts root: " + r.error);
 
 eqs(UpdateApply.installTarget("osx", "/Applications/CaveCAD.app/Contents/MacOS/CaveCAD", {}), "/Applications/CaveCAD.app", "macOS replaces the .app");
 eqs(UpdateApply.installTarget("win", "C:/Tools/CaveCAD/cavecad.exe", {}), "C:/Tools/CaveCAD", "Windows replaces the exe folder");

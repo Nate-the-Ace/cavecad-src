@@ -119,10 +119,12 @@ check itself fails.
 
 ## Applying a tools-only update
 
-- Unpack `CaveSurvey-tools.zip` into a staging folder under the per-user scripts
-  root (`…/QCAD/CaveCAD/scripts/.update-<stamp>`), check that it holds
-  `CaveSurvey/VERSION` with the manifest's version, then swap it for
-  `…/scripts/CaveSurvey` (the old copy is renamed aside and deleted after the swap).
+- Unpack `CaveSurvey-tools.zip` into a staging folder BESIDE the per-user scripts
+  root (`…/QCAD/CaveCAD/update-tmp/stage-<stamp>`; never inside it, since add-on
+  discovery recurses there and an interrupted swap would load every tool twice),
+  check that it holds `CaveSurvey/VERSION` with the manifest's version, then swap
+  it for `…/scripts/CaveSurvey` (the old copy is renamed aside into `update-tmp`
+  and deleted after the swap; leftovers are cleared at the start of an install).
 - **One copy loads:** `scripts/AddOn.js` (cavecad-src) changes so that when an
   add-on folder name exists in more than one scripts root, only the copy with the
   higher `VERSION` is loaded. That is the per-user copy after an update, and the
