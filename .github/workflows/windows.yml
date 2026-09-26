@@ -16,13 +16,36 @@ permissions:
 
 env:
   QT_VERSION: 6.10.3
-  QT_ARCH: win64_msvc2022_64
   QTJSAPI_REV: c82731320fdc7b61dae56d4cf046bac9376bb2b4
   QCADJSAPI_REV: 2b2b0e86328416dc57ca57a035e10d5dfd919db6
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            qt_dir: msvc2022_64
+            vcvars: '64'
+          # Native on GitHub's Windows 11 ARM runner (free for public repos),
+          # so windeployqt and the rest of Qt's tools run as arm64 too.
+          - arch: arm64
+            runner: windows-11-arm
+            qt_host: windows_arm64
+            qt_arch: win64_msvc2022_arm64
+            qt_dir: msvc2022_arm64
+            vcvars: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      QT_HOST: ${{ matrix.qt_host }}
+      QT_ARCH: ${{ matrix.qt_arch }}
+      QT_DIR: ${{ matrix.qt_dir }}
+      VCVARS_ARCH: ${{ matrix.vcvars }}
+      ARCH: ${{ matrix.arch }}
 
     steps:
       - uses: actions/checkout@v7
@@ -35,7 +58,7 @@ jobs:
         shell: cmd
         run: |
           pip install aqtinstall
-          aqt install-qt windows desktop %QT_VERSION% %QT_ARCH% -m qt5compat qtimageformats -O %GITHUB_WORKSPACE%\Qt
+          aqt install-qt %QT_HOST% desktop %QT_VERSION% %QT_ARCH% -m qt5compat qtimageformats -O %GITHUB_WORKSPACE%\Qt
 
       - name: Install Ninja
         shell: cmd
@@ -46,7 +69,7 @@ jobs:
       - uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           variant: sccache
-          key: windows-msvc
+          key: windows-msvc-${{ matrix.arch }}
           max-size: 2G
 
       - name: Fetch JS API sources
@@ -65,7 +88,7 @@ jobs:
         shell: cmd
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
-          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
+          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\%QT_DIR%
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT6=ON -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build build
@@ -75,7 +98,7 @@ jobs:
         shell: cmd
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
-          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
+          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\%QT_DIR%
           cmake -S ..\qtjsapi -B ..\qtjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qtjsapi\build
@@ -88,7 +111,7 @@ jobs:
         shell: cmd
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
-          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\msvc2022_64
+          set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\%QT_DIR%
           cmake -S ..\qcadjsapi -B ..\qcadjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qcadjsapi\build
@@ -97,7 +120,7 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $qt = "$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\msvc2022_64"
+          $qt = "$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\$env:QT_DIR"
           foreach ($d in 'scripts','libraries','patterns','linetypes','fonts','themes','ts','plugins','defaults') {
             if (Test-Path $d) { Copy-Item -Recurse -Force $d release\ }
           }
@@ -122,7 +145,7 @@ jobs:
           # The MSVC runtime, app-local, so CaveCAD starts on a PC without the
           # Visual C++ Redistributable ("VCRUNTIME140.dll was not found").
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC14*.CRT" -Directory |
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\$env:ARCH\Microsoft.VC14*.CRT" -Directory |
             Sort-Object FullName | Select-Object -Last 1
           if (-not $crt) { throw "MSVC runtime redist folder not found under $vs" }
           Copy-Item "$($crt.FullName)\*.dll" release\
@@ -143,7 +166,7 @@ jobs:
       - name: Upload build
         uses: actions/upload-artifact@v7
         with:
-          name: cavecad-windows-x64
+          name: cavecad-windows-${{ matrix.arch }}
           path: release/
 
       # The bare app, kept on the internal "app-base" release. assemble.yml
@@ -155,20 +178,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          (cd release && 7z a -tzip -mx=9 -bd ../base-windows-x64.zip . >/dev/null)
-          echo "$GITHUB_SHA" > base-windows-x64.commit
+          (cd release && 7z a -tzip -mx=9 -bd "../base-windows-$ARCH.zip" . >/dev/null)
+          echo "$GITHUB_SHA" > "base-windows-$ARCH.commit"
           gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create app-base -R "$GITHUB_REPOSITORY" --prerelease \
               --title "App base (internal)" \
               --notes "Bare CaveCAD builds the latest build is assembled from. Not for download: get CaveCAD from the latest release." ||
             gh release view app-base -R "$GITHUB_REPOSITORY" >/dev/null
-          gh release upload app-base base-windows-x64.zip base-windows-x64.commit --clobber -R "$GITHUB_REPOSITORY"
+          gh release upload app-base "base-windows-$ARCH.zip" "base-windows-$ARCH.commit" --clobber -R "$GITHUB_REPOSITORY"
 
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: build-logs
+          name: build-logs-${{ matrix.arch }}
           path: |
             build/CMakeFiles/CMakeConfigureLog.yaml
             build/CMakeCache.txt
