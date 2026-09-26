@@ -10,7 +10,7 @@ done
 status=0
 for t in tests/updater/*_test.js; do
     out=$("$APP" -no-dock-icon -no-gui -allow-multiple-instances \
-          -autostart "$REPO/$t" "$REPO" 2>/dev/null | grep '### UPDATER')
+          -autostart "$REPO/$t" "$REPO" 2>/dev/null | grep -A200 '### UPDATER' | grep -E '^(### UPDATER|  )')
     echo "${out:-### UPDATER FAIL no output ($t)}"
     case "$out" in *"UPDATER OK"*) ;; *) status=1 ;; esac
 done

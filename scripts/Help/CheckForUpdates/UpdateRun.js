@@ -4,10 +4,15 @@
 // back.
 //
 // Measured 2026-09-26 against CaveCAD's cavecadjsapi bindings: QProcess has
-// errorOccurred, setProcessEnvironment and setWorkingDirectory; finished
-// passes (code, status); a QProcess created inside a function and referenced
-// only by its own signal connections survives to fire finished even under an
-// explicit gc(), so no keep-alive array is needed.
+// errorOccurred, setProcessEnvironment, setWorkingDirectory,
+// closeWriteChannel, deleteLater and an INSTANCE startDetached() (the static
+// one is undefined) that honours setProgram/setArguments/
+// setProcessEnvironment/setWorkingDirectory and outlives CaveCAD; finished
+// passes (code, status); kill() is asynchronous (the process is still
+// Running right after it; finished follows); a QProcess created inside a
+// function and referenced only by its own signal connections survives to
+// fire finished even under an explicit gc(), so no keep-alive array is
+// needed.
 //
 // QByteArray has no usable toString()/String() coercion in this engine --
 // String(readAllStandardOutput()) yields the literal text "QByteArray [JS]".
@@ -15,6 +20,9 @@
 // that way.
 
 var UpdateRun = {};
+
+// After a timeout's kill(), how long to wait for finished before settling anyway.
+UpdateRun.KILL_GRACE_MS = 5000;
 
 /** QByteArray -> JS string; String(qba)/qba.toString() do not decode bytes here. */
 UpdateRun.decode = function(qba) {
@@ -24,18 +32,7 @@ UpdateRun.decode = function(qba) {
     return s;
 };
 
-/** done({ok, code, stdout, error}) is called exactly once. */
-UpdateRun.run = function(command, timeoutS, done) {
-    var p = new QProcess();
-    var settled = false;
-    var timer = new QTimer();
-    timer.singleShot = true;
-    var finish = function(result) {
-        if (settled) { return; }
-        settled = true;
-        timer.stop();
-        done(result);
-    };
+UpdateRun.configure = function(p, command) {
     if (command.workingDirectory) {
         p.setWorkingDirectory(command.workingDirectory);
     }
@@ -44,11 +41,43 @@ UpdateRun.run = function(command, timeoutS, done) {
         for (var k in command.env) { if (command.env.hasOwnProperty(k)) { env.insert(k, command.env[k]); } }
         p.setProcessEnvironment(env);
     }
+};
+
+/**
+ * done({ok, code, stdout, error}) is called exactly once. On a timeout the
+ * child is killed and done waits for it to be gone (finished), so a caller
+ * never deletes or retries a file the child still holds; if finished never
+ * comes, done fires KILL_GRACE_MS later regardless.
+ */
+UpdateRun.run = function(command, timeoutS, done) {
+    var p = new QProcess();
+    var settled = false, timedOut = false;
+    var timer = new QTimer();
+    timer.singleShot = true;
+    var finish = function(result) {
+        if (settled) { return; }
+        settled = true;
+        timer.stop();
+        done(result);
+        // p is deleted only once it is no longer running (a live QProcess's
+        // destructor would block the UI waiting for it)
+        if (p.state() === QProcess.NotRunning) { p.deleteLater(); }
+        timer.deleteLater();
+    };
+    UpdateRun.configure(p, command);
     p.finished.connect(function(code, status) {
         var out = UpdateRun.decode(p.readAllStandardOutput());
         var err = UpdateRun.decode(p.readAllStandardError());
-        finish({ ok: code === 0 && status === QProcess.NormalExit, code: code,
-                 stdout: out, error: code === 0 ? "" : (command.program + " exited " + code + ": " + err) });
+        var error = "";
+        if (timedOut) {
+            error = command.program + " timed out";
+        } else if (status !== QProcess.NormalExit) {
+            error = command.program + " crashed (exit " + code + "): " + err;
+        } else if (code !== 0) {
+            error = command.program + " exited " + code + ": " + err;
+        }
+        if (settled) { p.deleteLater(); return; }   // after a fallback settle
+        finish({ ok: error === "", code: timedOut ? -1 : code, stdout: out, error: error });
     });
     if (typeof p.errorOccurred !== "undefined") {
         p.errorOccurred.connect(function(e) {
@@ -58,10 +87,30 @@ UpdateRun.run = function(command, timeoutS, done) {
         });
     }
     timer.timeout.connect(function() {
-        p.kill();
-        finish({ ok: false, code: -1, stdout: "", error: command.program + " timed out" });
+        if (settled) { return; }
+        if (!timedOut) {
+            timedOut = true;
+            p.kill();
+            timer.start(UpdateRun.KILL_GRACE_MS);   // fallback if finished never comes
+            return;
+        }
+        finish({ ok: false, code: -1, stdout: "", error: command.program + " timed out (and would not die)" });
     });
     timer.start((timeoutS || 60) * 1000);
     p.start(command.program, command.args);
-    return p;
+    // no child waits on input; an open stdin pipe can hang powershell.exe
+    p.closeWriteChannel();
+};
+
+/** Starts command detached (it outlives CaveCAD). Returns {ok, error}. */
+UpdateRun.detach = function(command) {
+    var p = new QProcess();
+    p.setProgram(command.program);
+    p.setArguments(command.args);
+    UpdateRun.configure(p, command);
+    p.setStandardInputFile(QProcess.nullDevice());
+    var started = false;
+    try { started = !!p.startDetached(); } catch (e) { started = false; }
+    p.deleteLater();
+    return started ? { ok: true, error: "" } : { ok: false, error: command.program + " would not start" };
 };

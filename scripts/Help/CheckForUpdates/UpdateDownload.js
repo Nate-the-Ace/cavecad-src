@@ -5,16 +5,17 @@
 
 var UpdateDownload = {};
 UpdateDownload.base = UpdateCore.BASE;   // tests point this at file://
+UpdateDownload.allowFile = false;        // ...and set this, or curl refuses file://
 UpdateDownload.TIMEOUT_S = 900;
 
 UpdateDownload.system = function() { return RS.getSystemId(); };
 
 /** Runs fetch, falling back to Python's urllib on Linux without curl. */
 UpdateDownload.fetchTo = function(url, out, done) {
-    var sys = UpdateDownload.system();
-    UpdateRun.run(UpdateCommands.fetch(sys, url, out), UpdateDownload.TIMEOUT_S, function(r) {
+    var sys = UpdateDownload.system(), opts = { allowFile: UpdateDownload.allowFile };
+    UpdateRun.run(UpdateCommands.fetch(sys, url, out, opts), UpdateDownload.TIMEOUT_S, function(r) {
         if (r.ok || sys !== "linux" || r.code !== -1) { done(r); return; }
-        UpdateRun.run(UpdateCommands.fetchFallback(sys, url, out), UpdateDownload.TIMEOUT_S, done);
+        UpdateRun.run(UpdateCommands.fetchFallback(sys, url, out, opts), UpdateDownload.TIMEOUT_S, done);
     });
 };
 
@@ -41,6 +42,7 @@ UpdateDownload.manifest = function(done) {
 
 /** onProgress(bytesSoFar) about twice a second while downloading. */
 UpdateDownload.verified = function(asset, expected, dir, onProgress, done) {
+    if (!UpdateCore.safeName(asset)) { done({ ok: false, path: null, error: "unsafe asset name", attempts: 0 }); return; }
     var path = dir + "/" + asset, side = path + ".sha256";
     var attempt = function(n) {
         QFile.remove(path); QFile.remove(side);

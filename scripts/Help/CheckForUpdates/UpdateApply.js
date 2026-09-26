@@ -131,12 +131,12 @@ UpdateApply.writeHelper = function(system, o) {
     return path;
 };
 
-/** Writes the helper to a temp file and starts it detached. */
+/** Writes the helper to a temp file and starts it detached; done({ok, error}). */
 UpdateApply.launchHelper = function(system, o, done) {
     var path = UpdateApply.writeHelper(system, o);
     if (path === null) { done({ ok: false, error: "cannot write update helper" }); return; }
     var cmd = UpdateCommands.detach(system, path);
     // never inside the install folder the helper is about to replace
     cmd.workingDirectory = QDir.tempPath();
-    UpdateRun.run(cmd, 30, done);
+    done(UpdateRun.detach(cmd));
 };

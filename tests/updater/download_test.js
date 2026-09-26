@@ -7,17 +7,25 @@ load("scripts/Help/CheckForUpdates/UpdateDownload.js");
 var hex = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 var src = QDir.tempPath() + "/cc-dl-src", dst = QDir.tempPath() + "/cc-dl-dst";
 [src, dst].forEach(function(d) { (new QDir(d)).removeRecursively(); (new QDir()).mkpath(d); });
-function write(p, s) { var f = new QFile(p); f.open(QIODevice.WriteOnly); f.write(s); f.close(); }
+var write = writeFile;
 write(src + "/good.zip", "abc");
 write(src + "/good.zip.sha256", hex + "  good.zip\n");
 write(src + "/bad.zip", "abd");
 write(src + "/bad.zip.sha256", hex + "  bad.zip\n");
-write(src + "/latest.json", JSON.stringify({ schema: 1, tools: { version: "1", commit: "c", asset: "good.zip", sha256: hex, size: 3 }, platforms: {} }));
-UpdateDownload.base = "file://" + src + "/";
+write(src + "/latest.json", JSON.stringify({ schema: 1, tools: { version: "1", commit: "c", asset: "good.zip", sha256: hex, size: 3 },
+    platforms: { "windows-x64": { app_commit: "a", asset: "../x.zip", sha256: hex }, "macos-arm64": { app_commit: "b", asset: "m.dmg", sha256: hex } } }));
+UpdateDownload.base = fileUrl(src + "/");
+UpdateDownload.allowFile = true;
 
 var loop = new QEventLoop(), r = null;
 UpdateDownload.manifest(function(x) { r = x; loop.quit(); }); loop.exec();
 ok(r.ok && r.manifest.tools.version === "1", "manifest fetched and validated: " + r.error);
+ok(r.ok && !r.manifest.platforms.hasOwnProperty("windows-x64") && r.manifest.platforms.hasOwnProperty("macos-arm64"),
+    "a bad platform entry is dropped, the rest kept");
+
+r = null;
+UpdateDownload.verified("../good.zip", hex, dst, function() {}, function(x) { r = x; });
+ok(r !== null && !r.ok && r.attempts === 0, "an unsafe asset name is refused before any download");
 
 r = null;
 UpdateDownload.verified("good.zip", hex, dst, function() {}, function(x) { r = x; loop.quit(); }); loop.exec();
