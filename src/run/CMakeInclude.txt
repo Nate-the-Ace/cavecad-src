@@ -7,28 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent Gui Network OpenGL Sql Svg Xml PrintSupport Qml)
 qt_standard_project_setup()
 
-# CaveCAD's own version (the VERSION file), for the .exe's file properties
-# and the macOS bundle -- not the QCAD base version in RVersion.h, which
-# scripts compare against and which stays as it is.
-file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/../../VERSION CAVECAD_VERSION LIMIT_COUNT 1)
-string(STRIP "${CAVECAD_VERSION}" CAVECAD_VERSION)
-string(REPLACE "." ";" CAVECAD_VERSION_PARTS "${CAVECAD_VERSION}")
-list(APPEND CAVECAD_VERSION_PARTS 0 0 0 0)
-list(GET CAVECAD_VERSION_PARTS 0 CAVECAD_VERSION_MAJOR)
-list(GET CAVECAD_VERSION_PARTS 1 CAVECAD_VERSION_MINOR)
-list(GET CAVECAD_VERSION_PARTS 2 CAVECAD_VERSION_REV)
-list(GET CAVECAD_VERSION_PARTS 3 CAVECAD_VERSION_BUILD)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_LIST_DIR}/../../VERSION)
-
+# CAVECAD_VERSION comes from the top-level CMakeLists.txt, which also
+# writes cavecad_version.h for the .rc files.
 if(WIN32)
     set(RC cavecad.rc)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/cavecad_version.h
-        "#define CAVECAD_VERSION_MAJOR ${CAVECAD_VERSION_MAJOR}\n"
-        "#define CAVECAD_VERSION_MINOR ${CAVECAD_VERSION_MINOR}\n"
-        "#define CAVECAD_VERSION_REV ${CAVECAD_VERSION_REV}\n"
-        "#define CAVECAD_VERSION_BUILD ${CAVECAD_VERSION_BUILD}\n"
-        "#define CAVECAD_VERSION_STRING \"${CAVECAD_VERSION}\"\n")
 endif()
 
 set(app_icon_macos "${CMAKE_CURRENT_LIST_DIR}/cavecad.icns")
@@ -56,7 +38,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/../../src/3rdparty
     ${CMAKE_CURRENT_LIST_DIR}/../../src/core
     ${CMAKE_CURRENT_LIST_DIR}/../../src/core/math

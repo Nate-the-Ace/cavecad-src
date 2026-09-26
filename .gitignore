@@ -87,3 +87,6 @@ CMakeCache.txt.prev
 
 adinit.dat
 build
+
+# written by CMakeLists.txt from VERSION
+/generated/
