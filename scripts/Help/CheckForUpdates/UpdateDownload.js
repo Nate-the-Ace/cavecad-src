@@ -11,11 +11,12 @@ UpdateDownload.TIMEOUT_S = 900;
 UpdateDownload.system = function() { return RS.getSystemId(); };
 
 /** Runs fetch, falling back to Python's urllib on Linux without curl. */
-UpdateDownload.fetchTo = function(url, out, done) {
+UpdateDownload.fetchTo = function(url, out, done, timeoutS) {
     var sys = UpdateDownload.system(), opts = { allowFile: UpdateDownload.allowFile };
-    UpdateRun.run(UpdateCommands.fetch(sys, url, out, opts), UpdateDownload.TIMEOUT_S, function(r) {
+    var limit = timeoutS || UpdateDownload.TIMEOUT_S;
+    UpdateRun.run(UpdateCommands.fetch(sys, url, out, opts), limit, function(r) {
         if (r.ok || sys !== "linux" || r.code !== -1) { done(r); return; }
-        UpdateRun.run(UpdateCommands.fetchFallback(sys, url, out, opts), UpdateDownload.TIMEOUT_S, done);
+        UpdateRun.run(UpdateCommands.fetchFallback(sys, url, out, opts), limit, done);
     });
 };
 
@@ -27,7 +28,8 @@ UpdateDownload.readText = function(path) {
     return t;
 };
 
-UpdateDownload.manifest = function(done) {
+/** timeoutS (optional): the startup check uses a short one. */
+UpdateDownload.manifest = function(done, timeoutS) {
     var out = QDir.tempPath() + "/cavecad-latest-" + (new Date()).getTime() + ".json";
     UpdateDownload.fetchTo(UpdateDownload.base + UpdateCore.MANIFEST, out, function(r) {
         var text = r.ok ? UpdateDownload.readText(out) : null;
@@ -37,7 +39,7 @@ UpdateDownload.manifest = function(done) {
         try { m = JSON.parse(text); } catch (e) { done({ ok: false, manifest: null, error: "manifest is not JSON" }); return; }
         var v = UpdateCore.validate(m);
         done({ ok: v.ok, manifest: v.manifest, error: v.error, dropped: v.dropped });
-    });
+    }, timeoutS);
 };
 
 /** onProgress(bytesSoFar) about twice a second while downloading. */

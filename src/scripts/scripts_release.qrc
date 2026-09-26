@@ -865,9 +865,13 @@
     <file alias="scripts/Help/BrowseUserManual/BrowseUserManual.svg">../../scripts/Help/BrowseUserManual/BrowseUserManual.svg</file>
     <file alias="scripts/Help/BrowseUserManual/BrowseUserManualInit.js">../../scripts/Help/BrowseUserManual/BrowseUserManualInit.js</file>
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdates.js">../../scripts/Help/CheckForUpdates/CheckForUpdates.js</file>
-    <file alias="scripts/Help/CheckForUpdates/CheckForUpdatesDialog.ui">../../scripts/Help/CheckForUpdates/CheckForUpdatesDialog.ui</file>
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdatesInit.js">../../scripts/Help/CheckForUpdates/CheckForUpdatesInit.js</file>
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdatesPostInit.js">../../scripts/Help/CheckForUpdates/CheckForUpdatesPostInit.js</file>
+    <file alias="scripts/Help/CheckForUpdates/UpdateApply.js">../../scripts/Help/CheckForUpdates/UpdateApply.js</file>
+    <file alias="scripts/Help/CheckForUpdates/UpdateCommands.js">../../scripts/Help/CheckForUpdates/UpdateCommands.js</file>
+    <file alias="scripts/Help/CheckForUpdates/UpdateCore.js">../../scripts/Help/CheckForUpdates/UpdateCore.js</file>
+    <file alias="scripts/Help/CheckForUpdates/UpdateDownload.js">../../scripts/Help/CheckForUpdates/UpdateDownload.js</file>
+    <file alias="scripts/Help/CheckForUpdates/UpdateRun.js">../../scripts/Help/CheckForUpdates/UpdateRun.js</file>
     <file alias="scripts/Help/FAQ/FAQ.js">../../scripts/Help/FAQ/FAQ.js</file>
     <file alias="scripts/Help/FAQ/FAQInit.js">../../scripts/Help/FAQ/FAQInit.js</file>
     <file alias="scripts/Help/Forum/Forum.js">../../scripts/Help/Forum/Forum.js</file>
