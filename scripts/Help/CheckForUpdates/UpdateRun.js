@@ -58,7 +58,16 @@ UpdateRun.run = function(command, timeoutS, done) {
         if (settled) { return; }
         settled = true;
         timer.stop();
-        done(result);
+        // ALWAYS asynchronous. On Windows a program that cannot start fails
+        // INSIDE p.start() (errorOccurred fires synchronously), before the
+        // caller has entered its event loop; a synchronous done() there
+        // quits a loop that is not running yet and the caller waits forever
+        // (found on a Windows ARM64 VM, 2026-09-26; macOS reports the same
+        // failure a tick later, which hid it).
+        var later = new QTimer();
+        later.singleShot = true;
+        later.timeout.connect(function() { later.deleteLater(); done(result); });
+        later.start(0);
         // p is deleted only once it is no longer running (a live QProcess's
         // destructor would block the UI waiting for it)
         if (p.state() === QProcess.NotRunning) { p.deleteLater(); }
