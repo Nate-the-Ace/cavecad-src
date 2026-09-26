@@ -252,7 +252,6 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          APP_SHA: ${{ needs.plan.outputs.app_sha }}
           TOOLS_SHA: ${{ needs.plan.outputs.tools_sha }}
           KEY: ${{ needs.plan.outputs.key }}
         run: |
@@ -269,6 +268,9 @@ jobs:
             f="meta/${p#*:}.appcommit"
             if [ -s "$f" ]; then set -- "$@" "${p%%:*}=$(cat "$f")"; fi
           done
+          # the notes name the commit each published platform was built from
+          apps=""
+          for a in "$@"; do c="${a#*=}"; apps="$apps ${a%%=*}@${c:0:8}"; done
           python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" dist "$(cat addon/VERSION)" "$(cat addon/COMMIT)" "$@"
           (cd dist && sha256sum -c --quiet ./*.sha256)
           ls -l dist
@@ -295,7 +297,7 @@ jobs:
           Not code-signed yet. Windows: "More info" then "Run anyway". macOS: right-click the app, Open.
           If Windows reports VCRUNTIME140.dll missing: https://aka.ms/vs/17/release/vc_redist.x64.exe (ARM: vc_redist.arm64.exe)
 
-          App: $GITHUB_REPOSITORY@${APP_SHA:0:8} -- Tools: $TOOLS_REPO@${TOOLS_SHA:0:8}
+          App ($GITHUB_REPOSITORY):${apps:- none} -- Tools: $TOOLS_REPO@${TOOLS_SHA:0:8}
 
           <!-- key: $KEY -->
           EOF
