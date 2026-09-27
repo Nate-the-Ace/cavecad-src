@@ -34,6 +34,16 @@ CheckForUpdates.busy = false;                // a check or a download is running
 CheckForUpdates.promptBox = null;            // the open prompt, kept alive while shown
 CheckForUpdates.pendingKey = "";             // an app update downloaded this session, installing at quit
 
+/**
+ * Preferences > General > Updates: PreferencesPage.ui's AutoCheck box is
+ * saved by WidgetFactory as <page objectName>/<box objectName> =
+ * CheckForUpdates/AutoCheck, the same setting the prompt's checkbox and
+ * the startup check use (UpdateCore.SETTING_AUTO).
+ */
+CheckForUpdates.getPreferencesCategory = function() {
+    return [qsTr("General"), qsTr("Updates")];
+};
+
 CheckForUpdates.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
     CheckForUpdates.run(true);

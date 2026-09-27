@@ -105,5 +105,18 @@ eqs(CheckForUpdates.relaunchPath("osx", "/Applications/CaveCAD.app"), "/Applicat
 eqs(CheckForUpdates.relaunchPath("linux", "/home/u/CaveCAD.AppImage"), "/home/u/CaveCAD.AppImage", "Linux relaunches the AppImage");
 ok(/^C:\/Tools\/CaveCAD\/[^\/]+$/.test(CheckForUpdates.relaunchPath("win", "C:/Tools/CaveCAD")), "Windows relaunches an exe inside the folder");
 
+// ---- Preferences page: the AutoCheck box saves to UpdateCore.SETTING_AUTO ----
+eqs(CheckForUpdates.getPreferencesCategory().length, 2, "a Preferences category");
+var pageFile = REPO + "/scripts/Help/CheckForUpdates/PreferencesPage.ui";
+var uf = new QFile(pageFile);
+ok(uf.open(QIODevice.ReadOnly), "PreferencesPage.ui opens");
+var page = new QUiLoader().load(uf, null);
+uf.close();
+ok(page !== null && !isNull(page), "PreferencesPage.ui loads");
+var box = page ? page.findChild("AutoCheck") : null;
+eqs(page ? String(page.objectName) + "/" + String(box.objectName) : "", UpdateCore.SETTING_AUTO, "page/box names make the AutoCheck setting key");
+ok(box !== null && box.checked === true, "AutoCheck defaults to on");
+if (page) { page.deleteLater(); }
+
 (new QDir(root)).removeRecursively();
 finish("ui_test.js");

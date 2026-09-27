@@ -872,6 +872,7 @@
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdates.js">../../scripts/Help/CheckForUpdates/CheckForUpdates.js</file>
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdatesInit.js">../../scripts/Help/CheckForUpdates/CheckForUpdatesInit.js</file>
     <file alias="scripts/Help/CheckForUpdates/CheckForUpdatesPostInit.js">../../scripts/Help/CheckForUpdates/CheckForUpdatesPostInit.js</file>
+    <file alias="scripts/Help/CheckForUpdates/PreferencesPage.ui">../../scripts/Help/CheckForUpdates/PreferencesPage.ui</file>
     <file alias="scripts/Help/FAQ/FAQ.js">../../scripts/Help/FAQ/FAQ.js</file>
     <file alias="scripts/Help/FAQ/FAQInit.js">../../scripts/Help/FAQ/FAQInit.js</file>
     <file alias="scripts/Help/Forum/Forum.js">../../scripts/Help/Forum/Forum.js</file>
