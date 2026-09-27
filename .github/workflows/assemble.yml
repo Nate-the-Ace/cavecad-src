@@ -324,7 +324,7 @@ jobs:
             gh release view latest-build -R "$R" --json assets -q '.assets[].name' |
               python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" --prunable |
               while read -r old; do
-                [ -n "$old" ] && gh release delete-asset latest-build "$old" -R "$R" -y
+                if [ -n "$old" ]; then gh release delete-asset latest-build "$old" -R "$R" -y; fi
               done
           else
             gh release create "$TAG" dist/* -R "$GITHUB_REPOSITORY" --prerelease \
