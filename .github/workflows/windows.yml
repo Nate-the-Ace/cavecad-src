@@ -55,10 +55,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt ${{ env.QT_VERSION }}
-        shell: cmd
+        shell: bash
         run: |
           pip install aqtinstall
-          aqt install-qt %QT_HOST% desktop %QT_VERSION% %QT_ARCH% -m qt5compat qtimageformats -O %GITHUB_WORKSPACE%\Qt
+          tools/install-qt.sh python "$QT_HOST" "$QT_VERSION" "$QT_ARCH" "$GITHUB_WORKSPACE/Qt"
 
       - name: Install Ninja
         shell: cmd

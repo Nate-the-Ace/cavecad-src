@@ -35,7 +35,7 @@ jobs:
       - name: Install Qt ${{ env.QT_VERSION }}
         run: |
           pip install aqtinstall
-          aqt install-qt mac desktop "$QT_VERSION" clang_64 -m qt5compat qtimageformats -O "$RUNNER_TEMP/Qt"
+          tools/install-qt.sh python mac "$QT_VERSION" clang_64 "$RUNNER_TEMP/Qt"
 
       - name: Install Ninja
         run: brew install ninja

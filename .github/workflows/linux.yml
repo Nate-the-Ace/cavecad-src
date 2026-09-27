@@ -74,7 +74,7 @@ jobs:
       - name: Install Qt ${{ env.QT_VERSION }}
         run: |
           python3 -m venv /opt/aqt && /opt/aqt/bin/pip install --quiet aqtinstall
-          /opt/aqt/bin/python -m aqt install-qt "$QT_HOST" desktop "$QT_VERSION" "$QT_ARCH" -m qt5compat qtimageformats -O /opt/Qt
+          tools/install-qt.sh /opt/aqt/bin/python "$QT_HOST" "$QT_VERSION" "$QT_ARCH" /opt/Qt
           # gcc_64 or gcc_arm64; every later step reads it from here
           echo "QTDIR=$(ls -d /opt/Qt/"$QT_VERSION"/gcc_*)" >> "$GITHUB_ENV"
 
