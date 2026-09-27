@@ -118,5 +118,37 @@ eqs(page ? String(page.objectName) + "/" + String(box.objectName) : "", UpdateCo
 ok(box !== null && box.checked === true, "AutoCheck defaults to on");
 if (page) { page.deleteLater(); }
 
+// ---- the prompt's buttons really reach the flow ---------------------------
+// CheckForUpdates.apply was a silent no-op (Function.prototype.apply won),
+// so "Update now" closed the prompt and did nothing -- invisible to every
+// logic test above. Press each button for real and see where it lands.
+(function() {
+    var realApply = CheckForUpdates.applyUpdate, realMain = RMainWindowQt.getMainWindow;
+    var skipBefore = RSettings.getStringValue(UpdateCore.SETTING_SKIP, "");
+    var calls = [];
+    CheckForUpdates.applyUpdate = function(dd) { calls.push(dd.kind); };
+    RMainWindowQt.getMainWindow = function() { return null; };
+    var offer = { kind: "tools", fromVersion: "1.0", toolsVersion: "1.1", asset: "x.zip", sha256: "0", size: 1 };
+    function press(name) {
+        CheckForUpdates.prompt(offer);
+        var b = CheckForUpdates.promptBox.buttons();
+        for (var i = 0; i < b.length; i++) { if (String(b[i].objectName) === name) { b[i].click(); } }
+        spin(500);
+    }
+    try {
+        press("UpdateNow");
+        eqs(calls.join(","), "tools", "Update now starts the update");
+        press("Later");
+        eqs(calls.join(","), "tools", "Later starts nothing");
+        press("Skip");
+        eqs(calls.join(","), "tools", "Skip starts nothing");
+        eqs(RSettings.getStringValue(UpdateCore.SETTING_SKIP, ""), UpdateCore.key(offer), "Skip remembers this offer");
+    } finally {
+        CheckForUpdates.applyUpdate = realApply;
+        RMainWindowQt.getMainWindow = realMain;
+        RSettings.setValue(UpdateCore.SETTING_SKIP, skipBefore);
+    }
+})();
+
 (new QDir(root)).removeRecursively();
 finish("ui_test.js");

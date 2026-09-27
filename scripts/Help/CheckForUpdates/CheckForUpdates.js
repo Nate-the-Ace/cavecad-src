@@ -243,7 +243,7 @@ CheckForUpdates.prompt = function(d) {
         CheckForUpdates.promptBox = null;
         box.deleteLater();
         if (which === "Skip") { RSettings.setValue(UpdateCore.SETTING_SKIP, UpdateCore.key(d)); return; }
-        if (which === "UpdateNow") { CheckForUpdates.apply(d); }
+        if (which === "UpdateNow") { CheckForUpdates.applyUpdate(d); }
     });
     CheckForUpdates.promptBox = box;
     box.show();
@@ -259,7 +259,7 @@ CheckForUpdates.relaunchPath = function(sys, target) {
     return target;
 };
 
-CheckForUpdates.apply = function(d) {
+CheckForUpdates.applyUpdate = function(d) {
     var sys = RS.getSystemId();
     var target = null;
     if (d.kind === "full") {
