@@ -140,6 +140,7 @@ UpdateRun.run = function(command, timeoutS, done) {
     p.start(command.program, command.args);
     // no child waits on input; an open stdin pipe can hang powershell.exe
     p.closeWriteChannel();
+    return p;   // lets a caller kill() it early; the callback still fires once
 };
 
 /** Starts command detached (it outlives CaveCAD). Returns {ok, error}. */

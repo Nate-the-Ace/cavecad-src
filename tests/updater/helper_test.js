@@ -196,18 +196,27 @@ c = makeCase("busy");
 var sleeper = null, sleeperCmd;
 if (SYS === "win") {
     QFile.copy(winSys32("PING.EXE"), c.target + "/ping.exe");
-    sleeperCmd = { program: c.target + "/ping.exe", args: ["-n", "30", "127.0.0.1"] };
+    sleeperCmd = { program: c.target + "/ping.exe", args: ["-n", "90", "127.0.0.1"] };
 } else {
     // its command line names a path inside (macOS) or equal to (Linux) the
     // target; "; exit 0" keeps sh from exec-ing sleep (which would drop it)
-    sleeperCmd = { program: "/bin/sh", args: ["-c", "sleep 30; exit 0", SYS === "osx" ? c.target + "/Contents/MacOS/CaveCAD" : c.target] };
+    sleeperCmd = { program: "/bin/sh", args: ["-c", "sleep 90; exit 0", SYS === "osx" ? c.target + "/Contents/MacOS/CaveCAD" : c.target] };
 }
-UpdateRun.run(sleeperCmd, 12, function(x) { sleeper = x; });
-spin(500);
+// The stand-in must outlive the helper's check: PowerShell alone can take
+// many seconds to start on a cold CI runner, and a stand-in that ended
+// first made the folder legitimately not busy (a false failure on the
+// Windows ARM64 runner, 2026-09-27). It lives 90 s, the runner's limit is
+// 120 s, and the test asserts it was still running when the helper
+// finished, so a timing slip reads as a test problem, not an updater one.
+var sleeperProc = UpdateRun.run(sleeperCmd, 120, function(x) { sleeper = x; });
+spin(1000);
+ok(sleeper === null, "busy target: the stand-in program started and is running");
 r = runHelper(c);
+ok(sleeper === null, "busy target: the stand-in was still running when the helper finished (else the test, not the updater, is wrong)");
 st = status(c);
 ok(st !== null && st.result === "failed" && String(st.error).indexOf("still running") >= 0, "busy target: status failed: " + JSON.stringify(st));
 assertIntact(c, "busy target");
+sleeperProc.kill();
 spin(20000, function() { return sleeper !== null; });
 
 // ---- "No" to the restart: installs at quit, never relaunches ----
