@@ -32,15 +32,46 @@ UpdateRun.decode = function(qba) {
     return s;
 };
 
+/**
+ * Inside an AppImage, AppRun points LD_LIBRARY_PATH (and QT_PLUGIN_PATH)
+ * into the mounted image, and every child would inherit that: curl,
+ * python3 or tar loading CaveCAD's bundled libraries, and a helper that
+ * outlives the mount pointing at a vanished folder. vars: {APPIMAGE,
+ * APPDIR, LD_LIBRARY_PATH, QT_PLUGIN_PATH}. Returns {set: {name: value},
+ * remove: [names]}, or null when nothing needs changing.
+ */
+UpdateRun.cleanEnv = function(vars) {
+    var appimage = String(vars.APPIMAGE || ""), appdir = String(vars.APPDIR || "").replace(/\/+$/, "");
+    if (appimage === "") { return null; }
+    var out = { set: {}, remove: ["QT_PLUGIN_PATH"] };
+    var ld = String(vars.LD_LIBRARY_PATH || "");
+    if (ld !== "") {
+        var kept = ld.split(":").filter(function(e) {
+            return e !== "" && !(appdir !== "" && (e === appdir || e.indexOf(appdir + "/") === 0));
+        });
+        if (kept.length === 0) { out.remove.push("LD_LIBRARY_PATH"); }
+        else { out.set.LD_LIBRARY_PATH = kept.join(":"); }
+    }
+    return out;
+};
+
 UpdateRun.configure = function(p, command) {
     if (command.workingDirectory) {
         p.setWorkingDirectory(command.workingDirectory);
     }
-    if (command.env) {
-        var env = QProcessEnvironment.systemEnvironment();
-        for (var k in command.env) { if (command.env.hasOwnProperty(k)) { env.insert(k, command.env[k]); } }
-        p.setProcessEnvironment(env);
+    var env = QProcessEnvironment.systemEnvironment();
+    var names = ["APPIMAGE", "APPDIR", "LD_LIBRARY_PATH", "QT_PLUGIN_PATH"], vars = {};
+    for (var i = 0; i < names.length; i++) { vars[names[i]] = String(env.value(names[i], "")); }
+    var clean = UpdateRun.cleanEnv(vars);
+    if (!command.env && clean === null) { return; }
+    if (clean !== null) {
+        for (var s in clean.set) { if (clean.set.hasOwnProperty(s)) { env.insert(s, clean.set[s]); } }
+        for (var r = 0; r < clean.remove.length; r++) { env.remove(clean.remove[r]); }
     }
+    if (command.env) {
+        for (var k in command.env) { if (command.env.hasOwnProperty(k)) { env.insert(k, command.env[k]); } }
+    }
+    p.setProcessEnvironment(env);
 };
 
 /**

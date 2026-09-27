@@ -6,7 +6,8 @@
 var UpdateDownload = {};
 UpdateDownload.base = UpdateCore.BASE;   // tests point this at file://
 UpdateDownload.allowFile = false;        // ...and set this, or curl refuses file://
-UpdateDownload.TIMEOUT_S = 900;
+// An overall cap only: stalls are caught by curl itself (UpdateCommands.fetch).
+UpdateDownload.TIMEOUT_S = 4 * 3600;
 
 UpdateDownload.system = function() { return RS.getSystemId(); };
 

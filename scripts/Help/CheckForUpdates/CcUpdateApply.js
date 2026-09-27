@@ -71,7 +71,8 @@ UpdateApply.writable = function(target) {
 };
 
 UpdateApply.q = function(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; };      // sh
-UpdateApply.pq = function(s) { return "'" + String(s).replace(/'/g, "''") + "'"; };        // PowerShell
+// PowerShell also ends a single-quoted string at the curly quotes U+2018-U+201B
+UpdateApply.pq = function(s) { return "'" + String(s).replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&") + "'"; };
 
 /**
  * The helper that runs after CaveCAD quits. o: {pid, download, target,

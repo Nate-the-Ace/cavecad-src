@@ -57,6 +57,8 @@ ok(UpdateApply.writable(root + "/user/CaveSurvey"), "a temp folder is writable")
 var sh = UpdateApply.helperScript("osx", { pid: 4242, download: "/tmp/a b.dmg", target: "/Applications/CaveCAD.app", relaunch: "/Applications/CaveCAD.app" });
 ok(sh.indexOf("kill -0 4242") >= 0, "helper waits for the pid");
 ok(sh.indexOf("'/tmp/a b.dmg'") >= 0, "paths are single-quoted");
+eqs(UpdateApply.pq("it's"), "'it''s'", "PowerShell quoting doubles '");
+eqs(UpdateApply.pq("a\u2019b\u2018c\u201Ad\u201Be"), "'a\u2019\u2019b\u2018\u2018c\u201A\u201Ad\u201B\u201Be'", "PowerShell quoting doubles the curly single quotes too");
 var ps = UpdateApply.helperScript("win", { pid: 4242, download: "C:/t/n.zip", target: "C:/Tools/CaveCAD", relaunch: "C:/Tools/CaveCAD/cavecad.exe" });
 ok(ps.indexOf("Wait-Process -Id 4242") >= 0, "Windows helper waits for the pid");
 ok(ps.indexOf("Set-Location $env:TEMP") >= 0 && ps.indexOf("Set-Location") < ps.indexOf("Rename-Item"),

@@ -7,7 +7,8 @@
 // On Windows every program is an ABSOLUTE path under %SystemRoot%: resolved
 // through PATH, "tar" can be MSYS/Git's GNU tar (which reads "C:" as a
 // remote host and cannot unpack zips), and "curl"/"powershell" can be
-// whatever a user or an installer put first.
+// whatever a user or an installer put first. On macOS likewise /usr/bin:
+// a Homebrew GNU tar first on PATH cannot read zips.
 
 var UpdateCommands = {};
 
@@ -30,7 +31,7 @@ UpdateCommands.hash = function(system, path) {
             args: ["-NoProfile", "-NonInteractive", "-Command",
                 "(Get-FileHash -Algorithm SHA256 -LiteralPath $env:CAVECAD_HASH_PATH).Hash"] };
     }
-    if (String(system) === "osx") { return { program: "shasum", args: ["-a", "256", "--", path] }; }
+    if (String(system) === "osx") { return { program: "/usr/bin/shasum", args: ["-a", "256", "--", path] }; }
     return { program: "sha256sum", args: ["--", path] };
 };
 
@@ -41,25 +42,38 @@ UpdateCommands.parseHash = function(stdout) {
 
 /**
  * https only, redirects included. opts.allowFile (tests only) also lets the
- * first URL be file://; redirects stay https-only either way.
+ * first URL be file://; redirects stay https-only either way. No wall-clock
+ * limit of its own: curl gives up when the transfer stalls (under 1 KB/s
+ * for STALL_S seconds), so a slow but moving download of a big app is not
+ * cut off; the caller's timeout is only a generous overall cap.
  */
+UpdateCommands.STALL_S = 60;
 UpdateCommands.fetch = function(system, url, out, opts) {
     var allowFile = !!(opts && opts.allowFile);
-    return { program: UpdateCommands.isWin(system) ? UpdateCommands.winProgram("curl.exe") : "curl",
+    var program = UpdateCommands.isWin(system) ? UpdateCommands.winProgram("curl.exe")
+        : (String(system) === "osx" ? "/usr/bin/curl" : "curl");
+    return { program: program,
              args: ["-fsSL", "--proto", allowFile ? "=https,file" : "=https", "--proto-redir", "=https",
-                    "--retry", "2", "-o", out, url] };
+                    "--retry", "2", "--connect-timeout", "30",
+                    "--speed-limit", "1024", "--speed-time", String(UpdateCommands.STALL_S),
+                    "-o", out, url] };
 };
 
-/** Linux without curl: Python's urllib follows redirects too. Same scheme rule. */
+/**
+ * Linux without curl: Python's urllib follows redirects too. Same scheme
+ * rule. The socket timeout is its stall detection: any single read that
+ * waits longer than STALL_S fails the fetch.
+ */
 UpdateCommands.fetchFallback = function(system, url, out, opts) {
     var allowFile = !!(opts && opts.allowFile);
     return { program: "python3", args: ["-c",
-        "import sys, urllib.request\n" +
+        "import socket, sys, urllib.request\n" +
+        "socket.setdefaulttimeout(float(sys.argv[4]))\n" +
         "u = sys.argv[1]\n" +
         "if not (u.startswith('https://') or (sys.argv[3] == '1' and u.startswith('file://'))):\n" +
         "    sys.exit('refusing a non-https URL')\n" +
         "urllib.request.urlretrieve(u, sys.argv[2])",
-        url, out, allowFile ? "1" : "0"] };
+        url, out, allowFile ? "1" : "0", String(UpdateCommands.STALL_S)] };
 };
 
 /**
@@ -72,7 +86,7 @@ UpdateCommands.unzip = function(system, zip, dest) {
         return { program: "python3", args: ["-c",
             "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])", zip, dest] };
     }
-    return { program: UpdateCommands.isWin(system) ? UpdateCommands.winProgram("tar.exe") : "tar",
+    return { program: UpdateCommands.isWin(system) ? UpdateCommands.winProgram("tar.exe") : "/usr/bin/tar",
              args: ["-C", dest, "-xf", zip] };
 };
 

@@ -7,7 +7,7 @@ var realWinRoot = UpdateCommands.winRoot;
 UpdateCommands.winRoot = function() { return "D:\\Win"; };
 
 var mac = UpdateCommands.hash("osx", "/a b/c.zip");
-eqs(mac.program, "shasum", "macOS hashes with shasum");
+eqs(mac.program, "/usr/bin/shasum", "macOS hashes with /usr/bin/shasum");
 eqs(mac.args.join("|"), "-a|256|--|/a b/c.zip", "path is its own argument, after --");
 eqs(UpdateCommands.hash("linux", "/x").args.join("|"), "--|/x", "Linux sha256sum -- path");
 var win = UpdateCommands.hash("win", "C:/it's.zip");
@@ -21,15 +21,18 @@ ok(UpdateCommands.parseHash("") === null, "empty output is no hash");
 
 eqs(UpdateCommands.fetch("win", "https://u", "C:/o").program, "D:\\Win\\System32\\curl.exe", "Windows: absolute curl.exe");
 eqs(UpdateCommands.fetch("osx", "https://u", "/o").args.join("|"),
-    "-fsSL|--proto|=https|--proto-redir|=https|--retry|2|-o|/o|https://u", "curl: https only, redirects too");
+    "-fsSL|--proto|=https|--proto-redir|=https|--retry|2|--connect-timeout|30|--speed-limit|1024|--speed-time|60|-o|/o|https://u",
+    "curl: https only, redirects too, gives up on a stall");
+eqs(UpdateCommands.fetch("osx", "https://u", "/o").program, "/usr/bin/curl", "macOS: /usr/bin/curl");
 ok(UpdateCommands.fetch("osx", "file:///x", "/o", { allowFile: true }).args.join("|").indexOf("--proto|=https,file|--proto-redir|=https") >= 0,
     "allowFile permits file:// but not on redirects");
 var fb = UpdateCommands.fetchFallback("linux", "https://u", "/o");
 eqs(fb.program, "python3", "Linux fallback python");
-eqs(fb.args.slice(2).join("|"), "https://u|/o|0", "fallback: url, out, file:// refused");
+eqs(fb.args.slice(2).join("|"), "https://u|/o|0|60", "fallback: url, out, file:// refused, stall timeout");
+ok(fb.args[1].indexOf("setdefaulttimeout") >= 0, "fallback sets a socket timeout");
 
 eqs(UpdateCommands.unzip("osx", "/z.zip", "/d").args.join("|"), "-C|/d|-xf|/z.zip", "tar unzip");
-eqs(UpdateCommands.unzip("osx", "/z.zip", "/d").program, "tar", "macOS bsdtar");
+eqs(UpdateCommands.unzip("osx", "/z.zip", "/d").program, "/usr/bin/tar", "macOS: /usr/bin/tar (bsdtar), never a GNU tar on PATH");
 eqs(UpdateCommands.unzip("win", "C:/z.zip", "C:/d").program, "D:\\Win\\System32\\tar.exe", "Windows: System32 bsdtar, never an MSYS tar on PATH");
 eqs(UpdateCommands.unzip("linux", "/z.zip", "/d").program, "python3", "zipfile on Linux");
 
@@ -46,6 +49,16 @@ ok(dw.args.indexOf("cmd") < 0 && dw.args.indexOf("start") < 0 && dw.args.indexOf
 eqs(dw.args[dw.args.length - 2], "-Command", "PowerShell -Command ...");
 ok(dw.args[dw.args.length - 1].indexOf("$env:CAVECAD_HELPER") >= 0, "... reading the path from the environment");
 UpdateCommands.winRoot = realWinRoot;
+
+// AppImage children must not inherit AppRun's library and plugin paths
+ok(UpdateRun.cleanEnv({ LD_LIBRARY_PATH: "/x" }) === null, "outside an AppImage the environment is untouched");
+var ce = UpdateRun.cleanEnv({ APPIMAGE: "/h/C.AppImage", APPDIR: "/tmp/.mount_ab/", LD_LIBRARY_PATH: "/tmp/.mount_ab/usr/lib:/opt/lib:/tmp/.mount_abc/lib:/tmp/.mount_ab", QT_PLUGIN_PATH: "/tmp/.mount_ab/plugins" });
+eqs(ce.set.LD_LIBRARY_PATH, "/opt/lib:/tmp/.mount_abc/lib", "AppImage: entries under $APPDIR dropped, others kept");
+ok(ce.remove.indexOf("QT_PLUGIN_PATH") >= 0, "AppImage: QT_PLUGIN_PATH dropped");
+var ce2 = UpdateRun.cleanEnv({ APPIMAGE: "/h/C.AppImage", APPDIR: "/tmp/.mount_ab", LD_LIBRARY_PATH: "/tmp/.mount_ab/usr/lib" });
+var pe = QProcessEnvironment.systemEnvironment(); pe.insert("CC_UPD_X", "1"); pe.remove("CC_UPD_X");
+ok(!pe.contains("CC_UPD_X"), "QProcessEnvironment.remove is bound (configure relies on it)");
+ok(ce2.remove.indexOf("LD_LIBRARY_PATH") >= 0 && !ce2.set.hasOwnProperty("LD_LIBRARY_PATH"), "AppImage: an all-AppDir LD_LIBRARY_PATH is removed");
 
 // ---- real runs on this machine ----
 var dir = QDir.tempPath() + "/cc upd'test";   // space and apostrophe on purpose
