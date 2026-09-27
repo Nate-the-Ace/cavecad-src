@@ -271,7 +271,9 @@ jobs:
           # the notes name the commit each published platform was built from
           apps=""
           for a in "$@"; do c="${a#*=}"; apps="$apps ${a%%=*}@${c:0:8}"; done
-          python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" dist "$(cat addon/VERSION)" "$(cat addon/COMMIT)" "$@"
+          # per-publish names for the updater (see make_manifest.py)
+          python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" --suffix "u$GITHUB_RUN_ID" \
+            dist "$(cat addon/VERSION)" "$(cat addon/COMMIT)" "$@"
           (cd dist && sha256sum -c --quiet ./*.sha256)
           ls -l dist
           armrow=""
@@ -303,12 +305,27 @@ jobs:
           EOF
           sed -i 's/^          //' notes.md
           if [ "$TAG" = latest-build ]; then
-            # Recreated, not edited, so the release sorts as new (the app
-            # commit it holds is in the notes). Asset names never change, so
-            # releases/download/latest-build/<name> links keep working.
-            gh release delete latest-build -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
-            gh release create latest-build dist/* -R "$GITHUB_REPOSITORY" --prerelease \
-              --title "CaveCAD latest build" --notes-file notes.md
+            # UPDATED IN PLACE, never deleted and re-created: GitHub's
+            # download links go stale for a while after a release or file
+            # is replaced (404s, old bytes, broken transfers), and
+            # installed CaveCADs fetch through exactly those links. The
+            # manifest goes up LAST, so it never names a file not yet there.
+            R="$GITHUB_REPOSITORY"
+            if ! gh release view latest-build -R "$R" >/dev/null 2>&1; then
+              gh release create latest-build -R "$R" --prerelease \
+                --title "CaveCAD latest build" --notes-file notes.md
+            fi
+            find dist -maxdepth 1 -type f ! -name 'latest.json*' -print0 |
+              xargs -0 gh release upload latest-build -R "$R" --clobber
+            gh release upload latest-build -R "$R" --clobber dist/latest.json dist/latest.json.sha256
+            gh release edit latest-build -R "$R" --notes-file notes.md
+            # keep the newest three publishes' update files, so a stale
+            # cached latest.json still points at files that exist
+            gh release view latest-build -R "$R" --json assets -q '.assets[].name' |
+              python3 "$GITHUB_WORKSPACE/cavecad-src/tools/make_manifest.py" --prunable |
+              while read -r old; do
+                [ -n "$old" ] && gh release delete-asset latest-build "$old" -R "$R" -y
+              done
           else
             gh release create "$TAG" dist/* -R "$GITHUB_REPOSITORY" --prerelease \
               --title "CaveCAD $TAG" --notes-file notes.md
