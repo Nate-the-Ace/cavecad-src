@@ -1,4 +1,4 @@
-// UpdateRun.js -- runs {program, args[, env][, workingDirectory]} WITHOUT
+// CcUpdateRun.js -- runs {program, args[, env][, workingDirectory]} WITHOUT
 // blocking: the answer arrives through QProcess.finished. The engine has no
 // async networking, so this is how downloads and hashing stay off the UI's
 // back.

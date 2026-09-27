@@ -17,11 +17,11 @@
 
 include("scripts/Help/Help.js");
 include("scripts/AddOn.js");
-include("UpdateCore.js");
-include("UpdateCommands.js");
-include("UpdateRun.js");
-include("UpdateDownload.js");
-include("UpdateApply.js");
+include("CcUpdateCore.js");
+include("CcUpdateCommands.js");
+include("CcUpdateRun.js");
+include("CcUpdateDownload.js");
+include("CcUpdateApply.js");
 
 function CheckForUpdates(guiAction) { Help.call(this, guiAction); }
 CheckForUpdates.prototype = new Help();

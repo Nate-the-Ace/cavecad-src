@@ -1,4 +1,4 @@
-// UpdateDownload.js -- fetch latest.json, and download an asset that must
+// CcUpdateDownload.js -- fetch latest.json, and download an asset that must
 // match BOTH the manifest's SHA-256 and its published .sha256 sidecar.
 // Silent: a mismatch deletes the file and downloads once more; only a
 // second failure comes back as ok:false. Nothing unverified is kept.

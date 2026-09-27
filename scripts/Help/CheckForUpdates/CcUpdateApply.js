@@ -1,4 +1,4 @@
-// UpdateApply.js -- putting a VERIFIED download in place.
+// CcUpdateApply.js -- putting a VERIFIED download in place.
 
 var UpdateApply = {};
 

@@ -694,7 +694,7 @@ AddOn.readVersion = function(dir) {
 
 /**
  * Dotted integer versions, >0 when a is newer. A deliberate copy of
- * UpdateCore.compareVersions (scripts/Help/CheckForUpdates/UpdateCore.js):
+ * UpdateCore.compareVersions (scripts/Help/CheckForUpdates/CcUpdateCore.js):
  * AddOn.js loads long before the updater, so it cannot use that one.
  * Change both together.
  */

@@ -1,4 +1,4 @@
-// UpdateCore.js -- the updater's pure logic: nothing here touches the
+// CcUpdateCore.js -- the updater's pure logic: nothing here touches the
 // network, the disk or the UI, so all of it is unit-tested.
 
 var UpdateCore = {};

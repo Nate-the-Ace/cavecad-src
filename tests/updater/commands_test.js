@@ -1,6 +1,6 @@
 include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexOf("-autostart") + 2] + "/tests/updater/harness.js");
-load("scripts/Help/CheckForUpdates/UpdateCommands.js");
-load("scripts/Help/CheckForUpdates/UpdateRun.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCommands.js");
+load("scripts/Help/CheckForUpdates/CcUpdateRun.js");
 
 // ---- pure builders (every platform's shape, checked on every platform) ----
 var realWinRoot = UpdateCommands.winRoot;

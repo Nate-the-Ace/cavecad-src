@@ -3,11 +3,11 @@ include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexO
 // tools version it loads, and what a finished check does.
 load("scripts/library.js");
 load("scripts/AddOn.js");
-load("scripts/Help/CheckForUpdates/UpdateCore.js");
-load("scripts/Help/CheckForUpdates/UpdateCommands.js");
-load("scripts/Help/CheckForUpdates/UpdateRun.js");
-load("scripts/Help/CheckForUpdates/UpdateDownload.js");
-load("scripts/Help/CheckForUpdates/UpdateApply.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCore.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCommands.js");
+load("scripts/Help/CheckForUpdates/CcUpdateRun.js");
+load("scripts/Help/CheckForUpdates/CcUpdateDownload.js");
+load("scripts/Help/CheckForUpdates/CcUpdateApply.js");
 load("scripts/Help/CheckForUpdates/CheckForUpdates.js");
 ok(typeof CheckForUpdates.action === "function", "worktree CheckForUpdates.js loaded");
 

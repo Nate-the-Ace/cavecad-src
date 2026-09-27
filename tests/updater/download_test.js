@@ -1,8 +1,8 @@
 include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexOf("-autostart") + 2] + "/tests/updater/harness.js");
-load("scripts/Help/CheckForUpdates/UpdateCore.js");
-load("scripts/Help/CheckForUpdates/UpdateCommands.js");
-load("scripts/Help/CheckForUpdates/UpdateRun.js");
-load("scripts/Help/CheckForUpdates/UpdateDownload.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCore.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCommands.js");
+load("scripts/Help/CheckForUpdates/CcUpdateRun.js");
+load("scripts/Help/CheckForUpdates/CcUpdateDownload.js");
 
 var hex = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 var src = QDir.tempPath() + "/cc-dl-src", dst = QDir.tempPath() + "/cc-dl-dst";

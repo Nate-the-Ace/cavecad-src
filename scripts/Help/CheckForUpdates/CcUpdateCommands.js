@@ -1,4 +1,4 @@
-// UpdateCommands.js -- {program, args[, env]} for each platform program the
+// CcUpdateCommands.js -- {program, args[, env]} for each platform program the
 // updater needs. The script engine has no SHA-256, no redirect-following
 // download and no zip library (measured 2026-09-26), so these do the work.
 // Paths are always their own arguments (or, on Windows, an environment

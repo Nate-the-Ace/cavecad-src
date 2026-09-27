@@ -1,5 +1,5 @@
 include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexOf("-autostart") + 2] + "/tests/updater/harness.js");
-load("scripts/Help/CheckForUpdates/UpdateCore.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCore.js");
 
 ok(UpdateCore.compareVersions("0.9.181.0", "0.9.180.1") > 0, "newer is greater");
 eqs(UpdateCore.compareVersions("0.9.4", "0.9.4.0"), 0, "missing parts are zero");

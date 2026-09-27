@@ -1,9 +1,9 @@
 include(RSettings.getOriginalArguments()[RSettings.getOriginalArguments().indexOf("-autostart") + 2] + "/tests/updater/harness.js");
 load("scripts/library.js");
 load("scripts/AddOn.js");
-load("scripts/Help/CheckForUpdates/UpdateCommands.js");
-load("scripts/Help/CheckForUpdates/UpdateRun.js");
-load("scripts/Help/CheckForUpdates/UpdateApply.js");
+load("scripts/Help/CheckForUpdates/CcUpdateCommands.js");
+load("scripts/Help/CheckForUpdates/CcUpdateRun.js");
+load("scripts/Help/CheckForUpdates/CcUpdateApply.js");
 
 var root = QDir.tempPath() + "/cc-apply";
 (new QDir(root)).removeRecursively();

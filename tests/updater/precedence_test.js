@@ -56,7 +56,7 @@ AddOn.precedenceRoots = savedRoots;
 // and with the real roots of this run: builds without throwing
 AddOn.precedence = null;
 var threw = null;
-try { AddOn.isIgnored("scripts/Help/CheckForUpdates/UpdateCore.js"); } catch (e) { threw = String(e); }
+try { AddOn.isIgnored("scripts/Help/CheckForUpdates/CcUpdateCore.js"); } catch (e) { threw = String(e); }
 ok(threw === null && AddOn.precedence !== null, "real-root lazy init works: " + threw);
 AddOn.precedence = null;
 (new QDir(root)).removeRecursively();
