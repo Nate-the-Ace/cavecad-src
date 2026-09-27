@@ -6,6 +6,8 @@ function postInit() {
     try {
         if (RSettings.hasQuitFlag()) { return; }
         include("scripts/Help/CheckForUpdates/CheckForUpdates.js");
+        // what the last full-update helper did, reported once, whatever AutoCheck says
+        try { CheckForUpdates.reportStatus(); } catch (e1) { qWarning("CaveCAD update status: " + e1); }
         if (!RSettings.getBoolValue(UpdateCore.SETTING_AUTO, true)) { return; }
         if (CheckForUpdates.local().platform === null) { return; }
         var t = new QTimer(RMainWindowQt.getMainWindow());

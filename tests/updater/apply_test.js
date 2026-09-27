@@ -17,7 +17,7 @@ ok(r.ok, "made a tools zip: " + r.error);
 r = null;
 UpdateApply.installTools(root + "/tools.zip", "9.9.9", root + "/user", function(x) { r = x; loop.quit(); }); loop.exec();
 ok(!r.ok, "wrong version refused");
-ok(!new QFileInfo(root + "/update-tmp").exists(), "work dir removed after a refusal");
+eqs(new QDir(root + "/update-tmp").entryList([], QDir.AllEntries | QDir.Hidden | QDir.NoDotAndDotDot, 0).length, 0, "its folder removed after a refusal");
 eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.181.0", "old copy untouched after a refusal");
 
 r = null;
@@ -25,23 +25,39 @@ UpdateApply.installTools(root + "/tools.zip", "0.9.182.0", root + "/user", funct
 ok(r.ok, "tools installed: " + r.error);
 eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.182.0", "new copy in place");
 eqs(new QDir(root + "/user").entryList([], QDir.Dirs | QDir.Hidden | QDir.NoDotAndDotDot, 0).join(","), "CaveSurvey", "nothing but CaveSurvey in the scripts root");
-ok(!new QFileInfo(root + "/update-tmp").exists(), "work dir removed after the swap");
+eqs(new QDir(root + "/update-tmp").entryList([], QDir.AllEntries | QDir.Hidden | QDir.NoDotAndDotDot, 0).length, 0, "its folder removed after the swap");
 eqs(UpdateApply.workDir(root + "/user"), new QFileInfo(root).absoluteFilePath() + "/update-tmp", "work dir sits beside the scripts root");
 eqs(UpdateApply.workDir(root + "/user/"), UpdateApply.workDir(root + "/user"), "a trailing slash changes nothing");
 
-// an interrupted earlier install left staging and an old copy behind:
-// they are cleared, and never inside the scripts root
-(new QDir()).mkpath(root + "/update-tmp/stage-1/CaveSurvey");
-mk(root + "/update-tmp/old-1", "0.9.1.0");
+// leftovers: an old one (older than maxAge) is pruned, a young one -- maybe
+// another install running right now -- is left alone, as is a kept folder
+(new QDir()).mkpath(root + "/update-tmp/tools-old/stage/CaveSurvey");
+mk(root + "/update-tmp/other-running", "0.9.1.0");
 mk(root + "/new/CaveSurvey", "0.9.183.0");
 QFile.remove(root + "/tools.zip");
 r = null;
 UpdateRun.run(zipCmd(root + "/new", "CaveSurvey", root + "/tools.zip"), 60, function(x) { r = x; loop.quit(); }); loop.exec();
 r = null;
 UpdateApply.installTools(root + "/tools.zip", "0.9.183.0", root + "/user", function(x) { r = x; loop.quit(); }); loop.exec();
-ok(r.ok, "install over leftovers: " + r.error);
+ok(r.ok, "install beside leftovers: " + r.error);
 eqs(AddOn.readVersion(root + "/user/CaveSurvey"), "0.9.183.0", "newest copy in place");
-ok(!new QFileInfo(root + "/update-tmp").exists(), "leftovers from an interrupted install cleared");
+ok(new QFileInfo(root + "/update-tmp/other-running/VERSION").exists(), "a young folder of another install is left alone");
+eqs(new QDir(root + "/update-tmp").entryList([], QDir.AllEntries | QDir.Hidden | QDir.NoDotAndDotDot, 0).join(","), "other-running,tools-old",
+    "the install removed only its own folder");
+spin(1600);
+UpdateApply.keep = [root + "/update-tmp/tools-old"];
+UpdateApply.prune(root + "/update-tmp", 500);
+UpdateApply.keep = [];
+eqs(new QDir(root + "/update-tmp").entryList([], QDir.AllEntries | QDir.Hidden | QDir.NoDotAndDotDot, 0).join(","), "tools-old",
+    "prune removes what is older than maxAge, except a kept folder");
+(new QDir(root + "/update-tmp")).removeRecursively();
+
+// fresh folders are unique and never reuse an existing one
+var f1 = UpdateApply.freshDir(root + "/fd", "dl"), f2 = UpdateApply.freshDir(root + "/fd", "dl");
+ok(f1 !== null && f2 !== null && f1 !== f2 && new QFileInfo(f1).isDir(), "freshDir makes distinct folders");
+ok(!(new QDir(root + "/fd")).mkdir(f1.substring(f1.lastIndexOf("/") + 1)), "QDir.mkdir refuses an existing folder (freshDir relies on it)");
+eqs(UpdateApply.tmpBase("/d/x/"), "/d/x/update-tmp", "tmpBase is per-user data/update-tmp");
+eqs(UpdateApply.statusPath("/d/x"), "/d/x/update-status.json", "status file in the data location");
 
 // first update on a machine with no per-user scripts folder yet
 r = null;
@@ -54,33 +70,49 @@ eqs(UpdateApply.installTarget("linux", "/tmp/.mount_x/usr/bin/cavecad-bin", { AP
 ok(UpdateApply.installTarget("linux", "/usr/bin/cavecad-bin", {}) === null, "Linux outside an AppImage: unknown target");
 ok(UpdateApply.writable(root + "/user/CaveSurvey"), "a temp folder is writable");
 
-var sh = UpdateApply.helperScript("osx", { pid: 4242, download: "/tmp/a b.dmg", target: "/Applications/CaveCAD.app", relaunch: "/Applications/CaveCAD.app" });
+// full-update blockers (Windows: the folder must prove it is a CaveCAD package)
+(new QDir()).mkpath(root + "/Tools/CaveCAD"); writeFile(root + "/Tools/CaveCAD/cavecad.exe", "x");
+ok(UpdateApply.fullUpdateBlocker("win", root + "/Tools/CaveCAD") !== null, "Windows: a folder without cavecad-build.json is refused");
+writeFile(root + "/Tools/CaveCAD/cavecad-build.json", "{}");
+eqs(UpdateApply.fullUpdateBlocker("win", root + "/Tools/CaveCAD"), null, "Windows: a packaged folder may be replaced");
+ok(UpdateApply.fullUpdateBlocker("win", "D:") !== null && UpdateApply.fullUpdateBlocker("win", "D:/") !== null, "Windows: a drive root is refused");
+ok(UpdateApply.fullUpdateBlocker("osx", root + "/Tools/CaveCAD") !== null, "macOS: a bundle without Contents/Resources/cavecad-build.json is refused");
+ok(UpdateApply.fullUpdateBlocker("linux", null) !== null, "no target: refused");
+
+var o = { pid: 4242, download: "/tmp/a b.dmg", sha256: "AB", target: "/Applications/CaveCAD.app", relaunch: "/Applications/CaveCAD.app",
+          work: "/w", status: "/s.json", key: "full|c|1", stamp: "77" };
+var sh = UpdateApply.helperScript("osx", o);
 ok(sh.indexOf("kill -0 4242") >= 0, "helper waits for the pid");
 ok(sh.indexOf("'/tmp/a b.dmg'") >= 0, "paths are single-quoted");
-eqs(UpdateApply.pq("it's"), "'it''s'", "PowerShell quoting doubles '");
-eqs(UpdateApply.pq("a\u2019b\u2018c\u201Ad\u201Be"), "'a\u2019\u2019b\u2018\u2018c\u201A\u201Ad\u201B\u201Be'", "PowerShell quoting doubles the curly single quotes too");
-var ps = UpdateApply.helperScript("win", { pid: 4242, download: "C:/t/n.zip", target: "C:/Tools/CaveCAD", relaunch: "C:/Tools/CaveCAD/cavecad.exe" });
-ok(ps.indexOf("Wait-Process -Id 4242") >= 0, "Windows helper waits for the pid");
-ok(ps.indexOf("Set-Location $env:TEMP") >= 0 && ps.indexOf("Set-Location") < ps.indexOf("Rename-Item"),
+ok(sh.indexOf(".old-77") >= 0 && sh.indexOf(".new-77") >= 0 && sh.indexOf("\"$target.old\"") < 0, "unique .old/.new names only");
+ok(sh.indexOf("sha='ab'") >= 0, "expected sha256 baked in, lowercased");
+ok(sh.indexOf("/usr/bin/open '/Applications/CaveCAD.app'") >= 0, "restart mode relaunches");
+o.mode = "atQuit";
+var shq = UpdateApply.helperScript("osx", o);
+ok(shq.indexOf("/usr/bin/open") < 0 && shq.indexOf("$i -lt") < 0, "atQuit: no time limit, no relaunch");
+o.mode = "restart";
+var ps = UpdateApply.helperScript("win", { pid: 4242, download: "C:/t/n.zip", sha256: "ab", target: "C:/Tools/CaveCAD", relaunch: "C:/Tools/CaveCAD/cavecad.exe",
+    work: "C:/w", status: "C:/s.json", key: "k", stamp: "77" });
+ok(ps.indexOf("Get-Process -Id 4242") >= 0 && ps.indexOf("WaitForExit(60000)") >= 0, "Windows helper waits for the pid, 60 s");
+ok(ps.indexOf("Set-Location") >= 0 && ps.indexOf("Set-Location") < ps.indexOf("Rename-Item"),
     "Windows helper leaves the install folder before renaming it");
+var noLiteral = [], cmdRe = /(Test-Path|Remove-Item|Rename-Item|Move-Item|Expand-Archive|Get-FileHash|Set-Location|Get-ChildItem)\b([^;|})\r\n]*)/g, cm;
+while ((cm = cmdRe.exec(ps)) !== null) { if (cm[2].indexOf("-LiteralPath") < 0) { noLiteral.push(cm[0]); } }
+eqs(noLiteral.join(" / "), "", "PowerShell: -LiteralPath everywhere");
+ok(ps.indexOf("'.old-77'") >= 0 && ps.indexOf("'.old'") < 0, "Windows: unique .old name only");
 
-// Task 8 Step 1: the relaunchOnly branch (a tools-only update needs no
-// install step in the helper -- just wait for the pid, then relaunch).
-ok(UpdateApply.helperScript("osx", { pid: 1, relaunch: "/A.app", relaunchOnly: true }).indexOf("open '/A.app'") >= 0, "relaunch-only helper");
+ok(UpdateApply.helperScript("osx", { mode: "relaunchOnly", pid: 1, relaunch: "/A.app", work: "/w" }).indexOf("open '/A.app'") >= 0, "relaunch-only helper");
 
-// launchHelper writes the script to a real file before detaching it; the
-// plan's "new QByteArray(text)" write would silently produce an EMPTY file
-// in this engine, so writeHelper is split out and tested directly here
-// without ever launching or running the script.
-var wpath = UpdateApply.writeHelper("osx", { pid: 1, download: "/tmp/x.dmg", target: "/Applications/CaveCAD.app", relaunch: "/Applications/CaveCAD.app" });
-ok(new QFileInfo(wpath).exists(), "writeHelper wrote a file");
-var wf = new QFile(wpath);
-wf.open(QIODevice.ReadOnly | QIODevice.Text);
-var written = String(new QTextStream(wf).readAll());
-wf.close();
-ok(written.length > 0, "written helper file is non-empty");
-eqs(written, UpdateApply.helperScript("osx", { pid: 1, download: "/tmp/x.dmg", target: "/Applications/CaveCAD.app", relaunch: "/Applications/CaveCAD.app" }), "written helper matches helperScript() text");
-(new QFile(wpath)).remove();
+// writeHelper: into the install's own folder, the exact text (a
+// "new QByteArray(text)" write would be EMPTY in this engine)
+(new QDir()).mkpath(root + "/w");
+o.work = root + "/w";
+var wpath = UpdateApply.writeHelper("osx", o);
+ok(wpath !== null && new QFileInfo(wpath).exists() && wpath.indexOf(root + "/w/helper-") === 0, "writeHelper wrote into the work folder");
+var written = readFile(wpath);
+ok(written !== null && written.length > 0, "written helper file is non-empty");
+o.stamp = "77";
+eqs(written, UpdateApply.helperScript("osx", o), "written helper matches helperScript() text");
 
 (new QDir(root)).removeRecursively();
 finish("apply_test.js");

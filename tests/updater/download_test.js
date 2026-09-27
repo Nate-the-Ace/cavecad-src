@@ -16,10 +16,12 @@ write(src + "/latest.json", JSON.stringify({ schema: 1, tools: { version: "1", c
     platforms: { "windows-x64": { app_commit: "a", asset: "../x.zip", sha256: hex }, "macos-arm64": { app_commit: "b", asset: "m.dmg", sha256: hex } } }));
 UpdateDownload.base = fileUrl(src + "/");
 UpdateDownload.allowFile = true;
+UpdateDownload.tmpDir = function() { return dst; };
 
 var loop = new QEventLoop(), r = null;
 UpdateDownload.manifest(function(x) { r = x; loop.quit(); }); loop.exec();
 ok(r.ok && r.manifest.tools.version === "1", "manifest fetched and validated: " + r.error);
+eqs(new QDir(dst).entryList([], QDir.Files | QDir.Hidden, 0).length, 0, "the manifest's temp copy is removed");
 ok(r.ok && !r.manifest.platforms.hasOwnProperty("windows-x64") && r.manifest.platforms.hasOwnProperty("macos-arm64"),
     "a bad platform entry is dropped, the rest kept");
 

@@ -12,8 +12,9 @@
 //   signal fires after a click, with clickedButton() set (null on Escape).
 // - QProgressDialog: setCancelButton(null), labelText and windowTitle
 //   properties all work. QWidget.close() returns a boolean.
-// - QCoreApplication has no aboutToQuit here, so nothing can run "at quit":
-//   the helper is started only once the main window has agreed to close.
+// - QCoreApplication has no aboutToQuit here, so nothing can run "at quit"
+//   inside CaveCAD: an update installed at quit is a detached helper that
+//   waits for this process to end.
 
 include("scripts/Help/Help.js");
 include("scripts/AddOn.js");
@@ -28,8 +29,10 @@ CheckForUpdates.prototype = new Help();
 CheckForUpdates.RELEASE_PAGE = "https://github.com/Nate-the-Ace/cavecad-src/releases/tag/latest-build";
 CheckForUpdates.STARTUP_TIMEOUT_S = 5;       // spec: the startup fetch gives up after 5 s
 CheckForUpdates.INTERACTIVE_TIMEOUT_S = 30;
+CheckForUpdates.SETTING_FAILED = "CheckForUpdates/FailedKey";   // startup stays silent about an offer whose install failed
 CheckForUpdates.busy = false;                // a check or a download is running
 CheckForUpdates.promptBox = null;            // the open prompt, kept alive while shown
+CheckForUpdates.pendingKey = "";             // an app update downloaded this session, installing at quit
 
 CheckForUpdates.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
@@ -80,17 +83,75 @@ CheckForUpdates.local = function(appPath, dataLocation) {
 
 /**
  * What a finished check does with decide()'s answer:
- * "prompt" (offer it), "upToDate" / "dev" (menu only: say so), or
- * "silent". A skipped offer silences only the startup check.
+ * "prompt" (offer it), "pending" (menu only: it is already downloaded and
+ * installs at quit), "upToDate" / "dev" (menu only: say so), or "silent".
+ * suppressed: keys (a string or an array) the STARTUP check stays silent
+ * about -- a skipped offer, or one whose last install failed; the menu
+ * still offers them.
  */
-CheckForUpdates.action = function(decision, interactive, skippedKey) {
+CheckForUpdates.action = function(decision, interactive, suppressed, pendingKey) {
     var kind = decision ? decision.kind : "none";
     if (kind === "full" || kind === "tools") {
-        if (!interactive && skippedKey && skippedKey === UpdateCore.key(decision)) { return "silent"; }
+        var key = UpdateCore.key(decision);
+        if (pendingKey && pendingKey === key) { return interactive ? "pending" : "silent"; }
+        var keys = [].concat(suppressed === undefined || suppressed === null ? [] : suppressed);
+        if (!interactive && keys.indexOf(key) >= 0) { return "silent"; }
         return "prompt";
     }
     if (!interactive) { return "silent"; }
     return kind === "dev" ? "dev" : "upToDate";
+};
+
+/** The helper's status file as an object, or null (absent or unreadable). */
+CheckForUpdates.readStatus = function(path) {
+    var f = new QFile(path);
+    if (!f.open(QIODevice.ReadOnly | QIODevice.Text)) { return null; }
+    var t = String(new QTextStream(f).readAll());
+    f.close();
+    try {
+        var j = JSON.parse(t);
+        return j && typeof j === "object" ? j : null;
+    } catch (e) { return { result: "failed", error: "the update status file is unreadable", key: "" }; }
+};
+
+/**
+ * What the next start does with the helper's status: {message, suppressKey,
+ * log}. A failure is shown (non-modal) and its offer is kept out of the
+ * startup check, so a helper that fails every time cannot re-offer itself
+ * forever; the menu still offers it.
+ */
+CheckForUpdates.statusAction = function(st) {
+    var none = { message: null, suppressKey: null, log: null };
+    if (!st) { return none; }
+    if (st.result === "ok") {
+        return { message: null, suppressKey: null, log: st.error ? "CaveCAD update: " + st.error : null };
+    }
+    var why = String(st.error || "unknown reason");
+    return { message: qsTr("The last CaveCAD update could not be installed: %1.\n\n" +
+                           "Your previous CaveCAD was kept. Help > Check for Updates offers it again, " +
+                           "or download it from %2").arg(why).arg(CheckForUpdates.RELEASE_PAGE),
+             suppressKey: st.key ? String(st.key) : null, log: "CaveCAD update failed: " + why };
+};
+
+/** At startup: reports (once) what the last full-update helper did. */
+CheckForUpdates.reportStatus = function(path) {
+    path = path || UpdateApply.statusPath();
+    var st = CheckForUpdates.readStatus(path);
+    if (st === null) { return; }
+    QFile.remove(path);
+    var a = CheckForUpdates.statusAction(st);
+    if (a.log) { qWarning(a.log); }
+    if (a.suppressKey) { RSettings.setValue(CheckForUpdates.SETTING_FAILED, a.suppressKey); }
+    if (a.message) {
+        var box = new QMessageBox(RMainWindowQt.getMainWindow());
+        box.setWindowTitle(qsTr("CaveCAD Update"));
+        box.setIcon(QMessageBox.Warning);
+        box.textFormat = Qt.PlainText;
+        box.text = a.message;
+        box.addButton(QMessageBox.Ok);
+        box.finished.connect(function() { box.deleteLater(); });
+        box.show();
+    }
 };
 
 CheckForUpdates.say = function(text) {
@@ -125,8 +186,14 @@ CheckForUpdates.run = function(interactive) {
             return;
         }
         var d = UpdateCore.decide(r.manifest, local);
-        var what = CheckForUpdates.action(d, interactive, RSettings.getStringValue(UpdateCore.SETTING_SKIP, ""));
+        var what = CheckForUpdates.action(d, interactive,
+            [RSettings.getStringValue(UpdateCore.SETTING_SKIP, ""), RSettings.getStringValue(CheckForUpdates.SETTING_FAILED, "")],
+            CheckForUpdates.pendingKey);
         if (what === "dev") { CheckForUpdates.say(CheckForUpdates.devText()); return; }
+        if (what === "pending") {
+            CheckForUpdates.say(qsTr("The update is downloaded and installs when you quit CaveCAD."));
+            return;
+        }
         if (what === "upToDate") {
             CheckForUpdates.say(qsTr("You're up to date (app %1, tools %2).")
                 .arg(String(local.appCommit).substring(0, 8)).arg(local.toolsVersion));
@@ -187,12 +254,20 @@ CheckForUpdates.apply = function(d) {
     var target = null;
     if (d.kind === "full") {
         target = UpdateApply.installTarget(sys, QCoreApplication.applicationFilePath(), CheckForUpdates.env());
-        if (target === null || !UpdateApply.writable(target)) {
-            CheckForUpdates.say(qsTr("CaveCAD can't replace itself where it is installed. " +
-                "The release page will open so you can download it."));
+        var why = UpdateApply.fullUpdateBlocker(sys, target);
+        if (why !== null) {
+            CheckForUpdates.say(qsTr("CaveCAD can't replace itself where it is installed (%1). " +
+                "The release page will open so you can download it.").arg(why));
             QDesktopServices.openUrl(new QUrl(CheckForUpdates.RELEASE_PAGE));
             return;
         }
+    }
+    var base = UpdateApply.tmpBase();
+    UpdateApply.prune(base);
+    var dir = UpdateApply.freshDir(base, "dl");
+    if (dir === null) {
+        CheckForUpdates.say(qsTr("The update could not be downloaded: cannot create a folder in %1").arg(base));
+        return;
     }
     CheckForUpdates.busy = true;
     var progress = new QProgressDialog(qsTr("Downloading..."), "", 0, 0, RMainWindowQt.getMainWindow());
@@ -200,8 +275,6 @@ CheckForUpdates.apply = function(d) {
     progress.windowTitle = qsTr("CaveCAD Update");
     progress.minimumDuration = 0;
     progress.show();
-    var dir = QDir.tempPath() + "/cavecad-update-" + UpdateApply.stamp();
-    (new QDir()).mkpath(dir);
     var total = d.size ? " / " + CheckForUpdates.mb(d.size) : "";
     var end = function() { progress.close(); progress.deleteLater(); CheckForUpdates.busy = false; };
     var discard = function() { (new QDir(dir)).removeRecursively(); };
@@ -224,51 +297,93 @@ CheckForUpdates.apply = function(d) {
             return;
         }
         end();
-        CheckForUpdates.restart({ pid: QCoreApplication.applicationPid(), download: r.path,
-            target: target, relaunch: CheckForUpdates.relaunchPath(sys, target) }, discard);
+        CheckForUpdates.restart({ pid: QCoreApplication.applicationPid(), download: r.path, sha256: d.sha256,
+            target: target, relaunch: CheckForUpdates.relaunchPath(sys, target), work: dir,
+            key: UpdateCore.key(d), status: UpdateApply.statusPath() }, discard);
     });
+};
+
+/** win.close() with its answer: false when a save prompt was cancelled. */
+CheckForUpdates.closeMain = function() {
+    var win = RMainWindowQt.getMainWindow();
+    var closed = win.close();
+    return !(closed === false || (closed !== true && win.isVisible()));
 };
 
 /**
  * helper null: the tools are already installed; a restart only relaunches.
- * Otherwise a full update: the helper installs once CaveCAD has quit.
- * The helper starts only after the main window agreed to close (unsaved
- * drawings can cancel that): a helper left waiting on a live CaveCAD would
- * give up after 60 s and swap the app out from under it.
+ * Otherwise a full update, verified and waiting in helper.work:
+ *   Yes -- the helper is WRITTEN first (if that fails CaveCAD is still
+ *          running and says so), then the main window closes (unsaved
+ *          drawings can cancel that), and only then is the helper started:
+ *          it waits for this process, installs and relaunches. If a save
+ *          prompt is cancelled, it falls back to "No".
+ *   No  -- the helper starts now in "atQuit" mode: it waits for this
+ *          process with no time limit and installs when the user quits,
+ *          without relaunching. The verified download is kept for it.
  */
 CheckForUpdates.restart = function(helper, discard) {
     var win = RMainWindowQt.getMainWindow();
     var sys = RS.getSystemId();
     var question = helper === null
         ? qsTr("Update installed. Restart now?")
-        : qsTr("Update downloaded and verified. Restart now to install it?");
+        : qsTr("Update downloaded and verified. Restart now to install it?\n\n" +
+               "If you choose No, it is installed when you quit CaveCAD.");
     var yes = QMessageBox.question(win, qsTr("CaveCAD Update"), question,
         QMessageBox.Yes | QMessageBox.No) === QMessageBox.Yes;
-    if (!yes) {
-        if (helper !== null) {
-            discard();
-            CheckForUpdates.say(qsTr("Nothing was changed. The update is offered again the next time CaveCAD checks."));
-        }
-        return;
-    }
     var o = helper;
     if (o === null) {
+        if (!yes) { return; }
+        var work = UpdateApply.freshDir(UpdateApply.tmpBase(), "relaunch");
         // installTarget is the FOLDER on Windows: relaunchPath turns it into the exe
         var self = QCoreApplication.applicationFilePath();
         var t = UpdateApply.installTarget(sys, self, CheckForUpdates.env());
-        o = { pid: QCoreApplication.applicationPid(), download: "", target: "", relaunchOnly: true,
+        o = { mode: "relaunchOnly", pid: QCoreApplication.applicationPid(), work: work,
               relaunch: t === null ? self : CheckForUpdates.relaunchPath(sys, t) };
+        discard = function() { if (work !== null) { (new QDir(work)).removeRecursively(); } };
+        if (work === null) {
+            CheckForUpdates.say(qsTr("CaveCAD could not restart itself; the update loads the next time you start it."));
+            return;
+        }
+    } else {
+        o.mode = yes ? "restart" : "atQuit";
     }
-    var closed = win.close();
-    if (closed === false || (closed !== true && win.isVisible())) {
-        if (helper !== null) {
+    var path = UpdateApply.writeHelper(sys, o);
+    if (path === null) {
+        discard();
+        CheckForUpdates.say(helper === null
+            ? qsTr("CaveCAD could not restart itself; the update loads the next time you start it.")
+            : qsTr("The update could not be prepared; nothing was changed."));
+        return;
+    }
+    var atQuit = function(p) {
+        var r = UpdateApply.startHelper(sys, p);
+        if (!r.ok) {
+            discard();
+            CheckForUpdates.say(qsTr("The update could not be prepared (%1); nothing was changed.").arg(r.error));
+            return;
+        }
+        CheckForUpdates.pendingKey = o.key;
+        UpdateApply.keep.push(o.work);   // prune() must leave the waiting helper's download alone
+        CheckForUpdates.say(qsTr("The update will be installed when you quit CaveCAD."));
+    };
+    if (!yes) { atQuit(path); return; }
+    if (!CheckForUpdates.closeMain()) {
+        if (helper === null) { discard(); return; }
+        // a save prompt was cancelled: keep the verified download and
+        // install at the user's own quit instead
+        QFile.remove(path);
+        o.mode = "atQuit";
+        var later = UpdateApply.writeHelper(sys, o);
+        if (later === null) {
             discard();
             CheckForUpdates.say(qsTr("CaveCAD did not quit, so the update was not installed. " +
                 "It is offered again the next time CaveCAD checks."));
+            return;
         }
+        atQuit(later);
         return;
     }
-    UpdateApply.launchHelper(sys, o, function(r) {
-        if (!r.ok) { qWarning("CaveCAD update helper: " + r.error); }
-    });
+    var started = UpdateApply.startHelper(sys, path);
+    if (!started.ok) { qWarning("CaveCAD update helper: " + started.error); }
 };

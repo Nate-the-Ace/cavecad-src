@@ -67,6 +67,30 @@ eqs(CheckForUpdates.action({ kind: "dev" }, true, ""), "dev", "menu: says dev bu
 eqs(CheckForUpdates.action(null, false, ""), "silent", "no decision: silent");
 eqs(CheckForUpdates.action({ kind: "none" }, false, ""), CheckForUpdates.action({ kind: "none" }, false, "x"), "skip key irrelevant with nothing offered");
 
+// failed installs and the pending (install-at-quit) update
+var kf = UpdateCore.key(full);
+eqs(CheckForUpdates.action(full, false, ["", kf]), "silent", "startup: an offer whose install failed stays silent");
+eqs(CheckForUpdates.action(full, true, ["", kf]), "prompt", "menu still offers an offer whose install failed");
+eqs(CheckForUpdates.action(toolsOffer, false, [k, kf]), "silent", "a skipped and a failed key both count");
+eqs(CheckForUpdates.action(full, true, [], kf), "pending", "menu: an update waiting for quit says so");
+eqs(CheckForUpdates.action(full, false, [], kf), "silent", "startup: an update waiting for quit is silent");
+eqs(CheckForUpdates.action(toolsOffer, false, [], kf), "prompt", "a different offer than the pending one prompts");
+
+// ---- the helper's status file, read at the next start ----
+eqs(CheckForUpdates.statusAction(null).message, null, "no status: nothing to say");
+var sa = CheckForUpdates.statusAction({ result: "failed", error: "CaveCAD did not quit", key: kf });
+ok(sa.message !== null && sa.message.indexOf("CaveCAD did not quit") >= 0, "a failure is reported with its reason");
+eqs(sa.suppressKey, kf, "a failure suppresses that offer at startup");
+var sok = CheckForUpdates.statusAction({ result: "ok", error: "", key: kf });
+ok(sok.message === null && sok.suppressKey === null, "success: nothing to say, nothing suppressed");
+writeFile(root + "/st.json", '{"result":"failed","error":"x","key":"full|a|1","when":"t"}\n');
+eqs(CheckForUpdates.readStatus(root + "/st.json").key, "full|a|1", "status file read");
+writeFile(root + "/st.json", "{broken");
+eqs(CheckForUpdates.readStatus(root + "/st.json").result, "failed", "an unreadable status file counts as a failure");
+ok(CheckForUpdates.readStatus(root + "/none.json") === null, "no status file: null");
+load("scripts/Help/CheckForUpdates/CheckForUpdatesPostInit.js");
+ok(typeof postInit === "function", "CheckForUpdatesPostInit.js parses");
+
 // ---- the end-to-end decision on a real manifest ----
 var m = UpdateCore.validate({ schema: 1,
     tools: { version: "0.9.182.0", asset: "CaveSurvey-tools.zip", sha256: new Array(65).join("a") },

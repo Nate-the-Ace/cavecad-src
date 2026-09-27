@@ -11,6 +11,13 @@ UpdateDownload.TIMEOUT_S = 4 * 3600;
 
 UpdateDownload.system = function() { return RS.getSystemId(); };
 
+/** Per-user scratch folder (never the shared temp folder). Tests replace it. */
+UpdateDownload.tmpDir = function() {
+    var d = String(RSettings.getDataLocation()).replace(/[\\\/]+$/, "") + "/update-tmp";
+    (new QDir()).mkpath(d);
+    return d;
+};
+
 /** Runs fetch, falling back to Python's urllib on Linux without curl. */
 UpdateDownload.fetchTo = function(url, out, done, timeoutS) {
     var sys = UpdateDownload.system(), opts = { allowFile: UpdateDownload.allowFile };
@@ -31,7 +38,8 @@ UpdateDownload.readText = function(path) {
 
 /** timeoutS (optional): the startup check uses a short one. */
 UpdateDownload.manifest = function(done, timeoutS) {
-    var out = QDir.tempPath() + "/cavecad-latest-" + (new Date()).getTime() + ".json";
+    var out = UpdateDownload.tmpDir() + "/latest-" + (new Date()).getTime() + "-" +
+        Math.floor(Math.random() * 0xffffff).toString(16) + ".json";
     UpdateDownload.fetchTo(UpdateDownload.base + UpdateCore.MANIFEST, out, function(r) {
         var text = r.ok ? UpdateDownload.readText(out) : null;
         QFile.remove(out);
