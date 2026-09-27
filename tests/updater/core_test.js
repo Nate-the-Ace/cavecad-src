@@ -43,17 +43,26 @@ eqs(UpdateCore.parseSidecar(hex.toUpperCase() + "  CaveCAD-windows-x64.zip\n"), 
 ok(UpdateCore.parseSidecar("nope") === null, "junk sidecar is null");
 eqs(UpdateCore.assetUrl("latest.json"), "https://github.com/Nate-the-Ace/cavecad-src/releases/download/latest-build/latest.json", "fixed base URL");
 
-// the skip key names the offer only
+// the skip key names the offer (what the user would get), not the file
 var offer = UpdateCore.decide(manifest(), { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" });
-eqs(UpdateCore.key(offer), "full|CaveCAD-windows-x64.zip|" + hex, "skip key = kind|asset|sha256");
+eqs(UpdateCore.key(offer), "full|bb12aac6|0.9.181.0", "full skip key = full|app_commit|tools version");
+eqs(UpdateCore.key(toolsUpdate), "tools|0.9.181.0", "tools skip key = tools|version");
 var m2 = manifest();
 m2.platforms["macos-arm64"] = { app_commit: "zzzz", asset: "CaveCAD-macos-arm64.dmg", sha256: hex, size: 1 };
 m2.published = "2026-09-27T00:00:00Z";
 eqs(UpdateCore.key(UpdateCore.decide(m2, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })), UpdateCore.key(offer),
     "an unrelated platform's rebuild does not change the key");
-var m3 = manifest(); m3.platforms["windows-x64"].sha256 = "a" + hex.substring(1);
-ok(UpdateCore.key(UpdateCore.decide(m3, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })) !== UpdateCore.key(offer),
-    "a new build of our own asset changes the key");
+var m3 = manifest(); m3.platforms["windows-x64"].sha256 = "a" + hex.substring(1); m3.tools.sha256 = "b" + hex.substring(1);
+eqs(UpdateCore.key(UpdateCore.decide(m3, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })), UpdateCore.key(offer),
+    "a re-assembly (new sha256, same app and tools) keeps the key");
+eqs(UpdateCore.key(UpdateCore.decide(m3, { platform: "windows-x64", appCommit: "bb12aac6", toolsVersion: "0.9.180.1" })), UpdateCore.key(toolsUpdate),
+    "a re-zipped tools asset keeps the tools key");
+var m4 = manifest(); m4.platforms["windows-x64"].app_commit = "cc34";
+ok(UpdateCore.key(UpdateCore.decide(m4, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })) !== UpdateCore.key(offer),
+    "a new app commit changes the key");
+var m5 = manifest(); m5.tools.version = "0.9.182.0";
+ok(UpdateCore.key(UpdateCore.decide(m5, { platform: "windows-x64", appCommit: "aaaa", toolsVersion: "0.9.181.0" })) !== UpdateCore.key(offer),
+    "new tools in the same app build change the full key");
 eqs(UpdateCore.key({ kind: "none" }), "", "nothing offered: empty key");
 
 // dev builds

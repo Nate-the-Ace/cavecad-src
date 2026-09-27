@@ -51,7 +51,7 @@ eqs(CheckForUpdates.loadedToolsVersion(root + "/none", root + "/none2"), "0", "n
 // ---- action(): what a finished check does ----
 // never a top-level "var tools": it breaks the engine's print()
 var toolsOffer = { kind: "tools", asset: "CaveSurvey-tools.zip", sha256: "a", toolsVersion: "2", fromVersion: "1" };
-var full = { kind: "full", asset: "CaveCAD-macos-arm64.dmg", sha256: "b", size: 1, toolsVersion: "2" };
+var full = { kind: "full", asset: "CaveCAD-macos-arm64.dmg", sha256: "b", size: 1, toolsVersion: "2", appCommit: "cafe" };
 var k = UpdateCore.key(toolsOffer);
 eqs(CheckForUpdates.action(toolsOffer, false, ""), "prompt", "startup offers tools");
 eqs(CheckForUpdates.action(full, false, ""), "prompt", "startup offers an app update");

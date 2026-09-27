@@ -100,13 +100,18 @@ UpdateCore.decide = function(m, local) {
 };
 
 /**
- * "Skip this version" remembers this. It names only the OFFER (a decide()
- * result), so a rebuild for some other platform does not re-prompt;
- * "" for a decision that offers nothing.
+ * "Skip this version" remembers this. It names what the user would GET,
+ * not the file that carries it: a tools offer is "tools|<version>", an app
+ * offer "full|<app_commit>|<tools version>". Not the asset's sha256: every
+ * re-assembly of latest-build repackages (and so re-hashes) the same app
+ * and tools, and a skip must survive that. Another platform's rebuild does
+ * not touch it either. "" for a decision that offers nothing.
  */
 UpdateCore.key = function(decision) {
-    if (!decision || (decision.kind !== "full" && decision.kind !== "tools")) { return ""; }
-    return decision.kind + "|" + decision.asset + "|" + decision.sha256;
+    if (!decision) { return ""; }
+    if (decision.kind === "tools") { return "tools|" + decision.toolsVersion; }
+    if (decision.kind === "full") { return "full|" + decision.appCommit + "|" + decision.toolsVersion; }
+    return "";
 };
 
 /** sha256sum format "<hex>  <name>" to lowercase hex, or null. */
