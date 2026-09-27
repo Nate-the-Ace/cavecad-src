@@ -70,7 +70,7 @@ jobs:
         run: |
           QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
             -DCMAKE_PREFIX_PATH="$QTDIR" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qtjsapi/build
@@ -81,7 +81,7 @@ jobs:
         run: |
           QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
             -DCMAKE_PREFIX_PATH="$QTDIR" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qcadjsapi/build

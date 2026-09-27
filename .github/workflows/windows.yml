@@ -99,7 +99,7 @@ jobs:
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
           set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\%QT_DIR%
-          cmake -S ..\qtjsapi -B ..\qtjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          cmake -S ..\qtjsapi -B ..\qtjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qtjsapi\build
           if errorlevel 1 exit /b 1
@@ -112,7 +112,7 @@ jobs:
         run: |
           call "%GITHUB_WORKSPACE%\.github\vcvars.cmd" || exit /b 1
           set QTDIR=%GITHUB_WORKSPACE%\Qt\%QT_VERSION%\%QT_DIR%
-          cmake -S ..\qcadjsapi -B ..\qcadjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          cmake -S ..\qcadjsapi -B ..\qcadjsapi\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON -DCMAKE_PREFIX_PATH=%QTDIR% -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           if errorlevel 1 exit /b 1
           cmake --build ..\qcadjsapi\build
           if errorlevel 1 exit /b 1

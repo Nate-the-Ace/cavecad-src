@@ -97,14 +97,14 @@ jobs:
       - name: Build qtjsapi
         run: |
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOpenGL_GL_PREFERENCE=LEGACY -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -S qtjsapi -B qtjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON -DOpenGL_GL_PREFERENCE=LEGACY -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qtjsapi/build
           cp qtjsapi/build/out/libqtjsapi.so "$GITHUB_WORKSPACE/release/"
 
       - name: Build cavecadjsapi plugin
         run: |
           cd "$(dirname "$GITHUB_WORKSPACE")"
-          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOpenGL_GL_PREFERENCE=LEGACY -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake -S qcadjsapi -B qcadjsapi/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON -DOpenGL_GL_PREFERENCE=LEGACY -DCMAKE_PREFIX_PATH="$QTDIR" -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build qcadjsapi/build
 
       - name: Assemble AppDir
