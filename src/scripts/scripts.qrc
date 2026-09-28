@@ -1390,8 +1390,6 @@
     <file alias="scripts/Help/CheckForUpdates/PreferencesPage.ui">../../scripts/Help/CheckForUpdates/PreferencesPage.ui</file>
     <file alias="scripts/Help/FAQ/FAQ.js">../../scripts/Help/FAQ/FAQ.js</file>
     <file alias="scripts/Help/FAQ/FAQInit.js">../../scripts/Help/FAQ/FAQInit.js</file>
-    <file alias="scripts/Help/Forum/Forum.js">../../scripts/Help/Forum/Forum.js</file>
-    <file alias="scripts/Help/Forum/ForumInit.js">../../scripts/Help/Forum/ForumInit.js</file>
     <file alias="scripts/Help/Help.js">../../scripts/Help/Help.js</file>
     <file alias="scripts/Help/ReportBug/ReportBug.js">../../scripts/Help/ReportBug/ReportBug.js</file>
     <file alias="scripts/Help/ReportBug/ReportBugInit.js">../../scripts/Help/ReportBug/ReportBugInit.js</file>

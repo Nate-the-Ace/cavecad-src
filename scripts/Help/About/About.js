@@ -159,11 +159,6 @@ About.prototype.initAboutApp = function(textBrowser) {
                        .arg("https://www.gnu.org/licenses/gpl-3.0.html")
                        .arg(About.sourceUrl) + "</p>";
             }
-            else {
-                html += "<p>" + qsTr("%1 is free (open source) software.").arg("QCAD") + "<br/>"
-                     + "" + qsTr("This means that everyone can <a href='%1'>get involved</a>!").arg("https://www.qcad.org/contribute") + "</p>"
-                     + "" + qsTr("Additional tools, features and file formats including DWG are available in <a href='%1'>QCAD Professional</a> or <a href='%2'>QCAD/CAM</a>.").arg("https://qcad.org/shop").arg("https://qcad.org/shop");
-            }
 
             html += "<p>" + qsTr("Plugins and script add-ons are subject to their respective license (see \"Plugins\" tab).") + "</p>"
             + "<p/>"

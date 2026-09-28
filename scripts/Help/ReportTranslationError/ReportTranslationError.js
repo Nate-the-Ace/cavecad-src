@@ -27,6 +27,6 @@ ReportTranslationError.prototype = new Help();
 
 ReportTranslationError.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
-    Help.openUrl("https://qcad.org/translationreport");
+    Help.openUrl("mailto:cavecad.app@gmail.com?subject=CaveCAD%20translation%20error");
 };
 

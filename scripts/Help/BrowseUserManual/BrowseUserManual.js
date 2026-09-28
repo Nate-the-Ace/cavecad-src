@@ -27,47 +27,6 @@ BrowseUserManual.prototype = new Help();
 
 BrowseUserManual.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
-
-    var locale = new QLocale(RSettings.getLocale());
-    var dir = "en";
-
-    if (locale.language()===QLocale.German) {
-        dir = "de";
-    }
-    else if (locale.language()===QLocale.Danish) {
-        dir = "da";
-    }
-    else if (locale.language()===QLocale.Dutch) {
-        dir = "nl";
-    }
-    else if (locale.language()===QLocale.French) {
-        dir = "fr";
-    }
-    else if (locale.language()===QLocale.Italian) {
-        dir = "it";
-    }
-    else if (locale.language()===QLocale.Spanish) {
-        dir = "es";
-    }
-    else if (locale.language()===QLocale.Portuguese) {
-        dir = "pt";
-    }
-    else if (locale.language()===QLocale.Polish) {
-        dir = "pl";
-    }
-    else if (locale.language()===QLocale.Japanese) {
-        dir = "ja";
-    }
-    else if (locale.language()===QLocale.Slovenian) {
-        dir = "sl";
-    }
-
-    Help.openUrl(
-        "https://qcad.org/doc/qcad/%1.%2.%3/reference/%4/index.html"
-        .arg(RSettings.getMajorVersion())
-        .arg(RSettings.getMinorVersion())
-        .arg(RSettings.getRevisionVersion())
-        .arg(dir)
-    );
+    Help.openHandbook();
 };
 

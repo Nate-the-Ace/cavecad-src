@@ -27,6 +27,6 @@ Website.prototype = new Help();
 
 Website.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
-    Help.openUrl("https://qcad.org");
+    Help.openUrl("https://github.com/Nate-the-Ace/cavecad-src");
 };
 

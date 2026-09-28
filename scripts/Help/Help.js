@@ -42,6 +42,16 @@ Help.openUrl = function(url) {
     QDesktopServices.openUrl(new QUrl(url));
 };
 
+// CaveCAD: the manual is the Cave Survey add-on's in-app Handbook panel
+// (command "handbook"), not QCAD's online reference, which describes a
+// different application:
+Help.openHandbook = function() {
+    if (!RGuiAction.triggerByCommand("handbook")) {
+        EAction.handleUserWarning(
+            qsTr("The Handbook is part of the Cave Survey tools, which are not installed."));
+    }
+};
+
 Help.getMenu = function() {
     var menu = EAction.getMenu(Help.getTitle(), "HelpMenu");
     menu.setProperty("scriptFile", Help.includeBasePath + "/Help.js");

@@ -1,5 +1,5 @@
 function init(basePath) {
-    var action = new RGuiAction(qsTranslate("FAQ", "FA&Qs (online)"),
+    var action = new RGuiAction(qsTranslate("FAQ", "&Handbook"),
         RMainWindowQt.getMainWindow());
     action.setRequiresDocument(false);
     action.setScriptFile(basePath + "/FAQ.js");

@@ -27,6 +27,6 @@ FAQ.prototype = new Help();
 
 FAQ.prototype.beginEvent = function() {
     Help.prototype.beginEvent.call(this);
-    Help.openUrl("https://qcad.org/faq");
+    Help.openHandbook();
 };
 
