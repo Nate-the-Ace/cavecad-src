@@ -6,18 +6,19 @@
   <property name="minimumSize"><size><width>520</width><height>0</height></size></property>
   <layout class="QVBoxLayout" name="Layout">
    <item><layout class="QFormLayout" name="Form">
+    <property name="fieldGrowthPolicy"><enum>QFormLayout::AllNonFixedFieldsGrow</enum></property>
     <item row="0" column="0"><widget class="QLabel" name="TypeLabel"><property name="text"><string>Type:</string></property></widget></item>
     <item row="0" column="1"><widget class="QComboBox" name="Type">
       <item><property name="text"><string>Bug</string></property></item>
       <item><property name="text"><string>Idea</string></property></item>
       <item><property name="text"><string>Question</string></property></item></widget></item>
     <item row="1" column="0"><widget class="QLabel" name="SummaryLabel"><property name="text"><string>Summary:</string></property></widget></item>
-    <item row="1" column="1"><widget class="QLineEdit" name="Summary"><property name="maxLength"><number>120</number></property></widget></item>
+    <item row="1" column="1"><widget class="QLineEdit" name="Summary"><property name="maxLength"><number>120</number></property><property name="toolTip"><string>One line saying what the problem or idea is.</string></property></widget></item>
     <item row="2" column="0"><widget class="QLabel" name="EmailLabel"><property name="text"><string>Email:</string></property></widget></item>
-    <item row="2" column="1"><widget class="QLineEdit" name="Email"><property name="placeholderText"><string>only if you want a reply</string></property></widget></item>
+    <item row="2" column="1"><widget class="QLineEdit" name="Email"><property name="toolTip"><string>Optional. Only if you want a reply.</string></property></widget></item>
    </layout></item>
    <item><widget class="QLabel" name="DescriptionLabel"><property name="text"><string>What happened, and what did you expect?</string></property></widget></item>
-   <item><widget class="QPlainTextEdit" name="Description"/></item>
+   <item><widget class="QPlainTextEdit" name="Description"><property name="toolTip"><string>What you did, what happened, and what you expected instead.</string></property></widget></item>
    <item><widget class="QFrame" name="ScanHint"><property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
      <layout class="QHBoxLayout" name="ScanHintLayout">
       <item><widget class="QLabel" name="ScanHintText"><property name="wordWrap"><bool>true</bool></property>
