@@ -11,6 +11,8 @@ and is designed to host the Cave Survey tool suite (traverse plotting, survey
 file import from Walls/Compass/Survex, LRUD passage walls, map fitting,
 breakdown symbols, and georeferencing).
 
+**Privacy:** see [PRIVACY.md](PRIVACY.md). Contact: cavecad.app@gmail.com
+
 Download and updates
 --------------------
 Builds for Windows (x64 and ARM64), macOS (Apple Silicon) and Linux (x86_64

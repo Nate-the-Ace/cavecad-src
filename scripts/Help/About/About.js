@@ -100,6 +100,8 @@ About.prototype.beginEvent = function() {
 // CaveCAD: where the complete source code lives, as GPLv3 section 6 requires
 // it to be offered. Shown in the About dialog and referenced by NOTICE.md.
 About.sourceUrl = "https://github.com/Nate-the-Ace/cavecad-src";
+About.privacyUrl = "https://github.com/Nate-the-Ace/cavecad-src/blob/cavecad/PRIVACY.md";
+About.contactEmail = "cavecad.app@gmail.com";
 
 About.prototype.initAboutApp = function(textBrowser) {
     // CaveCAD: the application's own version (VERSION at the root of the
@@ -159,6 +161,10 @@ About.prototype.initAboutApp = function(textBrowser) {
                        .arg("https://www.gnu.org/licenses/gpl-3.0.html")
                        .arg(About.sourceUrl) + "</p>";
             }
+
+            html += "<p>" + qsTr("Contact: %1").arg("<a href='mailto:" + About.contactEmail + "'>" + About.contactEmail + "</a>")
+                 + " &middot; <a href='" + About.privacyUrl + "'>" + qsTr("Privacy") + "</a></p>"
+                 + "<p>" + qsTr("Provided without warranty; see the licence.") + "</p>";
 
             html += "<p>" + qsTr("Plugins and script add-ons are subject to their respective license (see \"Plugins\" tab).") + "</p>"
             + "<p/>"
