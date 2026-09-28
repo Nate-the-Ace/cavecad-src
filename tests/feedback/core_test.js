@@ -50,7 +50,9 @@ var m = FeedbackCore.mailto("cavecad.app@gmail.com", "a7f3c2", "Trace & crash");
 ok(m.indexOf("mailto:cavecad.app@gmail.com?subject=") === 0, "mailto address");
 ok(m.indexOf(encodeURIComponent("CaveCAD Feedback a7f3c2: Trace & crash")) > 0, "mailto subject encoded");
 
-ok(!FeedbackCore.configured(FeedbackConfig), "repo placeholders are not configured");
+// The placeholders themselves, not FeedbackConfig: CI fills the real values in
+// before these tests run. tests/test_feedback_config.py guards the repo file.
+ok(!FeedbackCore.configured({ ENDPOINT: "@@FEEDBACK_ENDPOINT@@", KEY: "@@FEEDBACK_KEY@@" }), "placeholders are not configured");
 ok(FeedbackCore.configured({ ENDPOINT: "https://script.google.com/macros/s/X/exec", KEY: "k" }), "real endpoint configured");
 eqs(FeedbackCore.parseReply('{"ok":true,"id":"a7f3c2"}').id, "a7f3c2", "good reply");
 ok(!FeedbackCore.parseReply("<html>").ok, "html reply is a failure");

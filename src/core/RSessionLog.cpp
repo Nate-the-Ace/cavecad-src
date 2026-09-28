@@ -15,7 +15,9 @@
 QMutex RSessionLog::mutex;
 QFile* RSessionLog::file = NULL;
 bool RSessionLog::failed = false;
-thread_local bool RSessionLog::busy = false;
+// Not a class member: MSVC refuses thread_local data in a dllexport class
+// (C2492), and the guard is private to this file anyway.
+static thread_local bool busy = false;
 int RSessionLog::headerBytes = 0;
 qint64 RSessionLog::cap = RSessionLog::CAP;
 

@@ -77,6 +77,14 @@ codesign --force --deep -s - "$APP"
 codesign --verify --deep --strict "$APP"
 
 rm -f "$OUT/CaveCAD.dmg"
-hdiutil create -quiet -volname CaveCAD -srcfolder "$APP" -ov -format UDZO \
-    "$OUT/CaveCAD.dmg"
+# hdiutil fails now and then on hosted runners ("Resource busy"); retry.
+for attempt in 1 2 3; do
+    if hdiutil create -quiet -volname CaveCAD -srcfolder "$APP" -ov -format UDZO \
+        "$OUT/CaveCAD.dmg"; then
+        break
+    fi
+    [ "$attempt" = 3 ] && { echo "hdiutil failed three times" >&2; exit 1; }
+    echo "hdiutil failed (attempt $attempt); retrying" >&2
+    sleep 10
+done
 echo "Packaged $APP and $OUT/CaveCAD.dmg"

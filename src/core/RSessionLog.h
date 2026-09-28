@@ -48,7 +48,6 @@ private:
     static QMutex mutex;
     static QFile* file;
     static bool failed;
-    static thread_local bool busy;
     static int headerBytes;
     static qint64 cap;
 };
