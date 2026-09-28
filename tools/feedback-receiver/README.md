@@ -2,7 +2,7 @@
 
 Google Apps Script that receives Help > Send Feedback reports. Owned by
 **cavecad.app@gmail.com**. Logic is in `Logic.gs` (tested:
-`node --test tools/feedback-receiver/test/`); `Code.gs` wires it to Drive,
+`node --test 'tools/feedback-receiver/test/**/*.test.js'`); `Code.gs` wires it to Drive,
 Sheets and Mail.
 
 ## One-time setup (signed in as cavecad.app@gmail.com)

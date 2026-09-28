@@ -21,7 +21,20 @@ var FeedbackLogic = {
 
   hourKey: function (date) { return "n-" + date.toISOString().slice(0, 13); },
 
-  typeLabel: function (t) { t = String(t || "bug"); return t.charAt(0).toUpperCase() + t.slice(1); },
+  TYPES: ["bug", "idea", "question"],
+
+  typeLabel: function (t) {
+    t = String(t || "bug").toLowerCase();
+    if (FeedbackLogic.TYPES.indexOf(t) === -1) t = "bug";
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  },
+
+  /** Prefix values Sheets would treat as a formula (=+-@ and tab/CR) with a quote, so a
+   * reporter-controlled string (summary, email, ...) can never inject a formula. */
+  escapeFormula: function (s) {
+    if (typeof s !== "string") return s;
+    return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+  },
 
   folderName: function (report, date) {
     var s = String(report.summary || "").replace(/[\/\\]/g, "-").replace(/\s+/g, " ").trim().slice(0, 60);
@@ -36,7 +49,7 @@ var FeedbackLogic = {
       "Attachments": (report.attachments || []).length, "Size": bytes, "Folder link": folderUrl,
       "Folder ID": folderId, "Status": "New", "Closed": "", "Notes": ""
     };
-    return FeedbackLogic.COLUMNS.map(function (c) { return v[c]; });
+    return FeedbackLogic.COLUMNS.map(function (c) { return FeedbackLogic.escapeFormula(v[c]); });
   },
 
   /** rows: [{received, status, closed}] -> indexes due for purging. */

