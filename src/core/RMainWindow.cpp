@@ -45,6 +45,7 @@
 #include "RScriptHandler.h"
 #include "RScriptHandlerRegistry.h"
 #include "RSelectionListener.h"
+#include "RSessionLog.h"
 #include "RSettings.h"
 #include "RSnapListener.h"
 #include "RTransactionListener.h"
@@ -82,6 +83,8 @@ void RMainWindow::installMessageHandler() {
 
 #if QT_VERSION >= 0x050000
 void RMainWindow::messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
+    RSessionLog::write(type, message);
+
     QByteArray localMsg = message.toLocal8Bit();
     QByteArray p = RDebug::getPrefix().toLocal8Bit();
 

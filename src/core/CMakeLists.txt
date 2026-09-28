@@ -136,6 +136,7 @@ add_library(cavecadcore SHARED
     RSelectionChangedEvent.cpp RSelectionChangedEvent.h
     RSelectionListener.h
     RSettings.cpp RSettings.h
+    RSessionLog.cpp RSessionLog.h
     RLinetypePatternExporter.cpp RLinetypePatternExporter.h
     RSingleApplication.cpp RSingleApplication.h
     RSingleton.cpp RSingleton.h
