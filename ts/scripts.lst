@@ -510,10 +510,11 @@
 /Users/andrew/data/QCAD4/qcad/scripts/Help/FAQ/FAQ.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/FAQ/FAQInit.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/Help.js
-/Users/andrew/data/QCAD4/qcad/scripts/Help/ReportBug/ReportBug.js
-/Users/andrew/data/QCAD4/qcad/scripts/Help/ReportBug/ReportBugInit.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/ReportTranslationError/ReportTranslationError.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/ReportTranslationError/ReportTranslationErrorInit.js
+/Users/andrew/data/QCAD4/qcad/scripts/Help/SendFeedback/SendFeedback.js
+/Users/andrew/data/QCAD4/qcad/scripts/Help/SendFeedback/SendFeedbackInit.js
+/Users/andrew/data/QCAD4/qcad/scripts/Help/SendFeedback/SendFeedbackPostInit.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/ShowReadme/ShowReadme.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/ShowReadme/ShowReadmeInit.js
 /Users/andrew/data/QCAD4/qcad/scripts/Help/Website/Website.js
@@ -1176,6 +1177,7 @@
 /Users/andrew/data/QCAD4/qcad/scripts/File/SvgImport/SvgImportDialog.ui
 /Users/andrew/data/QCAD4/qcad/scripts/Help/About/AboutDialog.ui
 /Users/andrew/data/QCAD4/qcad/scripts/Help/CheckForUpdates/CheckForUpdatesDialog.ui
+/Users/andrew/data/QCAD4/qcad/scripts/Help/SendFeedback/SendFeedbackDialog.ui
 /Users/andrew/data/QCAD4/qcad/scripts/Help/ShowReadme/ShowReadmeDialog.ui
 /Users/andrew/data/QCAD4/qcad/scripts/Information/InfoArcCircleArea/InfoArcCircleArea.ui
 /Users/andrew/data/QCAD4/qcad/scripts/Information/InfoArea/InfoArea.ui

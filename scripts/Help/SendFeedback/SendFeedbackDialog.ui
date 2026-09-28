@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SendFeedbackDialog</class>
+ <widget class="QDialog" name="SendFeedbackDialog">
+  <property name="windowTitle"><string>Send Feedback</string></property>
+  <property name="minimumSize"><size><width>520</width><height>0</height></size></property>
+  <layout class="QVBoxLayout" name="Layout">
+   <item><layout class="QFormLayout" name="Form">
+    <item row="0" column="0"><widget class="QLabel" name="TypeLabel"><property name="text"><string>Type:</string></property></widget></item>
+    <item row="0" column="1"><widget class="QComboBox" name="Type">
+      <item><property name="text"><string>Bug</string></property></item>
+      <item><property name="text"><string>Idea</string></property></item>
+      <item><property name="text"><string>Question</string></property></item></widget></item>
+    <item row="1" column="0"><widget class="QLabel" name="SummaryLabel"><property name="text"><string>Summary:</string></property></widget></item>
+    <item row="1" column="1"><widget class="QLineEdit" name="Summary"><property name="maxLength"><number>120</number></property></widget></item>
+    <item row="2" column="0"><widget class="QLabel" name="EmailLabel"><property name="text"><string>Email:</string></property></widget></item>
+    <item row="2" column="1"><widget class="QLineEdit" name="Email"><property name="placeholderText"><string>only if you want a reply</string></property></widget></item>
+   </layout></item>
+   <item><widget class="QLabel" name="DescriptionLabel"><property name="text"><string>What happened, and what did you expect?</string></property></widget></item>
+   <item><widget class="QPlainTextEdit" name="Description"/></item>
+   <item><widget class="QFrame" name="ScanHint"><property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+     <layout class="QHBoxLayout" name="ScanHintLayout">
+      <item><widget class="QLabel" name="ScanHintText"><property name="wordWrap"><bool>true</bool></property>
+        <property name="text"><string>Sounds like a scan problem. Attaching the scan helps us reproduce it.</string></property></widget></item>
+      <item><widget class="QPushButton" name="AttachUsedScans"><property name="text"><string>Attach scans used in drawing</string></property></widget></item>
+      <item><widget class="QPushButton" name="ChooseScan"><property name="text"><string>Choose scan...</string></property></widget></item>
+     </layout></widget></item>
+   <item><widget class="QGroupBox" name="Attach"><property name="title"><string>Attach</string></property>
+     <layout class="QVBoxLayout" name="AttachLayout">
+      <item><widget class="QCheckBox" name="Logs"><property name="text"><string>Session logs (this and the previous session)</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="Screenshot"><property name="text"><string>Screenshot of the CaveCAD window</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="Drawing"><property name="text"><string>My drawing</string></property></widget></item>
+      <item><widget class="QCheckBox" name="SurveyFiles"><property name="text"><string>Survey files (the drawing's folder, without images and PDFs)</string></property></widget></item>
+      <item><layout class="QHBoxLayout" name="ScansRow">
+        <item><widget class="QLabel" name="ScansLabel"><property name="text"><string>Scans:</string></property></widget></item>
+        <item><widget class="QComboBox" name="Scans">
+          <item><property name="text"><string>None</string></property></item>
+          <item><property name="text"><string>Only scans used in this drawing</string></property></item>
+          <item><property name="text"><string>Choose scans...</string></property></item></widget></item>
+        <item><widget class="QLabel" name="ScansChosen"/></item>
+      </layout></item>
+      <item><widget class="QLabel" name="Consent"><property name="wordWrap"><bool>true</bool></property><property name="openExternalLinks"><bool>true</bool></property>
+        <property name="text"><string>Your drawing contains your cave's location. It goes only to the CaveCAD maintainer and people they trust. &lt;a href="https://github.com/Nate-the-Ace/cavecad-src/blob/cavecad/PRIVACY.md"&gt;What we collect&lt;/a&gt;</string></property></widget></item>
+     </layout></widget></item>
+   <item><layout class="QHBoxLayout" name="Bottom">
+     <item><widget class="QLabel" name="Size"/></item>
+     <item><widget class="QPushButton" name="Review"><property name="text"><string>Review...</string></property></widget></item>
+     <item><widget class="QDialogButtonBox" name="Buttons"><property name="standardButtons"><set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set></property></widget></item>
+   </layout></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection><sender>Buttons</sender><signal>rejected()</signal><receiver>SendFeedbackDialog</receiver><slot>reject()</slot></connection>
+ </connections>
+</ui>

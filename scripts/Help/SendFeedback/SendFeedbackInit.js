@@ -1,7 +1,7 @@
 function init(basePath) {
-    var action = new RGuiAction(qsTranslate("ReportBug", "Report &Bug"), RMainWindowQt.getMainWindow());
+    var action = new RGuiAction(qsTranslate("SendFeedback", "Send &Feedback..."), RMainWindowQt.getMainWindow());
     action.setRequiresDocument(false);
-    action.setScriptFile(basePath + "/ReportBug.js");
+    action.setScriptFile(basePath + "/SendFeedback.js");
     action.setNoState();
     action.setGroupSortOrder(110200);
     action.setSortOrder(500);
