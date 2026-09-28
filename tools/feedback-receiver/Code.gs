@@ -115,3 +115,18 @@ function purgeOld() {
     sheet.getRange(i + 2, C.indexOf("Status") + 1).setValue("Purged");
   });
 }
+
+/**
+ * Run once from the editor (after FOLDER_ID and SHEET_ID are set): creates
+ * the on-edit trigger for onStatusEdit and the daily trigger for purgeOld,
+ * replacing any earlier copies so running it twice is harmless.
+ */
+function installTriggers() {
+  var sheetId = PropertiesService.getScriptProperties().getProperty("SHEET_ID");
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    var f = t.getHandlerFunction();
+    if (f === "onStatusEdit" || f === "purgeOld") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("onStatusEdit").forSpreadsheet(sheetId).onEdit().create();
+  ScriptApp.newTrigger("purgeOld").timeBased().everyDays(1).atHour(3).create();
+}

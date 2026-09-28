@@ -14,8 +14,9 @@ Sheets and Mail.
 4. Project Settings > Script properties: `KEY` (a long random string, e.g.
    `python3 -c "import secrets;print(secrets.token_urlsafe(32))"`),
    `FOLDER_ID`, `SHEET_ID`.
-5. Triggers: `onStatusEdit` — From spreadsheet, On edit. `purgeOld` —
-   Time-driven, Day timer.
+5. Triggers: select `installTriggers` in the editor's function menu and
+   press Run (approve the permissions it asks for). It creates the
+   `onStatusEdit` on-edit trigger and the daily `purgeOld` trigger.
 6. Deploy > New deployment > Web app. Execute as: Me. Who has access:
    Anyone. Copy the `/exec` URL. Authorise Drive, Sheets, Mail when asked.
 7. GitHub `Nate-the-Ace/cavecad-src` > Settings > Secrets > Actions:
