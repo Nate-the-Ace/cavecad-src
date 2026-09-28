@@ -1317,7 +1317,7 @@ FeedbackSend.send = function(path, cfg, done) {
     FeedbackSend.runner(FeedbackCommands.base64(sys, path, b64), 120, function(r1) {
         if (!r1.ok) { QFile.remove(b64); fail("encode: " + r1.error); return; }
         var url = cfg.ENDPOINT + "?k=" + encodeURIComponent(cfg.KEY) + "&id=" + FeedbackSend.idOf(path);
-        FeedbackSend.runner(FeedbackCommands.post(sys, url, b64, out), 660, function(r2) {
+        FeedbackSend.runner(FeedbackCommands.post(sys, url, b64, out), 3700, function(r2) {
             QFile.remove(b64);
             var text = "";
             var f = new QFile(out);
