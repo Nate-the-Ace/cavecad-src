@@ -169,8 +169,9 @@ not imported: the app must never depend on the add-on.
 - Unsent zips are kept in `<app data>/feedback/outbox/`.
 - At each launch a background retry sends every outbox zip and deletes it
   on success. It never blocks startup.
-- A per-file failure count is kept beside it. From the 3rd failed launch,
-  the status bar shows *"1 feedback report waiting to send — Show…"*.
+- A per-file failure count is kept beside it. After 3 failed send attempts
+  for a report (the dialog's own attempt counts), the status bar shows
+  *"1 feedback report waiting to send — Show…"*.
 
 ### Failure dialog
 

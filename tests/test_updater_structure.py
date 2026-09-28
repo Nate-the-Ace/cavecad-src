@@ -7,7 +7,6 @@ import re
 import unittest
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-UPDATER = os.path.join(ROOT, "scripts", "Help", "CheckForUpdates")
 DIRS = [os.path.join(ROOT, "scripts", "Help", "CheckForUpdates"),
         os.path.join(ROOT, "scripts", "Help", "SendFeedback")]
 
