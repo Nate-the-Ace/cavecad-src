@@ -28,3 +28,11 @@ Sheets and Mail.
 
 Redeploying after a code change: Deploy > Manage deployments > edit >
 Version: New. The `/exec` URL stays the same.
+
+## Reading a report
+
+`drawing.dxf`'s image entities reference scans by their path relative to the
+cave folder (e.g. `scans/p1.png`), so on its own the drawing shows no
+imagery. To see it, copy `drawing.dxf` into the report's own `cave/` folder
+before opening it there — QCAD/CaveCAD then resolves each relative path
+against the drawing's folder and finds the scans alongside it.
