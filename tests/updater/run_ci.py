@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Runs every tests/updater/*_test.js inside a CaveCAD binary, headless, on
-any platform (CI on Windows and Linux; run.sh stays the macOS dev path).
+"""Runs every tests/updater/*_test.js and tests/feedback/*_test.js inside a
+CaveCAD binary, headless, on any platform (CI on Windows and Linux; run.sh
+stays the macOS dev path).
 
     python3 tests/updater/run_ci.py <cavecad binary>
 
@@ -21,7 +22,8 @@ def main():
         sys.exit(__doc__)
     binary = str(Path(sys.argv[1]).resolve())
     repo = Path(__file__).resolve().parent.parent.parent
-    tests = sorted((repo / "tests" / "updater").glob("*_test.js"))
+    tests = sorted((repo / "tests" / "updater").glob("*_test.js")) + \
+        sorted((repo / "tests" / "feedback").glob("*_test.js"))
     if not tests:
         sys.exit("no tests found")
     env = dict(os.environ)
@@ -56,7 +58,7 @@ def main():
         if not result.startswith("### UPDATER OK"):
             failed += 1
             print("---- output of %s ----\n%s\n----" % (t.name, output[-4000:]))
-    print("%d of %d updater test files failed" % (failed, len(tests)))
+    print("%d of %d updater/feedback test files failed" % (failed, len(tests)))
     sys.exit(1 if failed else 0)
 
 

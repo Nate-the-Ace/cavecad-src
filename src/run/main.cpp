@@ -89,6 +89,7 @@
 #  include "RScriptHandler.h"
 #endif
 #include "RScriptHandlerRegistry.h"
+#include "RSessionLog.h"
 #include "RSettings.h"
 #include "RSingleApplication.h"
 #include "RSingleton.h"
@@ -264,6 +265,10 @@ int main(int argc, char *argv[]) {
 //#endif
 
     RMainWindow::installMessageHandler();
+    // open the session log now (app name/organization are already set
+    // above, so getDataLocation() resolves correctly) rather than waiting
+    // for the first message; write() still opens it lazily as a fallback.
+    RSessionLog::open();
 
 #if QT_VERSION >= 0x050000
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);

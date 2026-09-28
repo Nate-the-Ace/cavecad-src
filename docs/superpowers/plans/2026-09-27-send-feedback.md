@@ -1317,7 +1317,7 @@ FeedbackSend.send = function(path, cfg, done) {
     FeedbackSend.runner(FeedbackCommands.base64(sys, path, b64), 120, function(r1) {
         if (!r1.ok) { QFile.remove(b64); fail("encode: " + r1.error); return; }
         var url = cfg.ENDPOINT + "?k=" + encodeURIComponent(cfg.KEY) + "&id=" + FeedbackSend.idOf(path);
-        FeedbackSend.runner(FeedbackCommands.post(sys, url, b64, out), 660, function(r2) {
+        FeedbackSend.runner(FeedbackCommands.post(sys, url, b64, out), 3700, function(r2) {
             QFile.remove(b64);
             var text = "";
             var f = new QFile(out);
@@ -1682,7 +1682,7 @@ function postInit() {
         include("scripts/Help/SendFeedback/SendFeedback.js");
         var local = CheckForUpdates.local();
         var scr = QGuiApplication.primaryScreen();
-        qWarning("[crumb] session: Cave Survey " + (local.toolsVersion || "?") + ", build " + (local.commit || "dev")
+        qDebug("[crumb] session: Cave Survey " + (local.toolsVersion || "?") + ", build " + (local.commit || "dev")
             + ", screen " + (isNull(scr) ? "?" : scr.size().width() + "x" + scr.size().height() + "@" + scr.devicePixelRatio));
         if (FeedbackSend.pending().length === 0) { return; }
         var t = new QTimer(RMainWindowQt.getMainWindow());
@@ -1742,7 +1742,7 @@ git commit -m "feat(feedback): Help > Send Feedback replaces Report Bug"
 - [ ] `purgeDue` picks Fixed/Won't fix closed ≥30 days ago and anything received ≥365 days ago, never `Purged` rows.
 - [ ] `stripPath("./logs/a.log")` = `logs/a.log`.
 
-**Verify:** `node --test tools/feedback-receiver/test/` → `# pass 5`, `# fail 0`
+**Verify:** `node --test 'tools/feedback-receiver/test/**/*.test.js'` → `# pass 5`, `# fail 0`
 
 **Steps:**
 
@@ -1800,7 +1800,7 @@ test("stripPath and subject", () => {
 });
 ```
 
-Run: `node --test tools/feedback-receiver/test/` → FAIL (`Cannot find module '../Logic.gs'`).
+Run: `node --test 'tools/feedback-receiver/test/**/*.test.js'` → FAIL (`Cannot find module '../Logic.gs'`).
 
 - [ ] **Step 2: Logic** — `tools/feedback-receiver/Logic.gs`:
 
@@ -1869,7 +1869,7 @@ var FeedbackLogic = {
 if (typeof module !== "undefined") { module.exports = FeedbackLogic; }
 ```
 
-- [ ] **Step 3: Pass** — `node --test tools/feedback-receiver/test/` → `# pass 5`.
+- [ ] **Step 3: Pass** — `node --test 'tools/feedback-receiver/test/**/*.test.js'` → `# pass 5`.
 
 - [ ] **Step 4: Services** — `tools/feedback-receiver/Code.gs`:
 
@@ -1963,7 +1963,7 @@ function purgeOld() {
 
 Google Apps Script that receives Help > Send Feedback reports. Owned by
 **cavecad.app@gmail.com**. Logic is in `Logic.gs` (tested:
-`node --test tools/feedback-receiver/test/`); `Code.gs` wires it to Drive,
+`node --test 'tools/feedback-receiver/test/**/*.test.js'`); `Code.gs` wires it to Drive,
 Sheets and Mail.
 
 ## One-time setup (signed in as cavecad.app@gmail.com)

@@ -7,7 +7,8 @@ import re
 import unittest
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-UPDATER = os.path.join(ROOT, "scripts", "Help", "CheckForUpdates")
+DIRS = [os.path.join(ROOT, "scripts", "Help", "CheckForUpdates"),
+        os.path.join(ROOT, "scripts", "Help", "SendFeedback")]
 
 
 class TestNoFunctionPropertyShadowing(unittest.TestCase):
@@ -26,15 +27,16 @@ class TestNoFunctionPropertyShadowing(unittest.TestCase):
         assigned = re.compile(
             r"^\s*([A-Z][A-Za-z0-9_]*)\.(" + "|".join(self.RESERVED) + r")\s*=", re.M)
         offenders = []
-        for name in sorted(os.listdir(UPDATER)):
-            if not name.endswith(".js"):
-                continue
-            with open(os.path.join(UPDATER, name)) as handle:
-                source = handle.read()
-            functions = set(declared.findall(source))
-            for match in assigned.finditer(source):
-                if match.group(1) in functions:
-                    offenders.append("%s: %s.%s" % (name, match.group(1), match.group(2)))
+        for d in DIRS:
+            for name in sorted(os.listdir(d)):
+                if not name.endswith(".js"):
+                    continue
+                with open(os.path.join(d, name)) as handle:
+                    source = handle.read()
+                functions = set(declared.findall(source))
+                for match in assigned.finditer(source):
+                    if match.group(1) in functions:
+                        offenders.append("%s: %s.%s" % (name, match.group(1), match.group(2)))
         self.assertEqual([], offenders,
                          "these assignments silently do not take: %s" % offenders)
 

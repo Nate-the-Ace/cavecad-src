@@ -145,8 +145,12 @@ not imported: the app must never depend on the add-on.
 - Base64-encode the zip with `QByteArray.toBase64()`; if the script bridge
   lacks it, fall back to the platform `base64` / `certutil` tool.
 - POST via `QProcess`, asynchronously, the same way the updater does:
-  `curl -fsSL --retry 2 --data-binary @report.b64 "<endpoint>?k=<key>&id=<id>"`
-  (`curl.exe` on Windows). `-L` follows Apps Script's 302 redirect.
+  `curl -sS -L --proto =https --data-binary @report.b64 "<endpoint>?k=<key>&id=<id>"`
+  (`curl.exe` on Windows). `-L` follows Apps Script's 302 redirect. No `-f`:
+  the JSON reply is parsed even on a refusal. No `--retry`: a retried POST
+  could file a duplicate report. Stalls, not overall duration, are what
+  should cut this off, so `--speed-limit`/`--speed-time` do the timeout
+  work instead of a fixed cap.
 - The dialog shows a sending state, then on success:
   **"Sent. Reference `<id>`."**
 
@@ -165,8 +169,9 @@ not imported: the app must never depend on the add-on.
 - Unsent zips are kept in `<app data>/feedback/outbox/`.
 - At each launch a background retry sends every outbox zip and deletes it
   on success. It never blocks startup.
-- A per-file failure count is kept beside it. From the 3rd failed launch,
-  the status bar shows *"1 feedback report waiting to send — Show…"*.
+- A per-file failure count is kept beside it. After 3 failed send attempts
+  for a report (the dialog's own attempt counts), the status bar shows
+  *"1 feedback report waiting to send — Show…"*.
 
 ### Failure dialog
 

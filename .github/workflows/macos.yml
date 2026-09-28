@@ -58,6 +58,12 @@ jobs:
           git -C qcadjsapi checkout -q "$QCADJSAPI_REV"
           git -C qcadjsapi apply --verbose "$GITHUB_WORKSPACE/tools/qcadjsapi-cavecad.patch"
 
+      - name: Configure Send Feedback
+        env:
+          FEEDBACK_ENDPOINT: ${{ secrets.FEEDBACK_ENDPOINT }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
+        run: python3 tools/inject_feedback_config.py
+
       - name: Build CaveCAD
         run: |
           QTDIR="$RUNNER_TEMP/Qt/$QT_VERSION/macos"
