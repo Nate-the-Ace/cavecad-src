@@ -23,10 +23,19 @@ class QCADCORE_EXPORT RSessionLog {
 public:
     static void write(QtMsgType type, const QString& message);
 
+    /** Opens the log file now (data location or CAVECAD_LOG_DIR), if not
+     * already open. Called once eagerly right after the message handler is
+     * installed, so the log exists even if the first message never comes;
+     * write() still opens it lazily as a fallback. Safe to call more than
+     * once; a no-op once the file is open or opening has already failed. */
+    static bool open();
+
     /** "HH:mm:ss.zzz T message\n", T one of I W C F. */
     static QByteArray format(QtMsgType type, const QString& message, const QString& time);
-    /** Deletes all but the newest `keep` session-*.log files in dir. */
-    static void rotate(const QString& dir, int keep);
+    /** Deletes all but the newest `keep` session-*.log files in dir. Never
+     * removes `keepName` (the current log), even if its name would sort
+     * outside the newest `keep`. */
+    static void rotate(const QString& dir, int keep, const QString& keepName = QString());
     /** content with its body (after headerBytes) cut to the newest half, starting on a line. */
     static QByteArray trimmed(const QByteArray& content, int headerBytes);
 
@@ -34,13 +43,12 @@ public:
     static const qint64 CAP = 2 * 1024 * 1024;
 
 private:
-    static bool open();
     static QByteArray header();
 
     static QMutex mutex;
     static QFile* file;
     static bool failed;
-    static bool busy;
+    static thread_local bool busy;
     static int headerBytes;
     static qint64 cap;
 };

@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QLocale>
 #include <QMutexLocker>
 #include <QSysInfo>
@@ -14,7 +15,7 @@
 QMutex RSessionLog::mutex;
 QFile* RSessionLog::file = NULL;
 bool RSessionLog::failed = false;
-bool RSessionLog::busy = false;
+thread_local bool RSessionLog::busy = false;
 int RSessionLog::headerBytes = 0;
 qint64 RSessionLog::cap = RSessionLog::CAP;
 
@@ -31,11 +32,16 @@ QByteArray RSessionLog::format(QtMsgType type, const QString& message, const QSt
     return (time + " " + QChar(t) + " " + m + "\n").toUtf8();
 }
 
-void RSessionLog::rotate(const QString& dir, int keep) {
+void RSessionLog::rotate(const QString& dir, int keep, const QString& keepName) {
     QDir d(dir);
     QStringList names = d.entryList(QStringList() << "session-*.log", QDir::Files, QDir::Name);
-    for (int i = 0; i < names.size() - keep; i++) {
+    int extra = names.size() - keep;
+    for (int i = 0; i < names.size() && extra > 0; i++) {
+        if (!keepName.isEmpty() && names.at(i) == keepName) {
+            continue;
+        }
         d.remove(names.at(i));
+        extra--;
     }
 }
 
@@ -80,8 +86,10 @@ bool RSessionLog::open() {
     }
     QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
     QString path = dir + "/session-" + stamp + ".log";
+    // zero-padded suffix so a name sort (used by rotate()) matches creation
+    // order even within the same second
     for (int n = 2; QFile::exists(path); n++) {
-        path = dir + "/session-" + stamp + "-" + QString::number(n) + ".log";
+        path = dir + "/session-" + stamp + "-" + QString("%1").arg(n, 2, 10, QChar('0')) + ".log";
     }
     file = new QFile(path);
     if (!file->open(QIODevice::WriteOnly | QIODevice::Append)) {
@@ -90,7 +98,7 @@ bool RSessionLog::open() {
         failed = true;
         return false;
     }
-    rotate(dir, KEEP);
+    rotate(dir, KEEP, QFileInfo(path).fileName());
     QByteArray h = header();
     headerBytes = h.size();
     file->write(h);
@@ -99,44 +107,36 @@ bool RSessionLog::open() {
 }
 
 void RSessionLog::write(QtMsgType type, const QString& message) {
-    if (type == QtDebugMsg) {
+    if (type == QtDebugMsg && !message.startsWith(QLatin1String("[crumb]"))) {
         return;
     }
-    // The script engine's qWarning/qCritical bindings stream a single
-    // QString through QDebug (qWarning() << str), which QDebug wraps in a
-    // matching pair of double quotes -- a display convention, not content.
-    // Unwrap it so "[crumb] ..." lines (and any other bare-string message)
-    // land in the log the way they were written, not re-quoted.
-    QString m = message;
-    if (m.length() >= 2 && m.startsWith(QLatin1Char('"')) && m.endsWith(QLatin1Char('"'))) {
-        QString inner = m.mid(1, m.length() - 2);
-        if (!inner.contains(QLatin1Char('"'))) {
-            m = inner;
-        }
-    }
-    QMutexLocker lock(&mutex);
-    // anything logged while opening (RSettings, QDir) must not recurse
+    // thread_local, checked before the (non-recursive) mutex: guards against
+    // a message logged while opening or writing the log on this same thread
+    // (e.g. RSettings::getDataLocation()), which would otherwise deadlock on
+    // the mutex instead of just harmlessly re-entering write().
     if (busy) {
         return;
     }
     busy = true;
+    QMutexLocker lock(&mutex);
     if (open()) {
-        file->write(format(type, m, QTime::currentTime().toString("HH:mm:ss.zzz")));
+        file->write(format(type, message, QTime::currentTime().toString("HH:mm:ss.zzz")));
         file->flush();
         if (file->size() > cap) {
             QString path = file->fileName();
             file->close();
             QFile in(path);
-            QByteArray all;
             if (in.open(QIODevice::ReadOnly)) {
-                all = in.readAll();
+                QByteArray all = in.readAll();
                 in.close();
+                if (file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    file->write(trimmed(all, headerBytes));
+                    file->flush();
+                    file->close();
+                }
             }
-            if (file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                file->write(trimmed(all, headerBytes));
-                file->flush();
-                file->close();
-            }
+            // if the file couldn't be read back, leave it as-is (already
+            // flushed) rather than risk truncating it to nothing
             if (!file->open(QIODevice::WriteOnly | QIODevice::Append)) {
                 delete file;
                 file = NULL;

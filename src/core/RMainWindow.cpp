@@ -83,10 +83,18 @@ void RMainWindow::installMessageHandler() {
 
 #if QT_VERSION >= 0x050000
 void RMainWindow::messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
-    RSessionLog::write(type, message);
-
     QByteArray localMsg = message.toLocal8Bit();
     QByteArray p = RDebug::getPrefix().toLocal8Bit();
+
+    // warnings filtered out of stderr below are filtered out of the session
+    // log too (single check, used by both)
+    bool suppressedWarning = type == QtWarningMsg &&
+        (localMsg.contains("changing class of non-QScriptObject not supported") ||
+         localMsg.startsWith("QPainter::"));
+
+    if (!suppressedWarning) {
+        RSessionLog::write(type, message);
+    }
 
     // intercept OpenGL messages for display in about dialog:
     if (localMsg.startsWith("Qt: ") ||
@@ -117,10 +125,7 @@ void RMainWindow::messageHandler(QtMsgType type, const QMessageLogContext& conte
         break;
 #endif
     case QtWarningMsg:
-        if (localMsg.contains("changing class of non-QScriptObject not supported")) {
-            break;
-        }
-        if (localMsg.startsWith("QPainter::")) {
+        if (suppressedWarning) {
             break;
         }
         if (context.file!=NULL && context.function!=NULL) {

@@ -1682,7 +1682,7 @@ function postInit() {
         include("scripts/Help/SendFeedback/SendFeedback.js");
         var local = CheckForUpdates.local();
         var scr = QGuiApplication.primaryScreen();
-        qWarning("[crumb] session: Cave Survey " + (local.toolsVersion || "?") + ", build " + (local.commit || "dev")
+        qDebug("[crumb] session: Cave Survey " + (local.toolsVersion || "?") + ", build " + (local.commit || "dev")
             + ", screen " + (isNull(scr) ? "?" : scr.size().width() + "x" + scr.size().height() + "@" + scr.devicePixelRatio));
         if (FeedbackSend.pending().length === 0) { return; }
         var t = new QTimer(RMainWindowQt.getMainWindow());

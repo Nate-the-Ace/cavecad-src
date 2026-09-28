@@ -48,7 +48,11 @@ class TestSessionLog(unittest.TestCase):
             self.assertEqual(1, len(files))
             text = files[0].read_text(encoding="utf-8")
             self.assertTrue(text.startswith("# CaveCAD "), text[:80])
-            self.assertRegex(text, r"\n\d\d:\d\d:\d\d\.\d{3} W \[crumb\] probe 0\n")
+            # crumbs are emitted via qDebug (format type 'I'), not qWarning
+            self.assertRegex(text, r"\n\d\d:\d\d:\d\d\.\d{3} I \[crumb\] probe 0\n")
+            # a plain qWarning must still reach the log (may be quoted by
+            # QDebug; only the substring is guaranteed)
+            self.assertIn("warn-probe", text)
 
     def test_keeps_five(self):
         with tempfile.TemporaryDirectory() as d:
@@ -69,6 +73,22 @@ class TestSessionLog(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             launch(d)
             self.assertNotIn("debug-probe", logs(d)[-1].read_text(encoding="utf-8"))
+
+    def test_rotate_never_removes_current_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            # names that sort AFTER today's session-<yyyyMMdd-...>.log, so a
+            # naive "keep newest 5 by name" would evict the file this launch
+            # is actively writing to. (These also outrank it in emit.js's own
+            # "last by name" self-check, so we verify the real file directly
+            # below instead of relying on emit.js's SESSIONLOG OK/FAIL line.)
+            for i in range(1, 6):
+                (Path(d) / "session-99999999-{:02d}.log".format(i)).write_text("dummy\n")
+            launch(d)
+            files = logs(d)
+            self.assertEqual(5, len(files))
+            current = [p for p in files if not p.name.startswith("session-99999999")]
+            self.assertEqual(1, len(current))
+            self.assertIn("[crumb] probe 0", current[0].read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
