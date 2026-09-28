@@ -74,7 +74,11 @@ RCave3dPanel::RCave3dPanel(QWidget* parent)
     status = new QLabel(this);
     status->setContentsMargins(4, 2, 4, 2);
     // Must be allowed to be NARROWER than its text, or the whole dock
-    // refuses to shrink below the longest status line.
+    // refuses to shrink below the longest status line. WRAPPING is what
+    // does it: setMinimumWidth(0) alone did nothing, because layouts
+    // read a zero minimum as "unset" and fall back to minimumSizeHint --
+    // which for an unwrapped label is the whole line (2026-09-27).
+    status->setWordWrap(true);
     status->setMinimumWidth(0);
     status->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(status);
