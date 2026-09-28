@@ -27,6 +27,58 @@ function SendFeedback(guiAction) { Help.call(this, guiAction); }
 SendFeedback.prototype = new Help();
 SendFeedback.includeBasePath = includeBasePath;
 SendFeedback.TYPES = ["bug", "idea", "question"];
+
+SendFeedback.PRIVACY_URL = "https://github.com/Nate-the-Ace/cavecad-src/blob/cavecad/PRIVACY.md";
+
+/**
+ * The handbook's Privacy page (installed with the Cave Survey tools), or
+ * null when the handbook is not there.
+ */
+SendFeedback.privacyHtml = function() {
+    try {
+        var idx = CsHandbook.index();
+        if (isNull(idx)) { return null; }
+        var html = CsHandbook.readText(idx.root + "/pages/privacy.html");
+        return isNull(html) || html === "" ? null : String(html);
+    } catch (e) {
+        return null;
+    }
+};
+
+/** Shows what Send Feedback collects, in a window above the modal dialog. */
+SendFeedback.showPrivacy = function() {
+    var html = SendFeedback.privacyHtml();
+    if (html === null) {
+        QDesktopServices.openUrl(new QUrl(SendFeedback.PRIVACY_URL));
+        return;
+    }
+    var box = new QMessageBox(QMessageBox.Information, qsTr("What we collect"), html,
+                              QMessageBox.Ok, RMainWindowQt.getMainWindow());
+    box.textFormat = Qt.RichText;
+    box.exec();
+    destrDialog(box);
+};
+
+/** Per-type wording for the description label and the field tooltips. */
+SendFeedback.prompts = function() {
+    return {
+        bug: {
+            label: qsTr("What happened, and what did you expect?"),
+            descriptionTip: qsTr("What you did, what happened, and what you expected instead."),
+            summaryTip: qsTr("One line saying what went wrong.")
+        },
+        idea: {
+            label: qsTr("What would you like CaveCAD to do, and why?"),
+            descriptionTip: qsTr("Describe the idea and the job it would help you with."),
+            summaryTip: qsTr("One line naming the idea.")
+        },
+        question: {
+            label: qsTr("What would you like to know?"),
+            descriptionTip: qsTr("Your question, and what you were trying to do."),
+            summaryTip: qsTr("One line with your question.")
+        }
+    };
+};
 SendFeedback.SCAN_MODES = ["none", "used", "chosen"];
 
 SendFeedback.prototype.beginEvent = function() {
@@ -209,6 +261,21 @@ SendFeedback.open = function() {
         lastScanIndex = w("Scans").currentIndex;
         refresh();
     }
+    // The wording follows the Type: a bug asks what happened, an idea what
+    // it should do, a question what they want to know.
+    function applyType() {
+        var p = SendFeedback.prompts()[SendFeedback.TYPES[w("Type").currentIndex]];
+        w("DescriptionLabel").text = p.label;
+        w("Description").toolTip = p.descriptionTip;
+        w("Summary").toolTip = p.summaryTip;
+    }
+    // "What we collect" shows the handbook's Privacy page on top: the
+    // Handbook dock would open behind this modal dialog.
+    w("Consent").linkActivated.connect(function(href) {
+        if (String(href) === "handbook:privacy") { SendFeedback.showPrivacy(); }
+    });
+    w("Type")["currentIndexChanged(int)"].connect(applyType);
+    applyType();
     w("Description").textChanged.connect(updateHint);
     ["Logs", "Screenshot", "Drawing", "SurveyFiles"].forEach(function(n) { w(n).toggled.connect(updateSize); });
     w("Scans")["activated(int)"].connect(function(i) {

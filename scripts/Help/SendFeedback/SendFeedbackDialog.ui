@@ -40,8 +40,8 @@
           <item><property name="text"><string>Choose scans...</string></property></item></widget></item>
         <item><widget class="QLabel" name="ScansChosen"/></item>
       </layout></item>
-      <item><widget class="QLabel" name="Consent"><property name="wordWrap"><bool>true</bool></property><property name="openExternalLinks"><bool>true</bool></property>
-        <property name="text"><string>Your drawing contains your cave's location. It goes only to the CaveCAD maintainer and people they trust. &lt;a href="https://github.com/Nate-the-Ace/cavecad-src/blob/cavecad/PRIVACY.md"&gt;What we collect&lt;/a&gt;</string></property></widget></item>
+      <item><widget class="QLabel" name="Consent"><property name="wordWrap"><bool>true</bool></property><property name="openExternalLinks"><bool>false</bool></property>
+        <property name="text"><string>Your drawing contains your cave's location. It goes only to the CaveCAD maintainer and people they trust. &lt;a href="handbook:privacy"&gt;What we collect&lt;/a&gt;</string></property></widget></item>
      </layout></widget></item>
    <item><layout class="QHBoxLayout" name="Bottom">
      <item><widget class="QLabel" name="Size"/></item>
