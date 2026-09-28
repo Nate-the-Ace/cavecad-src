@@ -30,7 +30,8 @@ In:
 3. Transport, outbox and failure path (script).
 4. Receiver: Google Apps Script web app, Drive folder, triage Sheet.
 5. Removal of Help > Report Bug (currently opens qcad.org/bugreport).
-6. About dialog gains a contact line: cavecad.app@gmail.com.
+6. About dialog gains a contact line, a Privacy link and a no-warranty line.
+7. Privacy policy (`PRIVACY.md`, handbook page) and report retention.
 
 Out: repointing the other qcad.org Help entries (separate task), GitHub
 issue automation, sanitized-copy export, chunked uploads.
@@ -213,9 +214,68 @@ submitted cave.
 
 ## 5. About dialog
 
-Add a contact line to `scripts/Help/About/About.js`:
-*Contact: cavecad.app@gmail.com* as a `mailto:` link. The GPL
-"Based on: QCAD Community Edition" attribution stays.
+In `scripts/Help/About/About.js`, after the GPL paragraph, add:
+*Contact: cavecad.app@gmail.com* (`mailto:` link), a **Privacy** link to
+`PRIVACY.md` on GitHub, and *"Provided without warranty — see the
+licence."* The GPL "Based on QCAD Community Edition" attribution stays.
+(Commit 0d692308 already removed the QCAD contribute/shop links.)
+
+## 6. Privacy policy
+
+A one-page **notice**, not an agreement: nobody accepts anything to use
+CaveCAD. It covers every point where CaveCAD talks to the internet.
+
+### Delivered as
+
+- `PRIVACY.md` at the repo root, linked from `README.md`.
+- A handbook page (Cave Survey handbook) with the same text.
+- A **Privacy** link in the About dialog.
+- A **What we collect** link in the Send Feedback dialog, beside the
+  consent line.
+
+### Content (inventory verified 2026-09-27 against the source)
+
+| Feature | Service contacted | What that service learns |
+|---|---|---|
+| Check for Updates | GitHub (`github.com` releases) | IP address, that CaveCAD checked. Nothing else sent. |
+| Surface Data / aerial basemap | USGS National Map (`imagery.nationalmap.gov`, `elevation.nationalmap.gov`) | IP address and the **map area requested — i.e. roughly where the cave is** |
+| Entrance Location picker | OpenStreetMap tiles (`tile.openstreetmap.org`), Esri World Imagery (`server.arcgisonline.com`), Leaflet library from `unpkg.com` | IP address and the **map area viewed** |
+| Send Feedback | Google (Apps Script + Drive under cavecad.app@gmail.com) | Only what the user chose to send |
+
+Stated plainly: the map-area requests are the privacy-sensitive ones for
+cavers — the imagery and elevation providers see which area was fetched.
+CaveCAD sends them no cave names or survey data.
+
+Send Feedback terms:
+
+- Collected: the items listed in section 2; everything beyond logs and
+  screenshot is opt-in, and those two can be unticked.
+- Purpose: fixing and improving CaveCAD only.
+- Readers: the maintainer and named trusted helpers. Never published,
+  sold or shared further.
+- Storage: Google Drive under cavecad.app@gmail.com (Google as storage
+  provider).
+- Retention: 30 days after the report is closed, and at most **12 months**.
+- Deletion: email cavecad.app@gmail.com with the reference ID.
+- Drawings remain the sender's; sending one permits its use for debugging
+  only.
+
+Everything else stays local: drawings, survey data and session logs never
+leave the computer unless the user sends them.
+
+Contact: cavecad.app@gmail.com.
+
+### Retention trigger
+
+`Code.gs` gains `purgeOld()`, run daily by a time-driven trigger: moves to
+Drive trash every report folder whose Sheet row has been Fixed or Won't fix for 30 days, and
+every folder older than 12 months regardless of status, and marks the row
+`Purged`. The 30 days count from a **Closed** date column, stamped by an `onEdit` trigger when Status changes to Fixed or Won't fix. Pure date/status logic tested under `node` with the rest.
+
+### Maintenance rule
+
+Any new feature that contacts a network service updates the table in
+`PRIVACY.md` in the same change.
 
 ## Testing
 
@@ -233,7 +293,7 @@ count and 3rd-launch notice; placeholder config skips the POST and reaches the f
 dialog.
 
 **Receiver:** pure functions (key check, size/rate gate, folder name,
-Sheet row) tested under `node`.
+Sheet row, purge selection) tested under `node`.
 
 **Live, via the CaveCAD MCP bridge** (after deploy + `codesign`, and after
 a confirmed restart so the add-on isn't stale):
@@ -257,3 +317,6 @@ a grep test fails if the repo copy holds anything but the placeholder.
    `Nate-the-Ace/cavecad-src`.
 3. Share the folder and Sheet with the personal account and trusted people.
 4. Make a second "test" deployment for live tests.
+5. In the Apps Script project, add a daily time-driven trigger for
+   `purgeOld` and an installable on-edit trigger for the Sheet (stamps the
+   Closed date).
