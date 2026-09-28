@@ -2083,7 +2083,11 @@ bool RSettings::isNextVersionEnabled() {
 
 bool RSettings::getAutoScaleLinetypePatterns() {
     if (autoScaleLinetypePattern==-1) {
-        autoScaleLinetypePattern = getValue("GraphicsView/AutoScaleLinetypePatterns", QVariant(true)).toBool();
+        // CaveCAD: off by default. On, every pattern is multiplied by the
+        // line's pen width in mm, so a linetype's lengths stop meaning
+        // drawing units (a 0.25 mm layer drew them at a quarter size) and
+        // what CaveCAD shows no longer matches other DXF readers.
+        autoScaleLinetypePattern = getValue("GraphicsView/AutoScaleLinetypePatterns", QVariant(false)).toBool();
     }
     return (bool)autoScaleLinetypePattern;
 }
