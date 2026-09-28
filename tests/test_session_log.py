@@ -90,6 +90,18 @@ class TestSessionLog(unittest.TestCase):
             self.assertEqual(1, len(current))
             self.assertIn("[crumb] probe 0", current[0].read_text(encoding="utf-8"))
 
+    def test_crumbs(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = launch(d, script="tests/sessionlog/crumbs.js")
+            self.assertIn("CRUMBS DONE", out)
+            text = logs(d)[-1].read_text(encoding="utf-8")
+            self.assertIn("[crumb] action: Crumb Probe", text)
+            self.assertRegex(text, r"\[crumb\] save: .*/cc-crumbs/saved\.dxf\n")
+            self.assertRegex(text, r"\[crumb\] export copy: .*/cc-crumbs/copy\.dxf\n")
+            self.assertRegex(text, r"\[crumb\] undo:")
+            self.assertRegex(text, r"\[crumb\] redo:")
+            self.assertRegex(text, r"\[crumb\] open: .*/cc-crumbs/saved\.dxf \(1 entities\)\n")
+
 
 if __name__ == "__main__":
     unittest.main()

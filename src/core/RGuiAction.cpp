@@ -1174,6 +1174,15 @@ QStringList RGuiAction::getAvailableCommands(const QString& start, bool primaryO
  * activated (button pressed, menu selected, etc).
  */
 bool RGuiAction::slotTrigger(const QString& command) {
+    {
+        QString t = text();
+        t.remove('&');
+        if (t.isEmpty()) {
+            t = QFileInfo(scriptFile).completeBaseName();
+        }
+        qInfo().noquote() << "[crumb] action:" << t;
+    }
+
     RMainWindow* mainWindow = RMainWindow::getMainWindow();
     if (mainWindow != NULL) {
         // display main command somewhere, e.g. in command line:

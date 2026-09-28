@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with QCAD.
  */
+#include "RDocument.h"
 #include "RDocumentInterface.h"
 #include "RGraphicsViewImage.h"
 #include "RMainWindowQt.h"
@@ -125,6 +126,8 @@ void RMdiChildQt::closeEvent(QCloseEvent* closeEvent) {
         documentInterface->deleteTerminatedActions();
 
         emit closeAccepted(this);
+
+        qInfo().noquote() << "[crumb] close:" << documentInterface->getDocument().getFileName();
 
 #if QT_VERSION < 0x060000
         RDocumentInterface* di = documentInterface;

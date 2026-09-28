@@ -1346,6 +1346,8 @@ RDocumentInterface::IoErrorCode RDocumentInterface::importFile(
 
     if (fileImporter->importFile(fileName, nameFilter, params)) {
         document.setModified(false);
+        qInfo().noquote() << "[crumb] open:" << fileName
+                          << QString("(%1 entities)").arg(document.queryAllEntities(false, true).size());
     } else {
         document.setFileName(previousFileName);
         qWarning() << QString("Import for file %1 failed").arg(fileName);
@@ -1413,6 +1415,7 @@ bool RDocumentInterface::exportFile(const QString& fileName, const QString& file
     document.removeVariable("ViewportHeight");
 
     if (success) {
+        qInfo().noquote() << (resetModified ? "[crumb] save:" : "[crumb] export copy:") << fileName;
         // Note: exporter might set the file name of the document
         // to the new name if desired
         if (resetModified) {
@@ -1480,6 +1483,10 @@ void RDocumentInterface::undo() {
         // notify document specific listeners:
         notifyTransactionListeners(&t[i]);
 
+        if (i == 0) {
+            qInfo().noquote() << "[crumb] undo:" << t[i].getText();
+        }
+
         if (i==0 && mainWindow!=NULL) {
             mainWindow->handleUserMessage(QString("Undo:") + " " + t[i].getText());
         }
@@ -1509,6 +1516,10 @@ void RDocumentInterface::redo() {
         }
         // notify document specific listeners:
         notifyTransactionListeners(&t[i]);
+
+        if (i == t.length() - 1) {
+            qInfo().noquote() << "[crumb] redo:" << t[i].getText();
+        }
 
         if (i==t.length()-1 && mainWindow!=NULL) {
             mainWindow->handleUserMessage(QString("Redo:") + " " + t[i].getText());
