@@ -28,6 +28,7 @@
 #include "RFileImporter.h"
 #include "RHatchData.h"
 #include "RLeaderData.h"
+#include "RLinetype.h"
 #include "RPolyline.h"
 #include "RSpline.h"
 
@@ -71,6 +72,7 @@ private:
     virtual void addLayer(const DL_LayerData& data);
     virtual void addLinetype(const DL_LinetypeData& data);
     virtual void addLinetypeDash(double length);
+    virtual void addLinetypeDashElement(int groupCode, const std::string& value);
     virtual void addBlock(const DL_BlockData& data);
     virtual void endBlock();
     virtual void addPoint(const DL_PointData& data);
@@ -160,6 +162,18 @@ private:
     QMultiMap<int, RObject::Id> images;
     // pattern for linetype
     QList<double> pattern;
+    // CaveCAD: complex elements of the linetype being read, by dash index.
+    QMap<int, DL_LinetypeElement> patternElements;
+    // Text/shape elements whose STYLE (340) arrives later in the file.
+    struct PendingLinetypeStyle {
+        QSharedPointer<RLinetype> linetype;
+        int index;
+        unsigned long styleHandle;
+        bool shape;
+    };
+    QList<PendingLinetypeStyle> pendingLinetypeStyles;
+    QMap<unsigned long, QString> styleFontsByHandle;
+    void resolveLinetypeStyles();
 
     // Current app id for XData:
     QString xDataAppId;

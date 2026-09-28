@@ -85,6 +85,31 @@ struct DXFLIB_EXPORT DL_BlockData {
 
 
 /**
+ * One complex element of a linetype: the text or shape drawn at the end of
+ * the dash it follows (group codes 74/75/340/46/50/44/45/9). CaveCAD.
+ */
+struct DXFLIB_EXPORT DL_LinetypeElement {
+    DL_LinetypeElement()
+        : flags(0), shapeNumber(0), styleHandle(0), scale(1.0),
+          rotation(0.0), offsetX(0.0), offsetY(0.0) {}
+    /** 74: 1 = absolute rotation, 2 = text, 4 = shape. 0 = plain dash. */
+    int flags;
+    /** 75 */
+    int shapeNumber;
+    /** 340: handle of the STYLE record */
+    unsigned long styleHandle;
+    /** 46 */
+    double scale;
+    /** 50, radians */
+    double rotation;
+    /** 44, 45 */
+    double offsetX;
+    double offsetY;
+    /** 9 */
+    std::string text;
+};
+
+/**
  * Line Type Data.
  */
 struct DXFLIB_EXPORT DL_LinetypeData {
@@ -120,6 +145,8 @@ struct DXFLIB_EXPORT DL_LinetypeData {
     double patternLength;
     /** Pattern */
     double* pattern;
+    /** Per-dash complex elements, index-aligned with pattern. Empty = plain. CaveCAD. */
+    std::vector<DL_LinetypeElement> elements;
 };
 
 
@@ -153,7 +180,8 @@ struct DXFLIB_EXPORT DL_StyleData {
         primaryFontFile(primaryFontFile),
         bigFontFile(bigFontFile),
         bold(false),
-        italic(false) {
+        italic(false),
+        handle(0) {
     }
 
     bool operator==(const DL_StyleData& other) const {
@@ -189,6 +217,9 @@ struct DXFLIB_EXPORT DL_StyleData {
 
     bool bold;
     bool italic;
+    /** Record handle (5): read on import; when non-zero on export it is
+     *  written instead of a fresh one (a linetype points here). CaveCAD. */
+    unsigned long handle;
 };
 
 /**

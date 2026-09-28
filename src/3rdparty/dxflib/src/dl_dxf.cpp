@@ -394,7 +394,9 @@ bool DL_Dxf::processDXFGroup(DL_CreationInterface* creationInterface,
     }
 
     // Indicates start of new entity or variable:
-    else if (groupCode==0 || groupCode==9) {
+    // CaveCAD: 9 is a header variable name, but inside an LTYPE record it is
+    // the embedded text of a complex element and must not end the record.
+    else if (groupCode==0 || (groupCode==9 && currentObjectType!=DL_LINETYPE)) {
         // If new entity is encountered, the last one is complete.
         // Prepare default attributes for next entity:
         std::string layer = getStringValue(8, "0");
@@ -931,6 +933,12 @@ bool DL_Dxf::handleLinetypeData(DL_CreationInterface* creationInterface) {
         creationInterface->addLinetypeDash(toReal(groupValue));
         return true;
     }
+    // CaveCAD: the complex element (text / shape) of that dash.
+    if (groupCode==74 || groupCode==75 || groupCode==340 || groupCode==46 ||
+        groupCode==50 || groupCode==44 || groupCode==45 || groupCode==9) {
+        creationInterface->addLinetypeDashElement(groupCode, groupValue);
+        return true;
+    }
 
     return false;
 }
@@ -995,6 +1003,8 @@ void DL_Dxf::addTextStyle(DL_CreationInterface* creationInterface) {
         // big font file:
         getStringValue(4, "")
         );
+    // CaveCAD: a linetype's 340 names this record by its handle.
+    d.handle = strtoul(getStringValue(5, "0").c_str(), NULL, 16);
     creationInterface->addTextStyle(d);
 }
 

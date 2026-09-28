@@ -136,6 +136,9 @@ bool RDxfImporter::importFile(const QString& fileName, const QString& nameFilter
         return false;
     }
 
+    // CaveCAD: fonts of text linetypes, now that STYLE has been read.
+    resolveLinetypeStyles();
+
     document->setFileVersion("R15 (2000) DXF Drawing (dxflib) (*.dxf)");
 
     // make sure dimension font is set to standard,
@@ -320,24 +323,84 @@ void RDxfImporter::addLinetype(const DL_LinetypeData& data) {
     RLinetypePattern p(document->isMetric(), name, description, pattern);
     RDxfServices::autoFixLinetypePattern(p);
 
-//    for (int i = 0; i < numDashes; i++) {
-//        data.pattern[i] = pattern[i];
-//    }
+    // CaveCAD: complex elements (text now, shapes in phase 2).
+    QList<int> idxs = patternElements.keys();
+    for (int k = 0; k < idxs.count(); k++) {
+        int i = idxs.at(k);
+        const DL_LinetypeElement& e = patternElements[i];
+        if ((e.flags & (2 | 4)) == 0) {
+            continue;
+        }
+        if (e.flags & 2) {
+            p.setShapeTextAt(i, decode(e.text.c_str()));
+        } else {
+            p.setShapeNumberAt(i, e.shapeNumber);
+        }
+        p.setShapeScaleAt(i, e.scale);
+        p.setShapeRotationAt(i, e.rotation);
+        p.setShapeOffsetAt(i, RVector(e.offsetX, e.offsetY));
+    }
 
-    //RLinetypePattern lt = RLinetypePatternMap::getPattern(name.toUpper());
-    //if (!lt.isValid()) {
-        // linetype name not found
-        //RLinetypePatternMap::addLinetype(data);
-        //document->addLinetype(name);
-        QSharedPointer<RLinetype> linetype(new RLinetype(document, p));
+    QSharedPointer<RLinetype> linetype(new RLinetype(document, p));
+    importObjectP(linetype);
 
-        importObjectP(linetype);
-    //}
+    for (int k = 0; k < idxs.count(); k++) {
+        const DL_LinetypeElement& e = patternElements[idxs.at(k)];
+        if ((e.flags & (2 | 4)) != 0) {
+            PendingLinetypeStyle pl;
+            pl.linetype = linetype;
+            pl.index = idxs.at(k);
+            pl.styleHandle = e.styleHandle;
+            pl.shape = (e.flags & 4) != 0;
+            pendingLinetypeStyles.append(pl);
+        }
+    }
+
+    patternElements.clear();
     pattern.clear();
 }
 
 void RDxfImporter::addLinetypeDash(double length) {
     pattern.append(length);
+}
+
+void RDxfImporter::addLinetypeDashElement(int groupCode, const std::string& value) {
+    int idx = pattern.count() - 1;
+    if (idx < 0) {
+        return;
+    }
+    DL_LinetypeElement& e = patternElements[idx];
+    QString v = QString::fromUtf8(value.c_str()).trimmed();
+    switch (groupCode) {
+    case 74: e.flags = v.toInt(); break;
+    case 75: e.shapeNumber = v.toInt(); break;
+    case 340: e.styleHandle = v.toULong(NULL, 16); break;
+    case 46: e.scale = v.toDouble(); break;
+    case 50: e.rotation = v.toDouble(); break;
+    case 44: e.offsetX = v.toDouble(); break;
+    case 45: e.offsetY = v.toDouble(); break;
+    case 9: e.text = value; break;
+    default: break;
+    }
+}
+
+/**
+ * STYLE records come after LTYPE in a DXF, so a text element's font is
+ * only known once the whole file is read. The linetype objects were
+ * already handed to the import transaction; the storage holds these same
+ * pointers, so setting the pattern here is what the document keeps.
+ */
+void RDxfImporter::resolveLinetypeStyles() {
+    for (int i = 0; i < pendingLinetypeStyles.count(); i++) {
+        const PendingLinetypeStyle& pl = pendingLinetypeStyles.at(i);
+        QString font = styleFontsByHandle.value(pl.styleHandle, "standard");
+        RLinetypePattern p = pl.linetype->getPattern();
+        p.setShapeTextStyleAt(pl.index, pl.shape ? font + ".shx" : font);
+        p.updateShapes();
+        pl.linetype->setPattern(p);
+    }
+    pendingLinetypeStyles.clear();
+    styleFontsByHandle.clear();
 }
 
 void RDxfImporter::addBlock(const DL_BlockData& data) {
@@ -790,6 +853,11 @@ void RDxfImporter::addTextStyle(const DL_StyleData& data) {
     s.bold = xDataFlags&0x2000000;
 
     textStyles.insert(dxfServices.fixFontName(decode(data.name.c_str())), s);
+
+    // CaveCAD: for linetype text elements, which point here by handle.
+    if (data.handle != 0) {
+        styleFontsByHandle.insert(data.handle, s.font);
+    }
 }
 
 void RDxfImporter::addMTextChunk(const std::string& text) {

@@ -443,9 +443,9 @@ bool RLinetypePattern::setPatternString(const QString& patternString) {
     for (int i = 0; i < parts.length(); i++) {
         QString part = parts[i];
         if (part.startsWith("[", Qt::CaseInsensitive)) {
-            if (!RPluginLoader::hasPlugin("DWG")) {
-                return false;
-            }
+            // CaveCAD: complex elements are parsed for everyone. The DWG
+            // plugin gate made every text/shape linetype unloadable in a
+            // build that has no DWG plugin at all.
 
             QRegularExpression rx(
                 "\\["

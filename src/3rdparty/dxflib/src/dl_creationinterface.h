@@ -80,6 +80,16 @@ public:
     virtual void addLinetypeDash(double length) = 0;
 
     /**
+     * Called for each complex-element group code (74, 75, 340, 46, 50,
+     * 44, 45, 9) inside an LTYPE record; applies to the dash last passed
+     * to addLinetypeDash. CaveCAD.
+     */
+    virtual void addLinetypeDashElement(int groupCode, const std::string& value) {
+        (void)groupCode;
+        (void)value;
+    }
+
+    /**
      * Called for every block. Note: all entities added after this
      * command go into this block until endBlock() is called.
     *
