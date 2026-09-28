@@ -38,6 +38,7 @@ add_library(cavecadgui SHARED
     RColorCombo.cpp RColorCombo.h
     RComboBox.cpp RComboBox.h
     RCommandLine.cpp RCommandLine.h
+    RDockSnap.cpp RDockSnap.h
     RDockWidget.cpp RDockWidget.h
     REventFilter.cpp REventFilter.h
     RToolOptionEventFilter.cpp RToolOptionEventFilter.h

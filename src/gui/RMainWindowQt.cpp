@@ -33,6 +33,7 @@
 
 #include "RCloseCurrentEvent.h"
 #include "RCoordinateEvent.h"
+#include "RDockSnap.h"
 #include "RDocument.h"
 #include "RDocumentInterface.h"
 #include "RGuiAction.h"
@@ -79,6 +80,9 @@ RMainWindowQt::RMainWindowQt(QWidget* parent, bool hasMdiArea) :
         }
     }
     setWindowTitle("RMainWindowQt");
+
+    // double-click a dock separator to snap the dock to its minimum size:
+    new RDockSnap(this);
 
     RSingleApplication* singleApp = dynamic_cast<RSingleApplication*> (qApp);
     if (singleApp!=NULL) {
