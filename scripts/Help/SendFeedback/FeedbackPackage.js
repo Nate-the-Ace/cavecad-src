@@ -29,7 +29,7 @@ FeedbackPackage.latestLogs = function(dir) {
  * An entity the engine can't resolve (e.g. no file name yet) is skipped.
  */
 FeedbackPackage.usedScans = function(doc, docDir) {
-    var ids = doc.queryAllEntities(false, true), seen = {}, out = [];
+    var ids = doc.queryAllEntities(false, true, RS.EntityImage), seen = {}, out = [];
     for (var i = 0; i < ids.length; i++) {
         var e = doc.queryEntity(ids[i]);
         if (isNull(e) || e.getType() !== RS.EntityImage) { continue; }

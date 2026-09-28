@@ -82,6 +82,37 @@ SendFeedback.sizeOf = function(paths) {
     return n;
 };
 
+/** Runs fn under a wait cursor; the cursor is restored whatever fn does. */
+SendFeedback.busyCursor = function(fn) {
+    var set = false;
+    try { QGuiApplication.setOverrideCursor(new QCursor(Qt.WaitCursor)); set = true; } catch (e) { /* no cursor */ }
+    try { return fn(); } finally { if (set) { QGuiApplication.restoreOverrideCursor(); } }
+};
+
+SendFeedback.STAGING_MAX_AGE_S = 24 * 3600;
+
+/**
+ * Removes staging leftovers (a crash mid-send, a Review never sent) older
+ * than a day. Only entries directly inside FeedbackPackage.stagingBase(),
+ * and only if that path still looks like ours; a symlink is removed as a
+ * link, never followed.
+ */
+SendFeedback.pruneStaging = function() {
+    var base = String(FeedbackPackage.stagingBase()).replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!/\/feedback\/staging$/.test(base) || !new QFileInfo(base).isAbsolute()) { return; }
+    var names = new QDir(base).entryList([], QDir.AllEntries | QDir.NoDotAndDotDot | QDir.Hidden | QDir.System, QDir.Name);
+    var now = QDateTime.currentDateTime();
+    for (var i = 0; i < names.length; i++) {
+        var n = String(names[i]);
+        if (n === "" || n.indexOf("/") >= 0 || n.indexOf("\\") >= 0) { continue; }
+        var path = base + "/" + n;
+        var fi = new QFileInfo(path);
+        if (fi.lastModified().secsTo(now) < SendFeedback.STAGING_MAX_AGE_S) { continue; }
+        if (fi.isDir() && !fi.isSymLink()) { (new QDir(path)).removeRecursively(); }
+        else { QFile.remove(path); }
+    }
+};
+
 SendFeedback.open = function() {
     var appWin = RMainWindowQt.getMainWindow();
     var di = EAction.getDocumentInterface();
@@ -95,32 +126,43 @@ SendFeedback.open = function() {
     var id = FeedbackCore.newId();
     var base = FeedbackPackage.stagingBase();
     (new QDir()).mkpath(base);
+    try { SendFeedback.pruneStaging(); } catch (eP) { qWarning("Send Feedback: staging prune: " + eP); }
     var shot = base + "/" + id + "-screenshot.png";
     var shotOk = false;
     try { shotOk = appWin.grab().save(shot, "PNG") === true; } catch (e1) { shotOk = false; }
 
     // ---- computed once (see header) ----
+    // drawingBytes: the saved file's size stands in for the in-memory copy (0 if never saved)
     var cache = { survey: [], surveyBytes: 0, truncated: false, used: [], usedBytes: 0,
-                  logs: [], logBytes: 0, shotBytes: shotOk ? new QFileInfo(shot).size() : 0 };
-    cache.logs = FeedbackPackage.latestLogs(FeedbackPackage.logDir());
-    cache.logBytes = SendFeedback.sizeOf(cache.logs);
-    if (hasDir) {
-        cache.survey = FeedbackCore.surveyFiles(FeedbackPackage.listFiles(caveDir));
-        cache.truncated = FeedbackPackage.lastListTruncated === true;
-        cache.surveyBytes = SendFeedback.sizeOf(cache.survey.map(function(r) { return caveDir + "/" + r; }));
-    }
-    if (hasDoc) {
-        try { cache.used = FeedbackPackage.usedScans(doc, caveDir); } catch (e2) { cache.used = []; }
-        cache.usedBytes = SendFeedback.sizeOf(cache.used);
-    }
+                  logs: [], logBytes: 0, shotBytes: shotOk ? new QFileInfo(shot).size() : 0,
+                  drawingBytes: docPath === "" ? 0 : new QFileInfo(docPath).size() };
+    SendFeedback.busyCursor(function() {
+        cache.logs = FeedbackPackage.latestLogs(FeedbackPackage.logDir());
+        cache.logBytes = SendFeedback.sizeOf(cache.logs);
+        if (hasDir) {
+            cache.survey = FeedbackCore.surveyFiles(FeedbackPackage.listFiles(caveDir));
+            cache.truncated = FeedbackPackage.lastListTruncated === true;
+            cache.surveyBytes = SendFeedback.sizeOf(cache.survey.map(function(r) { return caveDir + "/" + r; }));
+        }
+        if (hasDoc) {
+            try { cache.used = FeedbackPackage.usedScans(doc, caveDir); } catch (e2) { cache.used = []; }
+            cache.usedBytes = SendFeedback.sizeOf(cache.used);
+        }
+    });
     var chosen = [], chosenBytes = 0, lastScanIndex = 0;
 
     var dialog = WidgetFactory.createDialog(SendFeedback.includeBasePath, "SendFeedbackDialog.ui", appWin);
     var w = function(n) { return dialog.findChild(n); };
-    // closed: exec() has returned; busy: a zip/send is still running
+    // closed: exec() has returned for good; busy: a zip/send is still running
     var state = { closed: false, busy: false };
 
     ["Drawing", "Scans", "ScansLabel", "AttachUsedScans", "ChooseScan"].forEach(function(n) { w(n).enabled = hasDoc; });
+    var noUsed = cache.used.length === 0;
+    if (noUsed) {
+        // a combo item can't be disabled through the bridge: relabel it, and refuse it in activated()
+        w("Scans").setItemText(1, qsTr("Only scans used in this drawing (none in this drawing)"));
+        w("AttachUsedScans").enabled = false;
+    }
     w("SurveyFiles").enabled = hasDir;
     w("Screenshot").enabled = shotOk;
     w("Screenshot").checked = shotOk;
@@ -142,7 +184,8 @@ SendFeedback.open = function() {
         var survey = w("SurveyFiles").checked && hasDir;
         var other = (w("Logs").checked ? cache.logBytes : 0)
             + (w("Screenshot").checked ? cache.shotBytes : 0)
-            + (survey ? cache.surveyBytes : 0);
+            + (survey ? cache.surveyBytes : 0)
+        + (w("Drawing").checked && hasDoc ? cache.drawingBytes : 0);
         var scanBytes = i === 1 ? cache.usedBytes : (i === 2 ? chosenBytes : 0);
         var total = other + scanBytes;
         var mb = function(b) { return (b / FeedbackCore.MB).toFixed(1); };
@@ -170,6 +213,7 @@ SendFeedback.open = function() {
     ["Logs", "Screenshot", "Drawing", "SurveyFiles"].forEach(function(n) { w(n).toggled.connect(updateSize); });
     w("Scans")["activated(int)"].connect(function(i) {
         if (i === 2) { choose(); return; }
+        if (i === 1 && noUsed) { w("Scans").currentIndex = lastScanIndex; return; }
         lastScanIndex = i;
         refresh();
     });
@@ -182,20 +226,27 @@ SendFeedback.open = function() {
     }
     /** Stages the report; null (after telling the user) if it could not. */
     function stage() {
-        var drawingCopy = null;
-        if (w("Drawing").checked && hasDoc) {
-            drawingCopy = base + "/" + id + "-drawing.dxf";
-            if (!FeedbackPackage.copyDrawing(di, drawingCopy)) { QFile.remove(drawingCopy); drawingCopy = null; }
+        var drawingTmp = base + "/" + id + "-drawing.dxf";
+        var s = null;
+        try {
+            s = SendFeedback.busyCursor(function() {
+                var drawingCopy = null;
+                if (w("Drawing").checked && hasDoc && FeedbackPackage.copyDrawing(di, drawingTmp)) { drawingCopy = drawingTmp; }
+                return FeedbackPackage.stage({
+                    base: base, id: id, fields: fields(), meta: SendFeedback.meta(di),
+                    logs: w("Logs").checked ? cache.logs : [],
+                    screenshot: w("Screenshot").checked && shotOk ? shot : null,
+                    drawing: drawingCopy, caveDir: caveDir,
+                    surveyFiles: w("SurveyFiles").checked && hasDir ? cache.survey : [],
+                    scans: scans(), scanMode: SendFeedback.SCAN_MODES[scanIndex()]
+                });
+            });
+        } catch (e) {
+            qWarning("Send Feedback: stage: " + e);
+            s = null;
+        } finally {
+            QFile.remove(drawingTmp);   // staged (copied) already, or never made
         }
-        var s = FeedbackPackage.stage({
-            base: base, id: id, fields: fields(), meta: SendFeedback.meta(di),
-            logs: w("Logs").checked ? cache.logs : [],
-            screenshot: w("Screenshot").checked && shotOk ? shot : null,
-            drawing: drawingCopy, caveDir: caveDir,
-            surveyFiles: w("SurveyFiles").checked && hasDir ? cache.survey : [],
-            scans: scans(), scanMode: SendFeedback.SCAN_MODES[scanIndex()]
-        });
-        if (drawingCopy !== null) { QFile.remove(drawingCopy); }
         if (s === null) {
             QMessageBox.warning(appWin, qsTr("Send Feedback"),
                 qsTr("Could not prepare the report in %1.").arg(base));
@@ -235,42 +286,71 @@ SendFeedback.open = function() {
         var zip = base + "/" + FeedbackCore.zipName(SendFeedback.date(), id);
         setBusy(true);
         if (!state.closed) { w("Size").text = qsTr("Packing..."); }
-        FeedbackPackage.zip(s.dir, zip, function(zr) {
-            (new QDir(s.dir)).removeRecursively();
-            if (!zr.ok) {
-                QFile.remove(zip);
-                QMessageBox.warning(appWin, qsTr("Send Feedback"), qsTr("Could not pack the report: %1").arg(zr.error));
-                if (!state.closed) { updateSize(); }
-                finish();
-                return;
-            }
-            var bytes = new QFileInfo(zip).size();
-            if (FeedbackCore.sizeVerdict(bytes) === "block") {
-                QFile.remove(zip);
-                QMessageBox.warning(appWin, qsTr("Send Feedback"),
-                    qsTr("The report is %1 MB; the limit is 30 MB. Attach fewer scans.").arg((bytes / FeedbackCore.MB).toFixed(1)));
-                if (!state.closed) { updateSize(); }
-                finish();
-                return;
-            }
-            var queued = FeedbackSend.queue(zip);   // the original path if it could not be moved
-            if (!state.closed) { w("Size").text = qsTr("Sending..."); }
-            FeedbackSend.send(queued, FeedbackConfig, function(r) {
-                if (!state.closed) { dialog.accept(); }
-                finish();
-                if (r.ok) {
-                    QMessageBox.information(appWin, qsTr("Send Feedback"), qsTr("Sent. Thank you. Reference %1.").arg(r.id));
-                } else {
-                    qDebug("Send Feedback: not sent: " + r.error);
-                    SendFeedback.failed(queued, id, f.summary, bytes, r.error === "not-configured");
-                }
+        // Every exit from here calls finish() exactly once, BEFORE any message
+        // box, and each box is in its own try: a UI throw must never unwind
+        // into FeedbackSend (it would record a bogus failure, even after a
+        // successful send).
+        function warn(text) {
+            try { QMessageBox.warning(appWin, qsTr("Send Feedback"), text); } catch (eW) { qWarning("Send Feedback: " + eW); }
+        }
+        try {
+            SendFeedback.busyCursor(function() {
+                FeedbackPackage.zip(s.dir, zip, onZipped);
             });
-        });
+        } catch (eZ) {
+            (new QDir(s.dir)).removeRecursively();
+            finish();
+            warn(qsTr("Could not pack the report: %1").arg(String(eZ)));
+        }
+        function onZipped(zr) {
+            var queued = null, bytes = 0;
+            try {
+                (new QDir(s.dir)).removeRecursively();
+                if (!zr.ok) {
+                    QFile.remove(zip);
+                    finish();
+                    if (!state.closed) { updateSize(); }
+                    warn(qsTr("Could not pack the report: %1").arg(zr.error));
+                    return;
+                }
+                bytes = new QFileInfo(zip).size();
+                if (FeedbackCore.sizeVerdict(bytes) === "block") {
+                    QFile.remove(zip);
+                    finish();
+                    if (!state.closed) { updateSize(); }
+                    warn(qsTr("The report is %1 MB; the limit is 30 MB. Attach fewer scans.").arg((bytes / FeedbackCore.MB).toFixed(1)));
+                    return;
+                }
+                queued = FeedbackSend.queue(zip);   // the original path if it could not be moved
+                if (!state.closed) { w("Size").text = qsTr("Sending..."); }
+            } catch (eQ) {
+                finish();
+                warn(qsTr("Could not pack the report: %1").arg(String(eQ)));
+                return;
+            }
+            FeedbackSend.send(queued, FeedbackConfig, function(r) {
+                try {
+                    finish();
+                    if (!state.closed) { dialog.accept(); }
+                } catch (eF) { qWarning("Send Feedback: " + eF); }
+                try {
+                    if (r.ok) {
+                        QMessageBox.information(appWin, qsTr("Send Feedback"), qsTr("Sent. Thank you. Reference %1.").arg(r.id));
+                    } else {
+                        qDebug("Send Feedback: not sent: " + r.error);
+                        SendFeedback.failed(queued, id, f.summary, bytes, r.error === "not-configured");
+                    }
+                } catch (eU) { qWarning("Send Feedback: result dialog: " + eU); }
+            });
+        }
     });
 
     w("ScanHint").visible = false;
     refresh();
-    dialog.exec();
+    // Esc / the close box while packing or sending: exec() returns, but the
+    // dialog is shown again at once so it stays up until the send finishes
+    // (its callback accepts it). QDialog.reject can't be overridden from script.
+    do { dialog.exec(); } while (state.busy);
     state.closed = true;
     if (!state.busy) {
         cleanup();
