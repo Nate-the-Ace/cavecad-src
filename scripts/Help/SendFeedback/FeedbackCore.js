@@ -35,11 +35,12 @@ FeedbackCore.isScanFile = function(path) {
     return m !== null && FeedbackCore.SCAN_EXT.indexOf(m[1].toLowerCase()) >= 0;
 };
 
-/** Relative paths of a cave folder -> the ones that are survey files (no scans, no dotfiles). */
+/** Relative paths of a cave folder -> the ones that are survey files (no scans, no dot files/dirs). */
 FeedbackCore.surveyFiles = function(relPaths) {
     return relPaths.filter(function(p) {
-        var base = String(p).replace(/^.*[\/\\]/, "");
-        return base.charAt(0) !== "." && !FeedbackCore.isScanFile(p);
+        var segments = String(p).split(/[\/\\]/);
+        var hasDotSegment = segments.some(function(s) { return s.charAt(0) === "."; });
+        return !hasDotSegment && !FeedbackCore.isScanFile(p);
     });
 };
 

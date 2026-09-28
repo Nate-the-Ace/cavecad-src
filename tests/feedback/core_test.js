@@ -24,6 +24,10 @@ ok(!FeedbackCore.mentionsScan("the ledge tool crashed"), "no hint without a scan
 ok(!FeedbackCore.isScanFile("cave.dxf"), "dxf is not a scan");
 eqs(FeedbackCore.surveyFiles(["cave.dxf", "trip1.svx", "scans/p1.png", ".DS_Store", "notes/a.txt", "x.pdf"]).join(","),
     "cave.dxf,trip1.svx,notes/a.txt", "survey files drop scans and dotfiles");
+eqs(FeedbackCore.surveyFiles([".git/HEAD", "sub/.svn/x", "a.b/c.svx", "cave.dxf"]).join(","),
+    "a.b/c.svx,cave.dxf", "survey files drop any dot path segment, not just the basename");
+eqs(FeedbackCore.surveyFiles(["sub\\.git\\x", "sub\\ok.svx"]).join(","),
+    "sub\\ok.svx", "survey files check dot segments on backslash paths too");
 
 eqs(FeedbackCore.validate({ type: "bug", summary: "", description: "x" }).join("|"), "summary", "summary required");
 eqs(FeedbackCore.validate({ type: "bug", summary: "s", description: " " }).join("|"), "description", "bug needs description");
