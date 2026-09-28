@@ -21,7 +21,8 @@ def main():
         sys.exit(__doc__)
     binary = str(Path(sys.argv[1]).resolve())
     repo = Path(__file__).resolve().parent.parent.parent
-    tests = sorted((repo / "tests" / "updater").glob("*_test.js"))
+    tests = sorted((repo / "tests" / "updater").glob("*_test.js")) + \
+        sorted((repo / "tests" / "feedback").glob("*_test.js"))
     if not tests:
         sys.exit("no tests found")
     env = dict(os.environ)
