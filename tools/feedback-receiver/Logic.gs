@@ -42,10 +42,14 @@ var FeedbackLogic = {
   },
 
   row: function (report, received, folderUrl, folderId, bytes) {
+    // Reporter-controlled fields must be coerced to plain strings before escaping --
+    // e.g. an array like ["=HYPERLINK(...)"] stringifies harmlessly via String(),
+    // but would otherwise slip past a typeof-string check untouched.
     var v = {
-      "Received": received, "ID": report.id, "Type": FeedbackLogic.typeLabel(report.type),
-      "Summary": report.summary, "Email": report.email || "",
-      "CaveCAD version": (report.cavecad && report.cavecad.version) || "", "OS": report.os || "",
+      "Received": received, "ID": String(report.id || ""), "Type": FeedbackLogic.typeLabel(report.type),
+      "Summary": String(report.summary || ""), "Email": String(report.email || ""),
+      "CaveCAD version": String((report.cavecad && report.cavecad.version) || ""),
+      "OS": String(report.os || ""),
       "Attachments": (report.attachments || []).length, "Size": bytes, "Folder link": folderUrl,
       "Folder ID": folderId, "Status": "New", "Closed": "", "Notes": ""
     };
@@ -66,6 +70,13 @@ var FeedbackLogic = {
   },
 
   stripPath: function (name) { return String(name).replace(/^(\.\/)+/, ""); },
+
+  /** false for a zip directory entry (tar/ditto write "logs/", "./logs/", "./") or an
+   * empty name; true for an actual file entry. */
+  isFileEntry: function (name) {
+    var s = FeedbackLogic.stripPath(name);
+    return s.length > 0 && s.charAt(s.length - 1) !== "/";
+  },
 
   subject: function (report) {
     return "[CaveCAD Feedback] " + FeedbackLogic.typeLabel(report.type) + ": " + report.summary;

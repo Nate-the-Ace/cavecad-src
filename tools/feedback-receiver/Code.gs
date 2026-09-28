@@ -17,7 +17,9 @@ function doPost(e) {
 
   var bytes, zip, files, report = null;
   try {
-    bytes = Utilities.base64Decode(e.postData.contents);
+    // The macOS client's base64 file ends with a trailing newline; some transports
+    // may also wrap/pad with other whitespace, so strip it all before decoding.
+    bytes = Utilities.base64Decode(e.postData.contents.replace(/\s+/g, ""));
     zip = Utilities.newBlob(bytes, "application/zip", "report.zip");
     files = Utilities.unzip(zip);
     files.forEach(function (f) {
@@ -35,16 +37,23 @@ function doPost(e) {
   var folder = root.createFolder(FeedbackLogic.folderName(report, now));
   folder.createFile(zip.setName("feedback-" + report.id + ".zip"));
   files.forEach(function (f) {
-    var parts = FeedbackLogic.stripPath(f.getName()).split("/")
-      .filter(function (p) { return p && p !== "." && p !== ".."; });
-    var leaf = parts.pop();
-    if (!leaf) return;
-    var dir = folder;
-    parts.forEach(function (p) {
-      var it = dir.getFoldersByName(p);
-      dir = it.hasNext() ? it.next() : dir.createFolder(p);
-    });
-    dir.createFile(f.setName(leaf));
+    // Each entry is independent: one bad name/permission must not throw and abort the
+    // loop, which would leave the client resending and duplicating the whole folder.
+    try {
+      var name = FeedbackLogic.stripPath(f.getName());
+      if (!FeedbackLogic.isFileEntry(name)) return; // tar/ditto directory entry ("logs/", "./logs/", "./")
+      var parts = name.split("/").filter(function (p) { return p && p !== "." && p !== ".."; });
+      var leaf = parts.pop();
+      if (!leaf) return;
+      var dir = folder;
+      parts.forEach(function (p) {
+        var it = dir.getFoldersByName(p);
+        dir = it.hasNext() ? it.next() : dir.createFolder(p);
+      });
+      dir.createFile(f.setName(leaf));
+    } catch (fileErr) {
+      console.error("feedback " + report.id + ": attachment " + f.getName() + " failed: " + fileErr);
+    }
   });
 
   try {
@@ -71,20 +80,22 @@ function reply(o) {
 }
 
 /** Installable on-edit trigger: Status -> Fixed/Won't fix stamps Closed; anything else clears it.
- * Handles a paste/fill spanning multiple rows and/or columns, not just a single-cell edit. */
+ * Handles a paste/fill spanning multiple rows and/or columns, not just a single-cell edit.
+ * Always reads Status back from the sheet -- e.value is undefined for a paste or a
+ * Delete-key clear, so relying on it silently skips exactly those two common edits. */
 function onStatusEdit(e) {
   var sheet = e.range.getSheet();
+  if (sheet.getIndex() !== 1) return; // triage sheet only
   var statusCol = FeedbackLogic.COLUMNS.indexOf("Status") + 1;
   var closedCol = FeedbackLogic.COLUMNS.indexOf("Closed") + 1;
   var firstCol = e.range.getColumn(), lastCol = firstCol + e.range.getNumColumns() - 1;
   if (statusCol < firstCol || statusCol > lastCol) return;
 
   var firstRow = e.range.getRow(), numRows = e.range.getNumRows();
-  var singleCell = numRows === 1 && e.range.getNumColumns() === 1;
   for (var i = 0; i < numRows; i++) {
     var row = firstRow + i;
     if (row === 1) continue; // header
-    var status = singleCell ? String(e.value) : String(sheet.getRange(row, statusCol).getValue());
+    var status = String(sheet.getRange(row, statusCol).getValue());
     sheet.getRange(row, closedCol).setValue(FeedbackLogic.CLOSED_STATES.indexOf(status) >= 0 ? new Date() : "");
   }
 }

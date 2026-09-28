@@ -71,3 +71,30 @@ test("row escapes formula-injection strings", () => {
   assert.strictEqual(ok[L.COLUMNS.indexOf("Folder link")], "https://f");
   assert.strictEqual(ok[L.COLUMNS.indexOf("Summary")], REPORT.summary);
 });
+
+test("row coerces reporter-controlled fields to strings before escaping", () => {
+  const sneaky = { ...REPORT,
+    id: "a7f3c2",
+    summary: ["=HYPERLINK(\"https://evil\")"],
+    email: ["=IMAGE(\"https://evil\")"],
+    os: ["=1+1"],
+    cavecad: { version: ["=2+2"] },
+  };
+  const r = L.row(sneaky, new Date("2026-09-27T12:00:00Z"), "https://f", "FID", 3);
+  assert.strictEqual(r[L.COLUMNS.indexOf("Summary")], "'=HYPERLINK(\"https://evil\")");
+  assert.strictEqual(r[L.COLUMNS.indexOf("Email")], "'=IMAGE(\"https://evil\")");
+  assert.strictEqual(r[L.COLUMNS.indexOf("OS")], "'=1+1");
+  assert.strictEqual(r[L.COLUMNS.indexOf("CaveCAD version")], "'=2+2");
+  ["Summary", "Email", "OS", "CaveCAD version", "ID"].forEach((c) => {
+    assert.strictEqual(typeof r[L.COLUMNS.indexOf(c)], "string", c);
+  });
+});
+
+test("isFileEntry skips directory entries from tar/ditto", () => {
+  assert.strictEqual(L.isFileEntry("logs/"), false);
+  assert.strictEqual(L.isFileEntry("./logs/"), false);
+  assert.strictEqual(L.isFileEntry("./"), false);
+  assert.strictEqual(L.isFileEntry(""), false);
+  assert.strictEqual(L.isFileEntry("logs/a.log"), true);
+  assert.strictEqual(L.isFileEntry("report.json"), true);
+});
