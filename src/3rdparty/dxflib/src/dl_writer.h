@@ -534,6 +534,14 @@ public:
     }
 
     /**
+     * Takes the next handle without writing it, for records that other
+     * records point at before they are written. CaveCAD.
+     */
+    unsigned long reserveHandle() const {
+        return m_handle++;
+    }
+
+    /**
      * @return Next handle that will be written.
      */
     unsigned long getNextHandle() const {

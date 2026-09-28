@@ -151,6 +151,8 @@ private:
     DL_Attributes attributes;
     int textStyleCounter;
     QMap<int, QString> textStyles;
+    // CaveCAD: font (lower case) -> reserved STYLE handle for linetype text.
+    QMap<QString, unsigned long> linetypeStyleHandles;
     // maps image entity IDs to handles:
     QMap<int, int> imageHandles;
     bool minimalistic;

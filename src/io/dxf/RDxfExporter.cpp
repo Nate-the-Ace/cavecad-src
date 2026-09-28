@@ -142,6 +142,7 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
 
     // Line types:
     //qDebug() << "RDxfExporter::exportFile: linetypes";
+    linetypeStyleHandles.clear();
     if (minimalistic) {
         QSharedPointer<RLinetype> lt = document->queryLinetype("CONTINUOUS");
         if (!lt.isNull()) {
@@ -151,6 +152,30 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
     }
     else {
         QStringList lts = RS::toList(document->getLinetypeNames());
+
+        // CaveCAD: every font a text linetype names gets a STYLE record,
+        // written later with the STYLE table. Its handle is taken now
+        // because the LTYPE's 340 has to point at it.
+        if (exportVersion >= DL_Codes::AC1015) {
+            for (int n = 0; n < lts.size(); n++) {
+                QSharedPointer<RLinetype> ltp = document->queryLinetype(lts[n]);
+                if (ltp.isNull()) {
+                    continue;
+                }
+                RLinetypePattern pat = ltp->getPattern();
+                for (int i = 0; i < pat.getNumDashes(); i++) {
+                    QString st = pat.getShapeTextStyleAt(i).toLower();
+                    if (!pat.hasShapeTextAt(i) || pat.getShapeTextAt(i).isEmpty() ||
+                        st.isEmpty() || st.endsWith(".shx") || st.endsWith(".shp")) {
+                        continue;
+                    }
+                    if (!linetypeStyleHandles.contains(st)) {
+                        linetypeStyleHandles.insert(st, dw->reserveHandle());
+                    }
+                }
+            }
+        }
+
         //qDebug() << "RDxfExporter::exportFile: linetypes table";
         dw->tableLinetypes(lts.size());
         // continuous must always be the first LTYPE:
@@ -239,6 +264,19 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
             textStyles.insert(id, style.name.c_str());
 
             uniqueTextStyles.append(style);
+        }
+
+        // CaveCAD: the STYLE records text linetypes point at (see LTYPE).
+        QMapIterator<QString, unsigned long> lts(linetypeStyleHandles);
+        while (lts.hasNext()) {
+            lts.next();
+            QByteArray ltStyleName = ("CS_LT_" + lts.key().toUpper()).toUtf8();
+            QByteArray ltStyleFont = lts.key().toUtf8();
+            DL_StyleData ls(ltStyleName.constData(),
+                            0, 0.0, 1.0, 0.0, 0, 2.5,
+                            ltStyleFont.constData(), "");
+            ls.handle = lts.value();
+            uniqueTextStyles.append(ls);
         }
 
         dw->tableStyle(uniqueTextStyles.size());
@@ -608,21 +646,38 @@ void RDxfExporter::writeVariables() {
 void RDxfExporter::writeLinetype(const RLinetypePattern& lt) {
     int numDashes = lt.getNumDashes();
     double* dashes = new double[numDashes];
+    std::vector<DL_LinetypeElement> elements(numDashes);
     for (int i=0; i<numDashes; i++) {
         dashes[i] = lt.getDashLengthAt(i);
+
+        // CaveCAD: text elements. Shape elements are phase 2 and are
+        // written as plain dashes until then.
+        QString text = lt.getShapeTextAt(i);
+        QString style = lt.getShapeTextStyleAt(i).toLower();
+        if (!lt.hasShapeTextAt(i) || text.isEmpty() ||
+            style.endsWith(".shx") || style.endsWith(".shp")) {
+            continue;
+        }
+        DL_LinetypeElement& e = elements[i];
+        e.flags = 2;
+        e.text = (const char*)RDxfExporter::escapeUnicode(text);
+        e.styleHandle = linetypeStyleHandles.value(style, 0);
+        e.scale = lt.hasShapeScaleAt(i) ? lt.getShapeScaleAt(i) : 1.0;
+        e.rotation = lt.getShapeRotationAt(i);
+        e.offsetX = lt.getShapeOffsetAt(i).x;
+        e.offsetY = lt.getShapeOffsetAt(i).y;
     }
 
-    dxf.writeLinetype(
-        *dw,
-        DL_LinetypeData(
-            (const char*)RDxfExporter::escapeUnicode(lt.getName()),
-            (const char*)RDxfExporter::escapeUnicode(lt.getDescription()),
-            0,
-            numDashes,
-            lt.getPatternLength(),
-            dashes
-        )
+    DL_LinetypeData data(
+        (const char*)RDxfExporter::escapeUnicode(lt.getName()),
+        (const char*)RDxfExporter::escapeUnicode(lt.getDescription()),
+        0,
+        numDashes,
+        lt.getPatternLength(),
+        dashes
     );
+    data.elements = elements;
+    dxf.writeLinetype(*dw, data);
 
     delete[] dashes;
 }

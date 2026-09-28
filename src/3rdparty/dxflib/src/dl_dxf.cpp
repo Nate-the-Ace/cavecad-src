@@ -3972,7 +3972,24 @@ void DL_Dxf::writeLinetype(DL_WriterA& dw,
         for (int i = 0; i < data.numberOfDashes; i++) {
             dw.dxfReal(49, data.pattern[i]);
             if (version>=DL_VERSION_R13) {
-                dw.dxfInt(74, 0);
+                // CaveCAD: the text / shape drawn at the end of this dash.
+                if (i < (int)data.elements.size() && data.elements[i].flags != 0) {
+                    const DL_LinetypeElement& e = data.elements[i];
+                    dw.dxfInt(74, e.flags);
+                    dw.dxfInt(75, e.shapeNumber);
+                    if (e.styleHandle != 0) {
+                        dw.dxfHex(340, e.styleHandle);
+                    }
+                    dw.dxfReal(46, e.scale);
+                    dw.dxfReal(50, e.rotation);
+                    dw.dxfReal(44, e.offsetX);
+                    dw.dxfReal(45, e.offsetY);
+                    if (e.flags & 2) {
+                        dw.dxfString(9, e.text);
+                    }
+                } else {
+                    dw.dxfInt(74, 0);
+                }
             }
         }
     }
@@ -4161,6 +4178,10 @@ void DL_Dxf::writeStyle(DL_WriterA& dw, const DL_StyleData& style) {
             //dw.dxfHex(5, 0x11);
             styleHandleStd = dw.handle();
         }
+        else if (style.handle != 0) {
+            // CaveCAD: reserved earlier -- a linetype's 340 already points here
+            dw.dxfHex(5, style.handle);
+        }
         else {
             dw.handle();
         }
@@ -4178,7 +4199,15 @@ void DL_Dxf::writeStyle(DL_WriterA& dw, const DL_StyleData& style) {
     dw.dxfInt( 71, style.textGenerationFlags);
     dw.dxfReal( 42, style.lastHeightUsed);
     if (version==DL_VERSION_2000) {
-        dw.dxfString(  3, "");
+        // CaveCAD: a style a linetype points at (reserved handle) names its
+        // font file here too, so other CAD programs see a font; the ACAD
+        // XDATA below stays for CaveCAD's own reader.
+        if (style.handle != 0 && !style.primaryFontFile.empty()) {
+            dw.dxfString(  3, style.primaryFontFile + ".shx");
+        }
+        else {
+            dw.dxfString(  3, "");
+        }
         dw.dxfString(  4, "");
         dw.dxfString(1001, "ACAD");
         //dw.dxfString(1000, style.name);
