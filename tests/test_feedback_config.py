@@ -46,12 +46,44 @@ class TestFeedbackConfig(unittest.TestCase):
             r = run({"FEEDBACK_ENDPOINT": "https://script.google.com/x"}, p)
             self.assertEqual(0, r.returncode)
             self.assertEqual(CONFIG.read_text(encoding="utf-8"), p.read_text(encoding="utf-8"))
+            self.assertIn("::warning::", r.stdout + r.stderr)
 
     def test_refuses_other_hosts(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "c.js"
             shutil.copy(CONFIG, p)
             r = run({"FEEDBACK_ENDPOINT": "https://evil.example/x", "FEEDBACK_KEY": "k"}, p)
+            self.assertEqual(1, r.returncode)
+
+    def test_refuses_key_with_quote(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.js"
+            shutil.copy(CONFIG, p)
+            r = run({"FEEDBACK_ENDPOINT": "https://script.google.com/x", "FEEDBACK_KEY": 'ke"y'}, p)
+            self.assertEqual(1, r.returncode)
+
+    def test_refuses_key_with_newline(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.js"
+            shutil.copy(CONFIG, p)
+            r = run({"FEEDBACK_ENDPOINT": "https://script.google.com/x", "FEEDBACK_KEY": "ke\ny"}, p)
+            self.assertEqual(1, r.returncode)
+
+    def test_refuses_endpoint_with_quote(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.js"
+            shutil.copy(CONFIG, p)
+            r = run({
+                "FEEDBACK_ENDPOINT": 'https://script.google.com/x";alert(1);//',
+                "FEEDBACK_KEY": "k",
+            }, p)
+            self.assertEqual(1, r.returncode)
+
+    def test_refuses_when_placeholders_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.js"
+            p.write_text("var FeedbackConfig = { ENDPOINT: \"x\", KEY: \"y\" };", encoding="utf-8")
+            r = run({"FEEDBACK_ENDPOINT": "https://script.google.com/x", "FEEDBACK_KEY": "k"}, p)
             self.assertEqual(1, r.returncode)
 
 
