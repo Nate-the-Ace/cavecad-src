@@ -24,11 +24,13 @@ names and no survey data.
 ## Send Feedback
 
 - **What's sent:** a type, summary and description you write; your email
-  only if you give it; CaveCAD's version and your operating system; and
-  whichever attachments you tick — session logs and a screenshot (ticked
-  by default, you can untick them), your drawing, survey files, scans
-  (all unticked by default). The dialog's **Review** button shows exactly
-  what will be sent.
+  only if you give it; CaveCAD's version and your operating system; the tool
+  in use and the names of your open drawings; and whichever attachments you
+  tick — session logs and a screenshot (ticked by default, you can untick
+  them), your drawing, survey files, scans (all unticked by default). The
+  dialog's **Review** button shows exactly what will be sent. Session logs
+  record the commands you used and the file paths of drawings you opened,
+  which can include your computer's user name.
 - **Why:** only to fix and improve CaveCAD.
 - **Who sees it:** the CaveCAD maintainer and people they trust. It is
   never published, sold or passed on.
