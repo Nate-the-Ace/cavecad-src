@@ -11,6 +11,34 @@ and is designed to host the Cave Survey tool suite (traverse plotting, survey
 file import from Walls/Compass/Survex, LRUD passage walls, map fitting,
 breakdown symbols, and georeferencing).
 
+Download and updates
+--------------------
+Builds for Windows (x64 and ARM64), macOS (Apple Silicon) and Linux (x86_64
+and aarch64) are published as the rolling pre-release
+[latest-build](https://github.com/Nate-the-Ace/cavecad-src/releases/tag/latest-build),
+each with the Cave Survey tools included.
+
+A published build keeps itself up to date:
+
+- A few seconds after starting, it checks `latest-build` quietly. When there
+  is something newer it offers it: **Update now**, **Later** (ask again next
+  start) or **Skip this version**. Offline or on any error it says nothing.
+- **Help > Check for Updates** asks at any time and always answers.
+- The startup check can be switched off in the prompt or in
+  **Preferences > General > Updates**.
+- When only the Cave Survey tools changed, only they are downloaded (about
+  3 MB) and installed beside the app. When the app changed, the whole build
+  is downloaded, and after CaveCAD quits a small helper swaps it in and
+  starts the new one; answering "No" to the restart installs it at the next
+  quit instead. Files of your own kept in the install folder are carried
+  over.
+- Every download is checked against its published SHA-256 checksum before
+  anything is installed. This catches corrupt, truncated or altered
+  downloads; it does not protect against someone able to replace both a file
+  and its checksum on GitHub, which code signing will address.
+- A build whose install folder cannot be written (for example under
+  `Program Files`), and development builds, are not updated in place.
+
 License
 -------
 CaveCAD's source code, like the QCAD 3 source code it is derived from, is
