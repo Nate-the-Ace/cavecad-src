@@ -205,6 +205,16 @@ Inside an AppImage, child processes (downloads, hashing, the helper) get an
 environment without AppRun's `LD_LIBRARY_PATH` entries under `$APPDIR` and
 without its `QT_PLUGIN_PATH`.
 
+On Linux the helper is started with every inherited descriptor above stderr
+closed (`UpdateCommands.detach`: `sh -c` running Python's `os.closerange`, then
+`execv` of the shell; plain `sh` when Python is missing). An AppImage's runtime
+leaves a descriptor on its FUSE mount open in every process it starts (fd 1023),
+so a helper that inherited it kept the old mount busy: the runtime could not
+unmount and exit, the helper's "another program is still running from the
+AppImage" check refused the swap, and the relaunched old build held the mount
+too. Found 2026-09-28 testing a real update on the Linux ARM VM; dash cannot
+close a descriptor above 9, which is why Python does it.
+
 ## Restart
 
 "Update installed. Restart now?" (tools) / "Update downloaded and verified.

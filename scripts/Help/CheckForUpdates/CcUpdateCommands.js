@@ -110,5 +110,22 @@ UpdateCommands.detach = function(system, script) {
                    "-Command",
                    "& ([scriptblock]::Create([IO.File]::ReadAllText($env:CAVECAD_HELPER, [Text.Encoding]::UTF8)))"] };
     }
+    if (String(system) === "linux") {
+        // Start the helper with every inherited descriptor above stderr
+        // closed. An AppImage's runtime leaves a descriptor on its FUSE mount
+        // open in every process it starts, so a helper (and the CaveCAD it
+        // relaunches) that inherits it keeps the OLD mount busy: the runtime
+        // cannot unmount and exit, and the helper's own "another program is
+        // still running from <the AppImage>" check then refuses the swap.
+        // Ubuntu's /bin/sh is dash, which cannot close a descriptor above 9,
+        // so Python does it (it is already required for unzipping) and then
+        // becomes the shell. No Python: the plain shell, as before.
+        // The script path is $0 and the Python is $1: neither is spliced
+        // into command text, so a path with a quote or a space is safe.
+        return { program: "/bin/sh", args: ["-c",
+            "if command -v python3 >/dev/null 2>&1; then exec python3 -c \"$1\" \"$0\"; fi; exec /bin/sh \"$0\"",
+            script,
+            "import os, sys; os.closerange(3, min(os.sysconf('SC_OPEN_MAX'), 1 << 20)); os.execv('/bin/sh', ['sh', sys.argv[1]])"] };
+    }
     return { program: "/bin/sh", args: [script] };
 };

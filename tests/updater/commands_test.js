@@ -117,5 +117,52 @@ var d = UpdateRun.detach(cmd);
 ok(d.ok, "detach started: " + d.error);
 ok(spin(30000, function() { return new QFileInfo(marker).exists(); }), "the detached helper ran (" + helper + ")");
 
+// ---- the Linux helper must not inherit CaveCAD's open descriptors ----
+// An AppImage's runtime leaves a descriptor on its FUSE mount open in every
+// process it starts (measured 2026-09-28: fd 1023 -> /tmp/.mount_CaveCAxxxx),
+// so the helper, and the CaveCAD it relaunches, held the OLD mount busy. The
+// runtime could not unmount and exit, the helper's "another program is still
+// running from <the AppImage>" check saw it, and every Linux full update was
+// refused. Ubuntu's /bin/sh is dash, which cannot close a descriptor above 9,
+// so the launch itself has to.
+var dl = UpdateCommands.detach("linux", "/t/h k.sh");
+eqs(dl.program, "/bin/sh", "Linux helper is still started by sh");
+eqs(dl.args[0], "-c", "Linux helper: sh -c wrapper");
+eqs(dl.args[2], "/t/h k.sh", "Linux helper: the script path is $0, never spliced into command text");
+ok(dl.args[1].indexOf("h k.sh") < 0, "Linux helper: no part of the path is in the command text");
+ok(dl.args[1].indexOf("python3") >= 0 && dl.args[1].indexOf("exec /bin/sh") >= 0,
+    "Linux helper: Python closes descriptors, plain sh is the fallback when Python is missing");
+ok(String(dl.args[3]).indexOf("closerange") >= 0, "Linux helper: the Python code closes every descriptor above stderr");
+eqs(UpdateCommands.detach("osx", "/t/h.sh").args.join("|"), "/t/h.sh", "macOS helper is unchanged: no FUSE, nothing to close");
+
+if (SYS === "linux") {
+    var q = function(p) { return "'" + String(p).replace(/'/g, "'\\''") + "'"; };
+    var fdScript = dir + "/fds.sh";
+    // dash's own bookkeeping fds are all above 9 and start at 10; what
+    // matters is that the extra descriptor 9 we hand it is gone
+    writeFile(fdScript, "#!/bin/sh\nls /proc/$$/fd > " + q(dir + "/fds-now.txt") + "\n");
+    // a stand-in for the AppImage runtime: a parent that holds descriptor 9
+    // open across the exec that starts the helper
+    var leaky = function(program, args) {
+        return { program: "/bin/sh", args: ["-c", "exec 9</; exec \"$0\" \"$@\"", program].concat(args),
+                 workingDirectory: QDir.tempPath() };
+    };
+    // negative control: the OLD command leaks descriptor 9 into the helper,
+    // so this test can tell a leak from no leak
+    var old = UpdateRun.detach(leaky("/bin/sh", [fdScript]));
+    ok(old.ok, "control helper started: " + old.error);
+    ok(spin(30000, function() { return new QFileInfo(dir + "/fds-now.txt").size() > 0; }), "control helper ran");
+    var leakedList = String(readFile(dir + "/fds-now.txt")).split(/\s+/);
+    ok(leakedList.indexOf("9") >= 0, "control: the old /bin/sh launch does leak the inherited descriptor (" + leakedList.join(",") + ")");
+
+    QFile.remove(dir + "/fds-now.txt");
+    var wrapped = UpdateCommands.detach("linux", fdScript);
+    var fixed = UpdateRun.detach(leaky(wrapped.program, wrapped.args));
+    ok(fixed.ok, "wrapped helper started: " + fixed.error);
+    ok(spin(30000, function() { return new QFileInfo(dir + "/fds-now.txt").size() > 0; }), "wrapped helper ran");
+    var keptList = String(readFile(dir + "/fds-now.txt")).split(/\s+/);
+    ok(keptList.indexOf("9") < 0, "the wrapped launch closes the inherited descriptor (" + keptList.join(",") + ")");
+}
+
 (new QDir(dir)).removeRecursively();
 finish("commands_test.js");
