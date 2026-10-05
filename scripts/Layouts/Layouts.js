@@ -12,10 +12,14 @@
  *
  * UNITS. The paper size is stored in MILLIMETRES, oriented as it sits on the
  * desk (landscape = width > height). Paper-space COORDINATES are in the
- * layout's paper unit (inches or millimetres -- RLayout plot paper units
- * 0 / 1), independent of the drawing unit, so a cave drawn in feet at
- * 1 in = 50 ft has a viewport scale of 1/50 and a sheet of 11 x 8.5
- * coordinates. Rendering is unit-blind; only plotting and scale text care.
+ * DRAWING unit, exactly like model space (measured 2026-10-05: lineweights,
+ * text heights, linetype patterns and Print's unit scale all convert through
+ * the drawing unit, so paper coordinates in any other unit make lines 12x
+ * too thin in a feet drawing). A cave in feet therefore has a Letter sheet
+ * of 0.9167 x 0.7083 ft, and a viewport showing 1 in = 50 ft has
+ * scale (1/12)/50 = 1/600. The layout's "paper units" (RLayout plot paper
+ * units, 0 inches / 1 mm) is only the unit people TYPE and READ dimensions
+ * in; use Layouts.toPaper / Layouts.fromPaper to cross over.
  *
  * Every mutating function takes the RDocumentInterface and is undoable.
  * Queries take the RDocument. Pure data in, plain objects out ("info").
@@ -78,30 +82,33 @@ Layouts.paperNameOf = function(wMM, hMM) {
     return "";
 };
 
-/** Millimetres per paper-space coordinate unit of an info. */
-Layouts.unitFactor = function(info) {
-    return info.units === Layouts.INCHES ? 25.4 : 1.0;
+/** Millimetres of paper -> paper-space coordinates (drawing units) of this document. */
+Layouts.toPaper = function(doc, mm) {
+    return RUnit.convert(mm, RS.Millimeter, doc.getUnit());
 };
 
-/** Paper size in PAPER-SPACE COORDINATES: { w, h }. */
-Layouts.paperSize = function(info) {
-    var f = Layouts.unitFactor(info);
-    return { w: info.paperMM.w / f, h: info.paperMM.h / f };
+/** Paper-space coordinates (drawing units) -> millimetres of paper. */
+Layouts.fromPaper = function(doc, coord) {
+    return RUnit.convert(coord, doc.getUnit(), RS.Millimeter);
+};
+
+/** Paper size in PAPER-SPACE COORDINATES (drawing units): { w, h }. */
+Layouts.paperSize = function(doc, info) {
+    return { w: Layouts.toPaper(doc, info.paperMM.w), h: Layouts.toPaper(doc, info.paperMM.h) };
 };
 
 /** Margins in paper-space coordinates: { l, b, r, t }. */
-Layouts.margins = function(info) {
-    var f = Layouts.unitFactor(info);
-    return { l: info.marginsMM.l / f, b: info.marginsMM.b / f,
-             r: info.marginsMM.r / f, t: info.marginsMM.t / f };
+Layouts.margins = function(doc, info) {
+    return { l: Layouts.toPaper(doc, info.marginsMM.l), b: Layouts.toPaper(doc, info.marginsMM.b),
+             r: Layouts.toPaper(doc, info.marginsMM.r), t: Layouts.toPaper(doc, info.marginsMM.t) };
 };
 
 /**
  * Printable frame in paper coordinates: { x1, y1, x2, y2 } (paper origin at
  * the lower left corner of the sheet).
  */
-Layouts.printableBox = function(info) {
-    var s = Layouts.paperSize(info), m = Layouts.margins(info);
+Layouts.printableBox = function(doc, info) {
+    var s = Layouts.paperSize(doc, info), m = Layouts.margins(doc, info);
     return { x1: m.l, y1: m.b, x2: s.w - m.r, y2: s.h - m.t };
 };
 
@@ -251,7 +258,7 @@ Layouts.nameOk = function(doc, name, exceptName) {
  *   name       text (default: free "Layout N")
  *   paper      standard name ("A1", "Letter"...) or { w, h } in mm (default "Letter")
  *   landscape  boolean (default true)
- *   units      Layouts.INCHES | Layouts.MILLIMETERS (default INCHES for ANSI/Letter/Arch papers, else mm)
+ *   units      Layouts.INCHES | Layouts.MILLIMETERS: the unit dimensions are typed in (default INCHES for ANSI/Letter/Arch papers, else mm)
  *   margins    number mm applied to all sides, or { l, b, r, t } (default 6.35)
  *   mode       "auto" | "manual" (default "manual")
  *   tab        tab position (default: last)
@@ -416,8 +423,7 @@ Layouts.move = function(di, name, index) {
 
 /**
  * Changes paper settings. changes: paper (name or {w,h} mm), landscape, units, margins.
- * Paper-space entities are NOT rescaled when the unit changes: that is the
- * caller's decision (a generator rebuilds; a person rarely changes units).
+ * Paper size changes do not move paper-space entities.
  */
 Layouts.setPaper = function(di, name, changes) {
     return _layoutsModify(di, name, function(layout, info) {
