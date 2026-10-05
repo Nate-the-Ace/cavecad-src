@@ -22,6 +22,9 @@ function LayoutTabs() {
 LayoutTabs.entries = [];
 LayoutTabs.nextId = 1;
 
+/** Fixed height of the tab strip, pixels: the same whatever it shows (see enterViewport). */
+LayoutTabs.STRIP_HEIGHT = 34;
+
 LayoutTabs.init = function(basePath) {
     if (!RSettings.getBoolValue("LayoutTabs/Enabled", true)) {
         return;
@@ -89,6 +92,7 @@ LayoutTabs.attach = function(root, di) {
     vpScale.objectName = "LayoutViewportScale";
     vpScale.toolTip = qsTr("Scale of the selected viewport");
     vpScale.visible = false;
+    vpScale.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     row.addWidget(vpScale, 0, 0);
     var vpLock = new QCheckBox(strip);
     vpLock.objectName = "LayoutViewportLock";
@@ -105,14 +109,14 @@ LayoutTabs.attach = function(root, di) {
     // never taller than the tab bar: showing the edit banner must not change
     // the height of the strip (a taller strip shrinks the view, and a view
     // that changes size re-fits the very zoom the sheet is shown at)
-    done.maximumHeight = bar.sizeHint.height();
-    banner.maximumHeight = bar.sizeHint.height();
+    done.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    banner.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     done.text = qsTr("Back to layout");
     done.toolTip = qsTr("Leave the viewport and return to the layout");
     done.visible = false;
     row.addWidget(done, 0, 0);
     strip.setLayout(row);
-    strip.setFixedHeight(bar.sizeHint.height() + 2);
+    strip.setFixedHeight(LayoutTabs.STRIP_HEIGHT);
     layout.addWidget(strip);
     var bannerAction = banner;
 
