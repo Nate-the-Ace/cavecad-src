@@ -1424,7 +1424,43 @@ LayoutTabs.registerGrips = function() {
         anchor: function(view, vp) { return LayoutTabs.glyphScreen(view, vp); },
         onClick: function(entry, vp) { LayoutTabs.glyphClicked(entry); }
     });
+    CustomGrips.register({
+        id: "viewport-vertex",
+        shape: "square",
+        size: [10, 10],
+        fill: "#ff8c00",
+        tooltip: qsTr("Move this corner of the viewport"),
+        targets: function(entry) { return LayoutTabs.vertexTargets(entry); },
+        anchor: function(view, t) { return view.mapToView(new RVector(t.x, t.y)); },
+        onClick: function(entry, t) {
+            include("scripts/Layouts/MoveVertex/MoveVertex.js");
+            MoveVertex.start(entry.di, t.vpId, t.loop, t.vertex);
+        }
+    });
 };
+
+/** The corner grips of the selected polygon viewport: [{key, target}], none for a round shape (too many). */
+LayoutTabs.vertexTargets = function(entry) {
+    var vp = LayoutTabs.glyphViewport(entry);
+    if (isNull(vp) || !Layouts.hasClip(vp)) {
+        return [];
+    }
+    var loops = Layouts.clipLoops(vp), total = 0, out = [];
+    for (var l = 0; l < loops.length; l++) {
+        total += loops[l].length;
+    }
+    if (total > LayoutTabs.MAX_VERTEX_GRIPS) {
+        return [];
+    }
+    for (var li = 0; li < loops.length; li++) {
+        for (var vi = 0; vi < loops[li].length; vi++) {
+            out.push({ key: li + "-" + vi, target: { vpId: vp.getId(), loop: li, vertex: vi, x: loops[li][vi].x, y: loops[li][vi].y } });
+        }
+    }
+    return out;
+};
+
+LayoutTabs.MAX_VERTEX_GRIPS = 40;
 
 LayoutTabs.drawGlyph = function(entry) {
     if (isNull(entry.view)) {

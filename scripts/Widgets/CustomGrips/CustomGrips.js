@@ -84,10 +84,17 @@ CustomGrips.polygon = function(painter, pts) {
     painter.drawPath(path);
 };
 
-/** Adds (or replaces) a grip kind. Returns its id. */
+/**
+ * Adds (or replaces) a grip kind. Returns its id.
+ *
+ * A grip kind gives either `target(entry)` -- one grip, for the thing it
+ * belongs to, or undefined -- or `targets(entry)` -- an array of
+ * {key, target}, one grip each (a polygon's corners): the keys name the
+ * widgets, so a grip keeps its widget while its target moves.
+ */
 CustomGrips.register = function(def) {
-    if (isNull(def) || isNull(def.id) || typeof def.target !== "function" || typeof def.anchor !== "function") {
-        throw new Error("CustomGrips.register: needs id, target(entry) and anchor(view, target)");
+    if (isNull(def) || isNull(def.id) || (typeof def.target !== "function" && typeof def.targets !== "function") || typeof def.anchor !== "function") {
+        throw new Error("CustomGrips.register: needs id, target(entry) or targets(entry), and anchor(view, target)");
     }
     if (typeof def.shape === "string" && isNull(CustomGrips.SHAPES[def.shape])) {
         throw new Error("CustomGrips.register: unknown shape " + def.shape);
@@ -117,15 +124,21 @@ CustomGrips.applicable = function(entry) {
     var ret = [];
     for (var i = 0; i < CustomGrips.order.length; i++) {
         var def = CustomGrips.grips[CustomGrips.order[i]];
-        var t;
         try {
-            t = def.target(entry);
+            if (typeof def.targets === "function") {
+                var many = def.targets(entry);
+                for (var m = 0; !isNull(many) && m < many.length; m++) {
+                    ret.push({ id: def.id, key: def.id + "#" + many[m].key, target: many[m].target });
+                }
+            }
+            else {
+                var t = def.target(entry);
+                if (!isNull(t)) {
+                    ret.push({ id: def.id, key: def.id, target: t });
+                }
+            }
         }
         catch (e) {
-            t = undefined;
-        }
-        if (!isNull(t)) {
-            ret.push({ id: def.id, target: t });
         }
     }
     return ret;
@@ -181,11 +194,11 @@ CustomGrips.refresh = function(entry, view) {
     var on = CustomGrips.applicable(entry);
     for (var i = 0; i < on.length; i++) {
         var def = CustomGrips.grips[on[i].id];
-        live[def.id] = true;
-        var slot = entry.customGrips[def.id];
+        live[on[i].key] = true;
+        var slot = entry.customGrips[on[i].key];
         if (isNull(slot)) {
-            slot = { button: CustomGrips.makeButton(entry, def, widget) };
-            entry.customGrips[def.id] = slot;
+            slot = { button: CustomGrips.makeButton(entry, def, widget, on[i].key) };
+            entry.customGrips[on[i].key] = slot;
         }
         slot.target = on[i].target;
         var at = def.anchor(view, on[i].target);
@@ -209,9 +222,9 @@ CustomGrips.refresh = function(entry, view) {
     }
 };
 
-CustomGrips.makeButton = function(entry, def, parent) {
+CustomGrips.makeButton = function(entry, def, parent, key) {
     var btn = new QToolButton(parent);
-    btn.objectName = "CustomGrip-" + def.id;
+    btn.objectName = "CustomGrip-" + key;
     btn.setIcon(CustomGrips.icon(def));
     btn.setIconSize(new QSize(def.size[0], def.size[1]));
     btn.setFixedSize(def.size[0] + 4, def.size[1] + 4);
@@ -221,7 +234,7 @@ CustomGrips.makeButton = function(entry, def, parent) {
         btn.toolTip = def.tooltip;
     }
     btn.clicked.connect(function() {
-        var slot = entry.customGrips[def.id];
+        var slot = entry.customGrips[key];
         if (!isNull(slot) && !isNull(slot.target) && typeof def.onClick === "function") {
             def.onClick(entry, slot.target);
         }
