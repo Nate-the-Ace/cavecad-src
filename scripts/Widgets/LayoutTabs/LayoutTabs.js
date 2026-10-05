@@ -107,6 +107,13 @@ LayoutTabs.attach = function(root, di) {
     vpLayers.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     vpLayers.visible = false;
     row.addWidget(vpLayers, 0, 0);
+    var vpBar = new QPushButton(strip);
+    vpBar.objectName = "LayoutViewportBar";
+    vpBar.text = qsTr("Scale bar");
+    vpBar.toolTip = qsTr("Add a scale bar that follows this viewport's scale");
+    vpBar.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    vpBar.visible = false;
+    row.addWidget(vpBar, 0, 0);
     var banner = new QLabel(strip);
     banner.objectName = "LayoutEditBanner";
     banner.visible = false;
@@ -142,6 +149,8 @@ LayoutTabs.attach = function(root, di) {
     entry.vpScale = vpScale;
     entry.vpLock = vpLock;
     entry.vpLayers = vpLayers;
+    entry.vpBar = vpBar;
+    vpBar.clicked.connect(function() { LayoutTabs.addScaleBar(entry); });
     entry.vpShown = undefined;
     vpLayers.clicked.connect(function() { LayoutTabs.viewportLayers(entry); });
     vpScale["activated(int)"].connect(function(index) { LayoutTabs.scalePicked(entry, index); });
@@ -805,6 +814,9 @@ LayoutTabs.refreshControls = function(entry) {
     entry.vpScale.visible = show;
     entry.vpLock.visible = show;
     entry.vpLayers.visible = show;
+    // offered only where the cave suite is loaded and the viewport has no bar yet
+    entry.vpBar.visible = show && typeof Layouts.addScaleBarFor === "function" &&
+        !Layouts.hasScaleBarOf(entry.di.getDocument(), vp);
     if (!show) {
         return;
     }
@@ -1056,5 +1068,16 @@ LayoutTabs.setFrozen = function(entry, vp, layerIds) {
     var op = new RModifyObjectOperation(fresh);
     op.setText(qsTr("Viewport layers"));
     entry.di.applyOperation(op);
+    LayoutTabs.refreshControls(entry);
+};
+
+
+/** Adds a linked scale bar to the selected viewport. */
+LayoutTabs.addScaleBar = function(entry) {
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp) || typeof Layouts.addScaleBarFor !== "function") {
+        return;
+    }
+    Layouts.addScaleBarFor(entry.di.getDocument(), entry.di, vp);
     LayoutTabs.refreshControls(entry);
 };
