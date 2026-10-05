@@ -228,3 +228,104 @@ CustomGrips.makeButton = function(entry, def, parent) {
     });
     return btn;
 };
+
+
+// ---------------------------------------------------------------------------
+// RotationGuide -- the bullseye drawn round whatever a rotate grip turns.
+//
+// Rings mark the distances at which the snap gets finer; lines (or, where
+// they would be too many to read, ticks on the ring) mark the angles the
+// mouse snaps to at the distance it is at now; one bright line is the angle
+// being shown and a dashed one is where it started. Screen pixels, in a
+// transparent label over the view that never takes the mouse.
+// ---------------------------------------------------------------------------
+
+/**
+ * \param parent  the view's widget
+ * \param bands   ring radii in pixels, ascending (the last is the guide's reach)
+ */
+CustomGrips.RotationGuide = function(parent, bands) {
+    this.bands = bands;
+    this.reach = bands[bands.length - 1] + 6;
+    this.label = new QLabel(parent);
+    this.label.objectName = "RotationGuide";
+    this.label.setAttribute(Qt.WA_TransparentForMouseEvents, true);
+    this.label.setAttribute(Qt.WA_TranslucentBackground, true);
+    this.label.setFixedSize(2 * this.reach, 2 * this.reach);
+    this.label.visible = false;
+};
+
+/**
+ * Draws the guide centred on (cx, cy) view pixels.
+ *
+ * \param o.band     index of the band the mouse is in (its ring is bold)
+ * \param o.step     snap step in degrees at that band
+ * \param o.zero     screen angle (radians, ccw from east) that a snapped angle of 0 sits at
+ * \param o.current  screen angle (radians) of the angle being shown
+ * \param o.start    screen angle (radians) where it started
+ */
+CustomGrips.RotationGuide.prototype.draw = function(cx, cy, o) {
+    var R = this.reach, size = 2 * R;
+    var pm = new QPixmap(size, size);
+    pm.fill(new QColor(0, 0, 0, 0));
+    var p = new QPainter();
+    p.begin(pm);
+    p.setRenderHint(QPainter.Antialiasing, true);
+    var C = R;
+    var pt = function(r, a) { return new QPointF(C + r * Math.cos(a), C - r * Math.sin(a)); };
+    var blue = new QColor(0x18, 0x8c, 0xff);
+
+    // rings
+    for (var i = 0; i < this.bands.length; i++) {
+        var on = i === o.band;
+        var c = new QColor(blue.red(), blue.green(), blue.blue(), on ? 210 : 90);
+        p.setPen(new QPen(c, on ? 2 : 1));
+        p.setBrush(new QBrush(Qt.NoBrush));
+        p.drawEllipse(new QPointF(C, C), this.bands[i], this.bands[i]);
+    }
+    // snap angles of this band: full lines when few, ticks on the ring when many
+    var step = o.step, n = Math.round(360 / step);
+    var rIn = o.band > 0 ? this.bands[o.band - 1] : 8, rOut = this.bands[o.band];
+    for (var k = 0; k < n; k++) {
+        var a = o.zero + k * step * Math.PI / 180;
+        if (step >= 15) {
+            p.setPen(new QPen(new QColor(blue.red(), blue.green(), blue.blue(), 110), 1));
+            p.drawLine(pt(8, a), pt(rOut, a));
+        }
+        else {
+            var major = Math.abs(((k * step) % 5)) < 1e-9 || step >= 5;
+            p.setPen(new QPen(new QColor(blue.red(), blue.green(), blue.blue(), 200), 1));
+            p.drawLine(pt(rOut - (major ? 12 : 6), a), pt(rOut, a));
+        }
+    }
+    // where it started
+    var dash = new QPen(new QColor(120, 120, 120, 220), 1.5);
+    dash.setStyle(Qt.DashLine);
+    p.setPen(dash);
+    p.drawLine(pt(8, o.start), pt(this.bands[this.bands.length - 1], o.start));
+    // the angle being shown
+    p.setPen(new QPen(new QColor(255, 140, 0), 2.5));
+    p.drawLine(pt(8, o.current), pt(rOut, o.current));
+    // the bullseye
+    p.setPen(new QPen(new QColor(255, 255, 255), 1.5));
+    p.setBrush(new QBrush(blue));
+    p.drawEllipse(new QPointF(C, C), 4, 4);
+    p.setBrush(new QBrush(Qt.NoBrush));
+    p.setPen(new QPen(blue, 1.5));
+    p.drawEllipse(new QPointF(C, C), 8, 8);
+    p.end();
+
+    this.label.setPixmap(pm);
+    this.label.move(Math.round(cx - R), Math.round(cy - R));
+    this.label.visible = true;
+    this.label.raise();
+};
+
+CustomGrips.RotationGuide.prototype.hide = function() {
+    try {
+        this.label.visible = false;
+        this.label.deleteLater();
+    }
+    catch (e) {
+    }
+};

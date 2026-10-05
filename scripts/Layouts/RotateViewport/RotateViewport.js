@@ -12,6 +12,7 @@
  */
 include("scripts/EAction.js");
 include("scripts/Layouts/Layouts.js");
+include("scripts/Widgets/CustomGrips/CustomGrips.js");
 
 function RotateViewport(guiAction) {
     EAction.call(this, guiAction);
@@ -28,13 +29,21 @@ function RotateViewport(guiAction) {
 
 RotateViewport.prototype = new EAction();
 
+/** Ring radii (pixels from the centre) where the snap gets finer. */
+RotateViewport.BANDS = [70, 140, 240, 380];
+RotateViewport.STEPS = [45, 15, 5, 1, 0.5];
+
+/** Which band a distance is in: 0 (nearest) .. 4 (beyond the last ring). */
+RotateViewport.bandFor = function(px) {
+    for (var i = 0; i < RotateViewport.BANDS.length; i++) {
+        if (px < RotateViewport.BANDS[i]) { return i; }
+    }
+    return RotateViewport.BANDS.length;
+};
+
 /** Step in degrees for a mouse `px` pixels from the centre. */
 RotateViewport.stepFor = function(px) {
-    if (px < 70) { return 45; }
-    if (px < 140) { return 15; }
-    if (px < 240) { return 5; }
-    if (px < 380) { return 1; }
-    return 0.5;
+    return RotateViewport.STEPS[RotateViewport.bandFor(px)];
 };
 
 /** Radians -> degrees in (-180, 180]. */
@@ -59,6 +68,7 @@ RotateViewport.start = function(di, vpId, screenPos) {
     a.centre = vp.getCenter();
     RotateViewport.current = a;   // the running tool (the document interface hands back an adapter)
     di.setCurrentAction(a);
+    a.updateGuide();
     return true;
 };
 
@@ -92,8 +102,10 @@ RotateViewport.prototype.mouseMoveEvent = function(event) {
             this.angle0Set = true;
         }
         var raw = this.rot0 + (this.mouseAngle(m) - this.angle0);
-        var step = RotateViewport.stepFor(this.screenDistance(event));
+        var dist = this.screenDistance(event);
+        var step = RotateViewport.stepFor(dist);
         this.step = step;
+        this.band = RotateViewport.bandFor(dist);
         var deg = Math.round(RotateViewport.degrees(raw) / step) * step;
         this.rotation = deg * Math.PI / 180;
     }
@@ -105,7 +117,31 @@ RotateViewport.prototype.show = function() {
     var di = this.getDocumentInterface();
     var doc = this.getDocument();
     this.setRotation(this.rotation, false);
+    this.updateGuide();
     this.updateLabel();
+};
+
+/** The bullseye round the centre: rings, snap angles, start and current angle. */
+RotateViewport.prototype.updateGuide = function() {
+    var view = this.getDocumentInterface().getLastKnownViewWithFocus();
+    var widget = isNull(view) ? undefined : view.getWidget();
+    if (isNull(widget) || isNull(this.centre)) {
+        return;
+    }
+    if (isNull(this.guide)) {
+        // the outermost ring is the guide's reach; the last band has no ring
+        this.guide = new CustomGrips.RotationGuide(widget, RotateViewport.BANDS.concat([RotateViewport.BANDS[RotateViewport.BANDS.length - 1] + 40]));
+    }
+    var cs = view.mapToView(this.centre);
+    // a snapped angle of 0 sits where the mouse angle is angle0 - rot0
+    var zero = (isNull(this.angle0Set) ? 0 : this.angle0) - this.rot0;
+    var band = isNull(this.band) ? 0 : this.band;
+    this.guide.draw(cs.x, cs.y, {
+        band: Math.min(band, RotateViewport.BANDS.length),
+        step: isNull(this.step) ? RotateViewport.STEPS[0] : this.step,
+        zero: zero,
+        current: zero + this.rotation,
+        start: zero + this.rot0 });
 };
 
 /**
@@ -222,6 +258,10 @@ RotateViewport.prototype.escapeEvent = function() {
 };
 
 RotateViewport.prototype.finishEvent = function() {
+    if (!isNull(this.guide)) {
+        this.guide.hide();
+        this.guide = undefined;
+    }
     if (!isNull(this.label)) {
         try {
             this.label.hide();
