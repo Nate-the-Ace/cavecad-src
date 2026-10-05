@@ -14,6 +14,7 @@
 include("scripts/library.js");
 include("scripts/Layouts/Layouts.js");
 include("scripts/Widgets/ViewportWidget/ViewportWidget.js");
+include("scripts/Widgets/Ribbon/Ribbon.js");
 
 function LayoutTabs() {
 }
@@ -82,116 +83,10 @@ LayoutTabs.attach = function(root, di) {
     plus.autoRaise = true;
     plus.toolTip = qsTr("New layout");
     row.addWidget(plus, 0, 0);
-    // THE VIEWPORT CONTROLS LIVE AT THE TOP of the drawing, in a strip that is
-    // always there (so the view never changes size when a layout is picked) and
-    // coloured so it cannot be missed: what you are looking at, the viewport's
-    // scale / lock / shape tools, and the big "Back to layout" button while you
-    // are editing through a viewport. The tab bar stays at the bottom.
-    var entryRef = {};   // filled in below; the menus above are built first
-    var top = new QWidget(root);
-    top.objectName = "LayoutControlStrip";
-    top.setAttribute(Qt.WA_StyledBackground, true);   // a plain QWidget paints no stylesheet background without it
-    var topRow = new QHBoxLayout();
-    topRow.setContentsMargins(8, 2, 8, 2);
-    topRow.setSpacing(6);
-    var modeLabel = new QLabel(top);
-    modeLabel.objectName = "LayoutModeLabel";
-    modeLabel.setStyleSheet("font-weight:bold; color:#0b3d75;");
-    topRow.addWidget(modeLabel, 0, 0);
-    topRow.addStretch(1);
-    // the selected viewport's scale and lock (shown only when exactly one is selected)
-    var vpLabel = new QLabel(top);
-    vpLabel.objectName = "LayoutViewportLabel";
-    vpLabel.text = qsTr("Viewport:");
-    vpLabel.visible = false;
-    topRow.addWidget(vpLabel, 0, 0);
-    var vpScale = new QComboBox(top);
-    vpScale.objectName = "LayoutViewportScale";
-    vpScale.toolTip = qsTr("Scale of the selected viewport");
-    vpScale.visible = false;
-    vpScale.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    topRow.addWidget(vpScale, 0, 0);
-    var vpLock = new QCheckBox(top);
-    vpLock.objectName = "LayoutViewportLock";
-    vpLock.text = qsTr("Locked");
-    vpLock.toolTip = qsTr("A locked viewport keeps its scale and what it shows");
-    vpLock.visible = false;
-    topRow.addWidget(vpLock, 0, 0);
-    var vpLayers = new QPushButton(top);
-    vpLayers.objectName = "LayoutViewportLayers";
-    vpLayers.text = qsTr("Layers...");
-    vpLayers.toolTip = qsTr("Choose which layers this viewport hides");
-    vpLayers.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    vpLayers.visible = false;
-    topRow.addWidget(vpLayers, 0, 0);
-    var newVp = new QPushButton(top);
-    newVp.objectName = "LayoutNewViewport";
-    newVp.text = qsTr("New viewport");
-    newVp.toolTip = qsTr("Draw a viewport on this layout: a rectangle, a polygon or a circle");
-    newVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    newVp.visible = false;
-    var newMenu = new QMenu(newVp);
-    newMenu.addAction(qsTr("Rectangle  (two corners)")).triggered.connect(function() { LayoutTabs.newViewport(entryRef.entry); });
-    newMenu.addAction(qsTr("Polygon  (click the corners)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "polygon"); });
-    newMenu.addAction(qsTr("Circle  (centre, then radius)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "circle"); });
-    newVp.setMenu(newMenu);
-    topRow.addWidget(newVp, 0, 0);
-    var trimVp = new QPushButton(top);
-    trimVp.objectName = "LayoutTrimViewport";
-    trimVp.text = qsTr("Trim");
-    trimVp.toolTip = qsTr("Cut a polygon or a circle out of the selected viewport");
-    trimVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    trimVp.visible = false;
-    var trimMenu = new QMenu(trimVp);
-    trimMenu.addAction(qsTr("Cut out a polygon  (click the corners)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "trim"); });
-    trimMenu.addAction(qsTr("Cut out a circle  (centre, then radius)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "trim-circle"); });
-    trimVp.setMenu(trimMenu);
-    topRow.addWidget(trimVp, 0, 0);
-    var squareVp = new QPushButton(top);
-    squareVp.objectName = "LayoutSquareViewport";
-    squareVp.text = qsTr("Rectangle");
-    squareVp.toolTip = qsTr("Put the selected viewport back to a plain rectangle (its outline's bounding box)");
-    squareVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    squareVp.visible = false;
-    topRow.addWidget(squareVp, 0, 0);
-    var vpBar = new QPushButton(top);
-    vpBar.objectName = "LayoutViewportBar";
-    vpBar.text = qsTr("Scale bar");
-    vpBar.toolTip = qsTr("Add a scale bar that follows this viewport's scale");
-    vpBar.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    vpBar.visible = false;
-    topRow.addWidget(vpBar, 0, 0);
-    var banner = new QLabel(top);
-    banner.objectName = "LayoutEditBanner";
-    banner.setStyleSheet("font-weight:bold; color:#7a2e00; background:#fff1cf; border:1px solid #e0a53a; border-radius:3px; padding:1px 8px;");
-    banner.visible = false;
-    topRow.addWidget(banner, 0, 0);
-    var done = new QPushButton(top);
-    done.objectName = "LayoutEditDone";
-    // never taller than the tab bar: showing the edit banner must not change
-    // the height of the strip (a taller strip shrinks the view, and a view
-    // that changes size re-fits the very zoom the sheet is shown at)
-    done.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    banner.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    done.text = qsTr("\u2190 Back to layout");
-    done.setStyleSheet("QPushButton { background:#188cff; color:white; font-weight:bold; border:1px solid #0b5fb5; border-radius:4px; padding:3px 14px; } " +
-        "QPushButton:hover { background:#0f78e0; }");
-    done.toolTip = qsTr("Leave the viewport and return to the layout");
-    done.visible = false;
-    topRow.addWidget(done, 0, 0);
-    top.setLayout(topRow);
-    top.setFixedHeight(LayoutTabs.STRIP_HEIGHT + 6);
-    try {
-        layout.insertWidget(0, top);
-    }
-    catch (eInsert) {
-        layout.addWidget(top);
-    }
     row.addStretch(1);
     strip.setLayout(row);
     strip.setFixedHeight(LayoutTabs.STRIP_HEIGHT);
     layout.addWidget(strip);
-    var bannerAction = banner;
 
     var entry = { di: di, strip: strip, bar: bar, plus: plus, names: [], syncing: false, saved: {},
         id: LayoutTabs.nextId++, editing: undefined };
@@ -210,29 +105,28 @@ LayoutTabs.attach = function(root, di) {
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
     bar.customContextMenuRequested.connect(function(pos) { LayoutTabs.contextMenu(entry, pos); });
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
-    entryRef.entry = entry;
-    entry.top = top;
-    entry.modeLabel = modeLabel;
-    entry.banner = banner;
-    entry.done = done;
-    entry.vpLabel = vpLabel;
-    entry.vpScale = vpScale;
-    entry.vpLock = vpLock;
-    entry.vpLayers = vpLayers;
-    entry.vpBar = vpBar;
-    entry.newVp = newVp;
-    entry.trimVp = trimVp;
-    entry.squareVp = squareVp;
-    squareVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "square"); });
-    vpBar.clicked.connect(function() { LayoutTabs.addScaleBar(entry); });
+    // THE RIBBON: contextual tabs of panels across the top of the drawing (see Widgets/Ribbon).
+    LayoutTabs.registerRibbon();
+    var rb = Ribbon.attach(entry, root, layout);
+    entry.top = rb.root;
+    entry.modeLabel = rb.state;
     entry.vpShown = undefined;
-    vpLayers.clicked.connect(function() { LayoutTabs.viewportLayers(entry); });
-    vpScale["activated(int)"].connect(function(index) { LayoutTabs.scalePicked(entry, index); });
-    vpLock.clicked.connect(function(checked) { LayoutTabs.lockClicked(entry, checked); });
-    done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
+    // widgets the ribbon's panels made are reachable by id
+    var items = isNull(entry.ribbonItems) ? {} : entry.ribbonItems;
+    entry.newVp = items.newvp;
+    entry.trimVp = items.trim;
+    entry.squareVp = items.square;
+    entry.vpBar = items.scalebar;
+    entry.vpLayers = items.layers;
+    entry.vpScale = items.scale;
+    entry.vpLock = items.lock;
+    entry.done = items.back;
+    entry.banner = items.banner;
+    entry.vpLabel = items.scalelabel;
 
     LayoutTabs.ensureLayout(entry);
     LayoutTabs.refresh(entry);
+    Ribbon.refresh(entry);
     try {
         LayoutTabs.applyTheme(entry);
     }
@@ -1611,4 +1505,157 @@ LayoutTabs.applyTheme = function(entry) {
         "QTabBar::tab { color:" + c.tabText + "; background:" + c.tabBg + "; border:1px solid " + c.tabBorder + "; padding:4px 14px; margin-right:2px; border-bottom-left-radius:4px; border-bottom-right-radius:4px; } " +
         "QTabBar::tab:selected { background:#188cff; color:white; font-weight:bold; border-color:#0b5fb5; } " +
         "QToolButton { color:" + c.tabText + "; }");
+};
+
+
+// ---------------------------------------------------------------------------
+// The ribbon: tabs, panels and their buttons for the layout workflow
+// ---------------------------------------------------------------------------
+
+/** What the ribbon needs to know about a window right now. */
+LayoutTabs.ribbonContext = function(entry) {
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    var editing = !isNull(entry.editing);
+    var ctx = { mode: editing ? "editing" : (isNull(cur) ? "model" : "layout"), layout: cur,
+        viewport: editing ? undefined : LayoutTabs.controlViewport(entry) };
+    if (editing) {
+        ctx.stateText = qsTr("Editing through a viewport");
+    }
+    else if (isNull(cur)) {
+        ctx.stateText = qsTr("Model space - pick a layout tab below to compose a sheet");
+    }
+    else {
+        ctx.stateText = qsTr("Layout \u201c%1\u201d").arg(cur.name);
+    }
+    return ctx;
+};
+
+LayoutTabs.currentIndex = function(entry) {
+    var cur = Layouts.current(entry.di.getDocument());
+    return isNull(cur) ? -1 : entry.names.indexOf(cur.name);
+};
+
+LayoutTabs.duplicateCurrent = function(entry) {
+    var cur = Layouts.current(entry.di.getDocument());
+    if (!isNull(cur)) {
+        Layouts.duplicate(entry.di, cur.name);
+        LayoutTabs.refresh(entry);
+    }
+};
+
+LayoutTabs.deleteCurrent = function(entry) {
+    var cur = Layouts.current(entry.di.getDocument());
+    if (isNull(cur)) {
+        return;
+    }
+    var answer = QMessageBox.question(RMainWindowQt.getMainWindow(), qsTr("Delete layout"),
+        qsTr("Delete layout \"%1\" and everything on it? You can undo this.").arg(cur.name),
+        QMessageBox.Yes | QMessageBox.No);
+    if (answer === QMessageBox.Yes) {
+        Layouts.remove(entry.di, cur.name);
+        LayoutTabs.refresh(entry);
+    }
+};
+
+LayoutTabs.exportPdf = function(entry) {
+    if (typeof SheetSetup !== "undefined" && typeof SheetSetup.exportPdf === "function") {
+        SheetSetup.exportPdf();
+    }
+    else {
+        EAction.handleUserWarning(qsTr("Export PDF needs the Cave Survey tools (Sheet Setup)."));
+    }
+};
+
+LayoutTabs.registerRibbon = function() {
+    if (LayoutTabs.ribbonRegistered === true) {
+        return;
+    }
+    LayoutTabs.ribbonRegistered = true;
+    Ribbon.contextOf = LayoutTabs.ribbonContext;
+    var onLayout = function(ctx) { return ctx.mode === "layout"; };
+
+    Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), when: function(ctx) { return ctx.mode !== "editing"; } });
+    Ribbon.registerTab({ id: "viewport", title: qsTr("Viewport"), accent: true, when: function(ctx) { return !isNull(ctx.viewport); } });
+    Ribbon.registerTab({ id: "editing", title: qsTr("Editing Viewport"), accent: true, when: function(ctx) { return ctx.mode === "editing"; } });
+
+    // ---- Layout tab
+    Ribbon.registerPanel("layout", { id: "layouts", title: qsTr("Layouts"), order: 10, items: [
+        { type: "button", id: "newlayout", action: "LayoutNew.js", text: qsTr("New from\ntemplate"), icon: "sheet", size: "large" },
+        { type: "button", id: "savetemplate", action: "LayoutSaveTemplate.js", text: qsTr("Save as\ntemplate"), icon: "page", size: "large", enabled: onLayout },
+        { type: "stack", items: [
+            { type: "button", id: "pagesetup", text: qsTr("Page setup"), icon: "page", size: "small", enabled: onLayout,
+              onClick: function(entry) { var cur = Layouts.current(entry.di.getDocument()); if (!isNull(cur)) { LayoutTabs.pageSetup(entry, cur.name); } } },
+            { type: "button", id: "rename", text: qsTr("Rename"), icon: "rename", size: "small", enabled: onLayout,
+              onClick: function(entry) { var i = LayoutTabs.currentIndex(entry); if (i > 0) { LayoutTabs.rename(entry, i); } } },
+            { type: "button", id: "duplicate", text: qsTr("Duplicate"), icon: "duplicate", size: "small", enabled: onLayout,
+              onClick: function(entry) { LayoutTabs.duplicateCurrent(entry); } } ] },
+        { type: "button", id: "deletelayout", text: qsTr("Delete"), icon: "delete", size: "large", enabled: onLayout,
+          onClick: function(entry) { LayoutTabs.deleteCurrent(entry); } } ] });
+    Ribbon.registerPanel("layout", { id: "viewports", title: qsTr("Viewports"), order: 20, items: [
+        { type: "button", id: "newvp", text: qsTr("New\nviewport"), icon: "rect-viewport", size: "large", enabled: onLayout,
+          tooltip: qsTr("Draw a viewport on this layout: a rectangle, a polygon or a circle"),
+          menu: [ { text: qsTr("Rectangle  (two corners)"), onClick: function(entry) { LayoutTabs.newViewport(entry); } },
+                  { text: qsTr("Polygon  (click the corners)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "polygon"); } },
+                  { text: qsTr("Circle  (centre, then radius)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "circle"); } } ] } ] });
+    Ribbon.registerPanel("layout", { id: "furniture", title: qsTr("Sheet furniture"), order: 30, items: [
+        { type: "button", id: "addnorth", action: "LayoutNorthArrow.js", text: qsTr("North\narrow"), icon: "rect-viewport", size: "large", enabled: onLayout },
+        { type: "button", id: "addbar", action: "LayoutScaleBar.js", text: qsTr("Scale\nbar"), icon: "scale", size: "large", enabled: onLayout },
+        { type: "button", id: "addtitle", action: "LayoutTitleBlock.js", text: qsTr("Title\nblock"), icon: "sheet", size: "large", enabled: onLayout } ] });
+    Ribbon.registerPanel("layout", { id: "plot", title: qsTr("Plot"), order: 40, items: [
+        { type: "button", id: "pdf", text: qsTr("Export\nPDF"), icon: "pdf", size: "large", enabled: onLayout,
+          tooltip: qsTr("Plot every layout to one PDF (Sheet Setup's Export PDF)"),
+          onClick: function(entry) { LayoutTabs.exportPdf(entry); } } ] });
+
+    // ---- Viewport tab (a viewport is selected)
+    Ribbon.registerPanel("viewport", { id: "vpscale", title: qsTr("Scale"), order: 10, items: [
+        { type: "stack", items: [
+            { type: "widget", id: "scale", make: function(entry, parent) {
+                var combo = new QComboBox(parent);
+                combo.objectName = "LayoutViewportScale";
+                combo.toolTip = qsTr("Scale of the selected viewport");
+                combo.setMinimumWidth(130);
+                combo["activated(int)"].connect(function(index) { LayoutTabs.scalePicked(entry, index); });
+                return combo;
+            } },
+            { type: "widget", id: "lock", make: function(entry, parent) {
+                var box = new QCheckBox(parent);
+                box.objectName = "LayoutViewportLock";
+                box.text = qsTr("Locked");
+                box.toolTip = qsTr("A locked viewport keeps its scale and what it shows");
+                box.clicked.connect(function(checked) { LayoutTabs.lockClicked(entry, checked); });
+                return box;
+            } } ] } ] });
+    Ribbon.registerPanel("viewport", { id: "vpcontents", title: qsTr("Contents"), order: 20, items: [
+        { type: "button", id: "rotate", text: qsTr("Rotate"), icon: "rotate", size: "large",
+          tooltip: qsTr("Turn the viewport's contents: move the mouse round, or type an angle (also the diamond above the viewport)"),
+          onClick: function(entry) { LayoutTabs.glyphClicked(entry); } },
+        { type: "button", id: "layers", text: qsTr("Layers"), icon: "layers", size: "large",
+          tooltip: qsTr("Choose which layers this viewport hides"),
+          onClick: function(entry) { LayoutTabs.viewportLayers(entry); } },
+        { type: "button", id: "scalebar", text: qsTr("Scale\nbar"), icon: "scale", size: "large",
+          tooltip: qsTr("Add a scale bar that follows this viewport's scale"),
+          onClick: function(entry) { LayoutTabs.addScaleBar(entry); } } ] });
+    Ribbon.registerPanel("viewport", { id: "vpshape", title: qsTr("Shape"), order: 30, items: [
+        { type: "button", id: "trim", text: qsTr("Trim"), icon: "trim", size: "large",
+          tooltip: qsTr("Cut a polygon or a circle out of the selected viewport"),
+          menu: [ { text: qsTr("Cut out a polygon  (click the corners)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "trim"); } },
+                  { text: qsTr("Cut out a circle  (centre, then radius)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "trim-circle"); } } ] },
+        { type: "button", id: "square", text: qsTr("Back to\nrectangle"), icon: "square", size: "large",
+          tooltip: qsTr("Put the selected viewport back to a plain rectangle (its outline's bounding box)"),
+          onClick: function(entry) { LayoutTabs.shapeTool(entry, "square"); } } ] });
+
+    // ---- Editing tab (inside a viewport)
+    Ribbon.registerPanel("editing", { id: "edit", title: qsTr("Editing"), order: 10, items: [
+        { type: "button", id: "back", text: qsTr("Back to\nlayout"), icon: "back", size: "large",
+          tooltip: qsTr("Leave the viewport and return to the layout"),
+          onClick: function(entry) { LayoutTabs.exitViewport(entry, true); } },
+        { type: "widget", id: "banner", make: function(entry, parent) {
+            var label = new QLabel(parent);
+            label.objectName = "LayoutEditBanner";
+            label.wordWrap = true;
+            label.setMinimumWidth(320);
+            label.setMaximumWidth(520);
+            return label;
+        } } ] });
 };
