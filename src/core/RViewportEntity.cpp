@@ -177,6 +177,12 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
         return;
     }
 
+    // CaveCAD: the "overall" viewport (id 1) is the paper itself, not a
+    // window onto model space; it draws nothing.
+    if (data.overall) {
+        return;
+    }
+
     RBox viewportBox(data.position, data.width, data.height);
 
     bool active = getId()==doc->getCurrentViewportId();

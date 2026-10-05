@@ -40,6 +40,7 @@ class RHatchEntity;
 class RImageEntity;
 class RLeaderEntity;
 class RLineEntity;
+class RViewportEntity;
 class RMessageHandler;
 class RPointEntity;
 class RPolylineEntity;
@@ -106,6 +107,8 @@ public:
     void writeBlockReference(const RBlockReferenceEntity& br);
 
     void writeImageDef(const RImageEntity& img);
+    void writeViewport(const RViewportEntity& vp);
+    QStringList writeLayoutVariables();
 
     virtual void exportPoint(const RPoint& point) {
         // MSVC:

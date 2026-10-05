@@ -57,6 +57,8 @@
 #include "RTextEntity.h"
 #include "RTraceEntity.h"
 #include "RXLineEntity.h"
+#include "RLayout.h"
+#include "RViewportEntity.h"
 
 RDxfExporter::RDxfExporter(RDocument& document,
     RMessageHandler* messageHandler,
@@ -397,10 +399,35 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
     if (exportVersion!=DL_Codes::AC1009 && exportVersion!=DL_Codes::AC1009_MIN) {
         RBlock b1(document, "*Model_Space", RVector(0.0,0.0));
         writeBlock(b1);
-        RBlock b2(document, "*Paper_Space", RVector(0.0,0.0));
-        writeBlock(b2);
-        RBlock b3(document, "*Paper_Space0", RVector(0.0,0.0));
-        writeBlock(b3);
+
+        // CaveCAD: every paper-space layout is written as an ordinary
+        // block carrying its entities (viewports included). Layout
+        // settings travel separately, as XRecords (see writeLayouts).
+        QStringList layoutBlockNames;
+        {
+            QSet<RObject::Id> lbIds = document->queryAllLayoutBlocks(false);
+            QSet<RObject::Id>::const_iterator lit;
+            for (lit=lbIds.constBegin(); lit!=lbIds.constEnd(); ++lit) {
+                QSharedPointer<RBlock> lb = document->queryBlockDirect(*lit);
+                if (!lb.isNull()) {
+                    layoutBlockNames.append(lb->getName());
+                }
+            }
+            if (!layoutBlockNames.contains(RBlock::paperSpaceName)) {
+                layoutBlockNames.append(RBlock::paperSpaceName);
+            }
+            layoutBlockNames.sort();
+        }
+        for (int i=0; i<layoutBlockNames.size(); ++i) {
+            QSharedPointer<RBlock> lb = document->queryBlock(layoutBlockNames[i]);
+            if (!lb.isNull() && !lb->getName().isEmpty() && lb->getId()!=RObject::INVALID_ID) {
+                writeBlock(*lb);
+            }
+            else {
+                RBlock empty(document, layoutBlockNames[i], RVector(0.0,0.0));
+                writeBlock(empty);
+            }
+        }
     }
 
     //if (!minimalistic) {
@@ -438,10 +465,16 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
         //qDebug() << "writing section OBJECTS...";
         dxf.writeObjects(*dw, "QCAD_OBJECTS");
 
+        QStringList layoutVariableKeys;
+
         if (!minimalistic) {
             // XRecords:
             dxf.writeAppDictionary(*dw);
             QMap<QString, int> handles;
+
+            // CaveCAD: layouts ride along as document variables for the
+            // duration of the export (removed again below).
+            layoutVariableKeys = writeLayoutVariables();
 
             // export all QCAD specific document variables:
             QStringList variables = document->getVariables();
@@ -490,6 +523,10 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
             }
         }
 
+
+        for (int i=0; i<layoutVariableKeys.size(); i++) {
+            document->removeVariable(layoutVariableKeys[i]);
+        }
 
         // IMAGEDEF's from images in entities and images in blocks
         QStringList written;
@@ -821,6 +858,9 @@ void RDxfExporter::writeEntity(const REntity& e) {
         break;
     case RS::EntityImage:
         writeImage(dynamic_cast<const RImageEntity&>(e));
+        break;
+    case RS::EntityViewport:
+        writeViewport(dynamic_cast<const RViewportEntity&>(e));
         break;
     case RS::EntitySolid:
         writeSolid(dynamic_cast<const RSolidEntity&>(e));
@@ -1768,6 +1808,68 @@ void RDxfExporter::writeTrace(const RTraceEntity& t) {
 /**
  * Writes an IMAGEDEF object into an OBJECT section.
  */
+/**
+ * Sets one document variable per layout setting ("Layout|<block>|<key>")
+ * so the generic XRecord writer carries layouts through the file.
+ * \return The keys that were set, for removal after the export.
+ */
+QStringList RDxfExporter::writeLayoutVariables() {
+    QStringList keys;
+    QSet<RObject::Id> lbIds = document->queryAllLayoutBlocks(false);
+    QSet<RObject::Id>::const_iterator it;
+    for (it=lbIds.constBegin(); it!=lbIds.constEnd(); ++it) {
+        QSharedPointer<RBlock> b = document->queryBlockDirect(*it);
+        if (b.isNull() || !b->hasLayout()) {
+            continue;
+        }
+        QSharedPointer<RLayout> l = document->queryLayoutDirect(b->getLayoutId());
+        if (l.isNull()) {
+            continue;
+        }
+        QMap<QString, QString> m = l->toStorageMap();
+        QMap<QString, QString>::const_iterator mi;
+        for (mi=m.constBegin(); mi!=m.constEnd(); ++mi) {
+            QString key = "Layout|" + b->getName() + "|" + mi.key();
+            document->setVariable(key, mi.value());
+            keys.append(key);
+        }
+    }
+    return keys;
+}
+
+void RDxfExporter::writeViewport(const RViewportEntity& vp) {
+    DL_ViewportData d;
+    RVector c = vp.getCenter();
+    d.cx = c.x;
+    d.cy = c.y;
+    d.cz = c.z;
+    d.width = vp.getWidth();
+    d.height = vp.getHeight();
+    d.status = vp.isOff() ? 0 : 1;
+    d.id = vp.isOverall() ? 1 : qMax(2, vp.getViewportId());
+    RVector vc = vp.getViewCenter();
+    d.vcx = vc.x;
+    d.vcy = vc.y;
+    RVector t = vp.getViewTarget();
+    d.tx = t.x;
+    d.ty = t.y;
+    d.tz = t.z;
+    double scale = vp.getScale();
+    d.viewHeight = scale>1.0e-12 ? vp.getHeight()/scale : vp.getHeight();
+    d.twist = RMath::rad2deg(vp.getRotation());
+
+    QList<RObject::Id> frozen = vp.getFrozenLayerIds();
+    for (int i=0; i<frozen.length(); i++) {
+        QSharedPointer<RLayer> layer = document->queryLayerDirect(frozen[i]);
+        if (layer.isNull()) {
+            continue;
+        }
+        d.frozenLayers.push_back(std::string((const char*)RDxfExporter::escapeUnicode(layer->getName())));
+    }
+
+    dxf.writeViewport(*dw, d, attributes);
+}
+
 void RDxfExporter::writeImageDef(const RImageEntity& img) {
     if (!imageHandles.contains(img.getId())) {
         qWarning() << "RDxfExporter::writeImageDef: no handle for given image";

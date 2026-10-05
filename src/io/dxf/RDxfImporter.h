@@ -114,6 +114,8 @@ private:
     virtual void addHatchLoop(const DL_HatchLoopData& data);
     virtual void addHatchEdge(const DL_HatchEdgeData& data);
     virtual void addImage(const DL_ImageData &data);
+    virtual void addViewport(const DL_ViewportData &data);
+    void importLayouts();
     virtual void linkImage(const DL_ImageDefData &data);
 
     virtual void addXRecord(const std::string& handle);

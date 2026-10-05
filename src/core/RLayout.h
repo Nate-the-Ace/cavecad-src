@@ -22,6 +22,7 @@
 
 #include "core_global.h"
 
+#include <QMap>
 #include <QString>
 
 #include "RS.h"
@@ -371,6 +372,16 @@ public:
             bool humanReadable = false, bool noAttributes = false, bool showOnRequest = false);
     virtual bool setProperty(RPropertyTypeId propertyTypeId,
             const QVariant& value, RTransaction* transaction=NULL);
+
+    /**
+     * Flat string map of everything a layout persists (name, tab order,
+     * paper size / margins / units / rotation, standard scale, media name
+     * and custom properties), used by the DXF exporter and importer to
+     * carry layouts through a file as plain XRecords. Values are decimal
+     * strings or text; keys are stable.
+     */
+    QMap<QString, QString> toStorageMap() const;
+    void fromStorageMap(const QMap<QString, QString>& map);
 
 protected:
     /**

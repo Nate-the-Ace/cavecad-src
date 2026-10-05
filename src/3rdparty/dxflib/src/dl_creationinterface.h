@@ -236,6 +236,11 @@ public:
     virtual void addImage(const DL_ImageData& data) = 0;
 
     /**
+     * Called for every viewport entity.
+     */
+    virtual void addViewport(const DL_ViewportData& data) = 0;
+
+    /**
      * Called for every image definition.
      */
     virtual void linkImage(const DL_ImageDefData& data) = 0;

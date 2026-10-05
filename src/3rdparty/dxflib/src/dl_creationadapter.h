@@ -97,6 +97,7 @@ public:
     virtual void addSolid(const DL_SolidData&) {}
     
     virtual void addImage(const DL_ImageData&) {}
+    virtual void addViewport(const DL_ViewportData&) {}
     virtual void linkImage(const DL_ImageDefData&) {}
     virtual void addHatchLoop(const DL_HatchLoopData&) {}
     virtual void addHatchEdge(const DL_HatchEdgeData&) {}

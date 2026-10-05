@@ -587,6 +587,10 @@ bool DL_Dxf::processDXFGroup(DL_CreationInterface* creationInterface,
             addImage(creationInterface);
             break;
 
+        case DL_ENTITY_VIEWPORT:
+            addViewport(creationInterface);
+            break;
+
         case DL_ENTITY_IMAGEDEF:
             addImageDef(creationInterface);
             break;
@@ -699,6 +703,9 @@ bool DL_Dxf::processDXFGroup(DL_CreationInterface* creationInterface,
             currentObjectType = DL_ENTITY_LEADER;
         } else if (groupValue=="HATCH") {
             currentObjectType = DL_ENTITY_HATCH;
+        } else if (groupValue=="VIEWPORT") {
+            currentObjectType = DL_ENTITY_VIEWPORT;
+            viewportFrozenLayers.clear();
         } else if (groupValue=="IMAGE") {
             currentObjectType = DL_ENTITY_IMAGE;
         } else if (groupValue=="IMAGEDEF") {
@@ -754,6 +761,10 @@ bool DL_Dxf::processDXFGroup(DL_CreationInterface* creationInterface,
 
             case DL_ENTITY_LEADER:
                 handled = handleLeaderData(creationInterface);
+                break;
+
+            case DL_ENTITY_VIEWPORT:
+                handled = handleViewportData(creationInterface);
                 break;
 
             case DL_ENTITY_HATCH:
@@ -2292,6 +2303,46 @@ void DL_Dxf::addImage(DL_CreationInterface* creationInterface) {
 
 
 /**
+ * Collects the repeated group code 3 of a viewport (frozen layer names).
+ */
+bool DL_Dxf::handleViewportData(DL_CreationInterface* /*creationInterface*/) {
+    if (groupCode==3) {
+        viewportFrozenLayers.push_back(groupValue);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Adds a viewport entity that was read from the file via the creation interface.
+ */
+void DL_Dxf::addViewport(DL_CreationInterface* creationInterface) {
+    DL_ViewportData vd;
+    vd.cx = getRealValue(10, 0.0);
+    vd.cy = getRealValue(20, 0.0);
+    vd.cz = getRealValue(30, 0.0);
+    vd.width = getRealValue(40, 1.0);
+    vd.height = getRealValue(41, 1.0);
+    vd.status = getIntValue(68, 1);
+    vd.id = getIntValue(69, 2);
+    vd.vcx = getRealValue(12, 0.0);
+    vd.vcy = getRealValue(22, 0.0);
+    vd.tx = getRealValue(17, 0.0);
+    vd.ty = getRealValue(27, 0.0);
+    vd.tz = getRealValue(37, 0.0);
+    vd.viewHeight = getRealValue(45, vd.height);
+    vd.twist = getRealValue(51, 0.0);
+    vd.frozenLayers = viewportFrozenLayers;
+
+    creationInterface->addViewport(vd);
+    creationInterface->endEntity();
+    viewportFrozenLayers.clear();
+    currentObjectType = DL_UNKNOWN;
+}
+
+
+
+/**
  * Adds an image definition that was read from the file via the creation interface.
  */
 void DL_Dxf::addImageDef(DL_CreationInterface* creationInterface) {
@@ -3753,6 +3804,42 @@ void DL_Dxf::writeHatchEdge(DL_WriterA& dw,
  *
  * @return IMAGEDEF handle. Needed for the IMAGEDEF counterpart.
  */
+/**
+ * Writes a viewport entity.
+ */
+void DL_Dxf::writeViewport(DL_WriterA& dw,
+                           const DL_ViewportData& data,
+                           const DL_Attributes& attrib) {
+    dw.entity("VIEWPORT");
+
+    if (version==DL_VERSION_2000) {
+        dw.dxfString(100, "AcDbEntity");
+    }
+    dw.entityAttributes(attrib);
+    if (version==DL_VERSION_2000) {
+        dw.dxfString(100, "AcDbViewport");
+    }
+    dw.dxfReal(10, data.cx);
+    dw.dxfReal(20, data.cy);
+    dw.dxfReal(30, data.cz);
+    dw.dxfReal(40, data.width);
+    dw.dxfReal(41, data.height);
+    dw.dxfInt(68, data.status);
+    dw.dxfInt(69, data.id);
+    dw.dxfReal(12, data.vcx);
+    dw.dxfReal(22, data.vcy);
+    dw.dxfReal(17, data.tx);
+    dw.dxfReal(27, data.ty);
+    dw.dxfReal(37, data.tz);
+    dw.dxfReal(45, data.viewHeight);
+    dw.dxfReal(51, data.twist);
+    for (size_t i=0; i<data.frozenLayers.size(); i++) {
+        dw.dxfString(3, data.frozenLayers[i]);
+    }
+}
+
+
+
 unsigned long DL_Dxf::writeImage(DL_WriterA& dw,
                        const DL_ImageData& data,
                        const DL_Attributes& attrib) {

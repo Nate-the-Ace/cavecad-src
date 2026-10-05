@@ -63,13 +63,37 @@ RPropertyTypeId RLayout::PropertyCanonicalMediaName;
 
 RLayout::RLayout() :
     RObject(),
-    tabOrder(0) {
+    tabOrder(0),
+    plotPaperMarginLeftMM(0.0),
+    plotPaperMarginBottomMM(0.0),
+    plotPaperMarginRightMM(0.0),
+    plotPaperMarginTopMM(0.0),
+    numeratorCustomScale(1.0),
+    denominatorCustomScale(1.0),
+    plotPaperUnits(Millimeters),
+    plotRotation(Zero),
+    plotType(Layout),
+    useStandardScale(false),
+    standardScale(1.0),
+    standardScaleType(Scale_1_1) {
 }
 
 RLayout::RLayout(RDocument* document, const QString& name) :
     RObject(document),
     name(name.trimmed()),
-    tabOrder(0) {
+    tabOrder(0),
+    plotPaperMarginLeftMM(0.0),
+    plotPaperMarginBottomMM(0.0),
+    plotPaperMarginRightMM(0.0),
+    plotPaperMarginTopMM(0.0),
+    numeratorCustomScale(1.0),
+    denominatorCustomScale(1.0),
+    plotPaperUnits(Millimeters),
+    plotRotation(Zero),
+    plotType(Layout),
+    useStandardScale(false),
+    standardScale(1.0),
+    standardScaleType(Scale_1_1) {
 }
 
 RLayout::~RLayout() {
@@ -313,4 +337,78 @@ void RLayout::print(QDebug dbg) const {
     dbg.nospace() << ", name: " << getName()
             << ", insertionBase: " << getInsertionBase()
             << ")";
+}
+
+
+static QString layoutNum(double v) {
+    return QString::number(v, 'g', 17);
+}
+
+QMap<QString, QString> RLayout::toStorageMap() const {
+    QMap<QString, QString> m;
+    m.insert("name", name);
+    m.insert("tab", QString::number(tabOrder));
+    m.insert("mL", layoutNum(plotPaperMarginLeftMM));
+    m.insert("mB", layoutNum(plotPaperMarginBottomMM));
+    m.insert("mR", layoutNum(plotPaperMarginRightMM));
+    m.insert("mT", layoutNum(plotPaperMarginTopMM));
+    m.insert("paperW", layoutNum(plotPaperSize.x));
+    m.insert("paperH", layoutNum(plotPaperSize.y));
+    m.insert("originX", layoutNum(plotOrigin.x));
+    m.insert("originY", layoutNum(plotOrigin.y));
+    m.insert("numer", layoutNum(numeratorCustomScale));
+    m.insert("denom", layoutNum(denominatorCustomScale));
+    m.insert("units", QString::number((int)plotPaperUnits));
+    m.insert("rot", QString::number((int)plotRotation));
+    m.insert("ptype", QString::number((int)plotType));
+    m.insert("useStd", useStandardScale ? "1" : "0");
+    m.insert("std", layoutNum(standardScale));
+    m.insert("stdType", QString::number((int)standardScaleType));
+    m.insert("media", canonicalMediaName);
+
+    QStringList titles = getCustomPropertyTitles();
+    for (int i=0; i<titles.length(); i++) {
+        QStringList keys = getCustomPropertyKeys(titles[i]);
+        for (int k=0; k<keys.length(); k++) {
+            QVariant v = getCustomProperty(titles[i], keys[k]);
+            // "cp" + title + US + key: unit separator cannot occur in a title or key
+            m.insert("cp" + titles[i] + QChar(0x1F) + keys[k], v.toString());
+        }
+    }
+    return m;
+}
+
+void RLayout::fromStorageMap(const QMap<QString, QString>& m) {
+    if (m.contains("name")) name = m.value("name").trimmed();
+    if (m.contains("tab")) tabOrder = m.value("tab").toInt();
+    if (m.contains("mL")) plotPaperMarginLeftMM = m.value("mL").toDouble();
+    if (m.contains("mB")) plotPaperMarginBottomMM = m.value("mB").toDouble();
+    if (m.contains("mR")) plotPaperMarginRightMM = m.value("mR").toDouble();
+    if (m.contains("mT")) plotPaperMarginTopMM = m.value("mT").toDouble();
+    if (m.contains("paperW")) plotPaperSize.x = m.value("paperW").toDouble();
+    if (m.contains("paperH")) plotPaperSize.y = m.value("paperH").toDouble();
+    if (m.contains("originX")) plotOrigin.x = m.value("originX").toDouble();
+    if (m.contains("originY")) plotOrigin.y = m.value("originY").toDouble();
+    if (m.contains("numer")) numeratorCustomScale = m.value("numer").toDouble();
+    if (m.contains("denom")) denominatorCustomScale = m.value("denom").toDouble();
+    if (m.contains("units")) plotPaperUnits = (PlotPaperUnits)m.value("units").toInt();
+    if (m.contains("rot")) plotRotation = (PlotRotation)m.value("rot").toInt();
+    if (m.contains("ptype")) plotType = (PlotType)m.value("ptype").toInt();
+    if (m.contains("useStd")) useStandardScale = m.value("useStd")=="1";
+    if (m.contains("std")) standardScale = m.value("std").toDouble();
+    if (m.contains("stdType")) standardScaleType = (StandardScaleType)m.value("stdType").toInt();
+    if (m.contains("media")) canonicalMediaName = m.value("media");
+
+    QMap<QString, QString>::const_iterator it;
+    for (it=m.constBegin(); it!=m.constEnd(); ++it) {
+        if (!it.key().startsWith("cp")) {
+            continue;
+        }
+        QString rest = it.key().mid(2);
+        int sep = rest.indexOf(QChar(0x1F));
+        if (sep<0) {
+            continue;
+        }
+        setCustomProperty(rest.left(sep), rest.mid(sep+1), it.value());
+    }
 }

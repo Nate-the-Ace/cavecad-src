@@ -1801,6 +1801,34 @@ struct DXFLIB_EXPORT DL_ImageData {
 
 
 /**
+ * Viewport Data (CaveCAD paper-space viewport).
+ *
+ * Standard VIEWPORT group codes where they exist: 10/20/30 centre on paper,
+ * 40/41 size, 68 status, 69 id, 12/22 view centre, 17/27/37 view target,
+ * 45 view height (model units shown over the viewport height), 51 twist in
+ * degrees. Frozen layers are written by NAME with repeated group code 3
+ * (CaveCAD-private; stock files carry handles instead).
+ */
+struct DXFLIB_EXPORT DL_ViewportData {
+    DL_ViewportData()
+        : cx(0.0), cy(0.0), cz(0.0), width(1.0), height(1.0),
+          status(1), id(2), vcx(0.0), vcy(0.0), tx(0.0), ty(0.0), tz(0.0),
+          viewHeight(1.0), twist(0.0) {}
+
+    double cx, cy, cz;
+    double width, height;
+    int status;
+    int id;
+    double vcx, vcy;
+    double tx, ty, tz;
+    double viewHeight;
+    /*! Twist angle in degrees. */
+    double twist;
+    std::vector<std::string> frozenLayers;
+};
+
+
+/**
  * Image Definition Data.
  */
 struct DXFLIB_EXPORT DL_ImageDefData {

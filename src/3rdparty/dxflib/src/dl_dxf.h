@@ -102,6 +102,7 @@ class DL_WriterA;
 #define DL_ENTITY_RAY          124
 #define DL_ENTITY_ARCALIGNEDTEXT 125
 #define DL_ENTITY_SEQEND       126
+#define DL_ENTITY_VIEWPORT     127
 #define DL_XRECORD             200
 #define DL_DICTIONARY          210
 
@@ -195,6 +196,8 @@ public:
     bool handleHatchData(DL_CreationInterface* creationInterface);
 
     void addImage(DL_CreationInterface* creationInterface);
+    void addViewport(DL_CreationInterface* creationInterface);
+    bool handleViewportData(DL_CreationInterface* creationInterface);
     void addImageDef(DL_CreationInterface* creationInterface);
     
     void addComment(DL_CreationInterface* creationInterface, const std::string& comment);
@@ -329,6 +332,10 @@ public:
                          const DL_HatchLoopData& data);
     void writeHatchEdge(DL_WriterA& dw,
                         const DL_HatchEdgeData& data);
+
+    void writeViewport(DL_WriterA& dw,
+                       const DL_ViewportData& data,
+                       const DL_Attributes& attrib);
 
     unsigned long writeImage(DL_WriterA& dw,
                    const DL_ImageData& data,
@@ -488,6 +495,8 @@ private:
     double* fitPoints;
     int maxFitPoints;
     int fitPointIndex;
+
+    std::vector<std::string> viewportFrozenLayers;
 
     double* leaderVertices;
     int maxLeaderVertices;

@@ -64,6 +64,8 @@
 #include "RTraceEntity.h"
 #include "RVector.h"
 #include "RXLineEntity.h"
+#include "RLayout.h"
+#include "RViewportEntity.h"
 
 
 RDxfImporter::RDxfImporter(RDocument& document, RMessageHandler* messageHandler, RProgressHandler* progressHandler)
@@ -181,6 +183,9 @@ bool RDxfImporter::importFile(const QString& fileName, const QString& nameFilter
     }
 
     RImporter::endImport();
+
+    // CaveCAD: rebuild paper-space layouts from their XRecords:
+    importLayouts();
 
     // set block reference IDs in the end to support nested blocks (FS#1016):
     //RSpatialIndex& si = document->getSpatialIndex();
@@ -1542,6 +1547,88 @@ void RDxfImporter::linkImage(const DL_ImageDefData& data) {
     }
 
     images.remove(handle);
+}
+
+void RDxfImporter::addViewport(const DL_ViewportData& data) {
+    RViewportData vd;
+    QSharedPointer<RViewportEntity> entity(new RViewportEntity(document, vd));
+    entity->setCenter(RVector(data.cx, data.cy, data.cz));
+    entity->setWidth(data.width);
+    entity->setHeight(data.height);
+    entity->setOff(data.status==0);
+    entity->setViewportId(data.id);
+    entity->setOverall(data.id==1);
+    entity->setViewCenter(RVector(data.vcx, data.vcy));
+    entity->setViewTarget(RVector(data.tx, data.ty, data.tz));
+    entity->setScale(data.viewHeight>1.0e-12 ? data.height/data.viewHeight : 1.0);
+    entity->setRotation(RMath::deg2rad(data.twist));
+
+    QList<RObject::Id> frozen;
+    for (size_t i=0; i<data.frozenLayers.size(); i++) {
+        RObject::Id layerId = document->getLayerId(decode(data.frozenLayers[i].c_str()));
+        if (layerId!=RObject::INVALID_ID) {
+            frozen.append(layerId);
+        }
+    }
+    entity->setFrozenLayerIds(frozen);
+
+    importEntity(entity);
+}
+
+/**
+ * Rebuilds layouts from the "Layout|<block>|<key>" XRecord variables the
+ * exporter wrote, then removes those variables again.
+ */
+void RDxfImporter::importLayouts() {
+    QMap<QString, QMap<QString, QString> > byBlock;
+    QStringList keys = document->getVariables();
+    QStringList consumed;
+    for (int i=0; i<keys.size(); i++) {
+        if (!keys[i].startsWith("Layout|")) {
+            continue;
+        }
+        consumed.append(keys[i]);
+        QStringList parts = keys[i].split("|");
+        if (parts.size()<3) {
+            continue;
+        }
+        // the key part itself never contains '|'; the block name might not be trusted:
+        QString key = parts.last();
+        parts.removeFirst();
+        parts.removeLast();
+        byBlock[parts.join("|")].insert(key, document->getVariable(keys[i]).toString());
+    }
+    for (int i=0; i<consumed.size(); i++) {
+        document->removeVariable(consumed[i]);
+    }
+
+    QMap<QString, QMap<QString, QString> >::const_iterator it;
+    for (it=byBlock.constBegin(); it!=byBlock.constEnd(); ++it) {
+        QSharedPointer<RBlock> block = document->queryBlock(it.key());
+        if (block.isNull() || block->getId()==RObject::INVALID_ID) {
+            continue;
+        }
+        if (block->hasLayout()) {
+            QSharedPointer<RLayout> layout = document->queryLayout(block->getLayoutId());
+            if (!layout.isNull()) {
+                layout->fromStorageMap(it.value());
+                RModifyObjectsOperation op;
+                op.addObject(layout);
+                op.apply(*document, false);
+            }
+            continue;
+        }
+        QSharedPointer<RLayout> layout(new RLayout(document, it.value().value("name", it.key())));
+        layout->fromStorageMap(it.value());
+        RAddObjectsOperation addOp;
+        addOp.addObject(layout);
+        addOp.apply(*document, false);
+
+        block->setLayoutId(layout->getId());
+        RModifyObjectsOperation modOp;
+        modOp.addObject(block);
+        modOp.apply(*document, false);
+    }
 }
 
 void RDxfImporter::addXRecord(const std::string& handle) {
