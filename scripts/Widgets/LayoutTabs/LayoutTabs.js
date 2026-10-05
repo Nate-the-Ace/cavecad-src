@@ -147,7 +147,7 @@ LayoutTabs.sync = function(entry) {
         entry.bar.setCurrentIndex(wanted);
     }
     entry.syncing = false;
-    LayoutCanvas.update(entry.di, cur);
+    LayoutCanvas.update(entry, cur);
 };
 
 LayoutTabs.tabPicked = function(entry, index) {
@@ -251,14 +251,28 @@ LayoutTabs.contextMenu = function(entry, pos) {
  */
 var LayoutCanvas = {};
 
-LayoutCanvas.view = function(di) {
-    var v = di.getLastKnownViewWithFocus();
-    return isNull(v) ? undefined : v;
+/**
+ * The drawing window's own graphics view. NOT di.getLastKnownViewWithFocus():
+ * that answers for whichever view last had focus, which can be a dock
+ * panel's preview view (Sheet Setup's is one) -- found live 2026-10-05, the
+ * paper was painted into the preview. The MDI child (found by walking up
+ * from the tab strip) knows its own view, as Print Preview relies on.
+ */
+LayoutCanvas.view = function(entry) {
+    var w = entry.strip;
+    for (var i = 0; i < 12 && !isNull(w); i++) {
+        if (typeof w.getLastKnownViewWithFocus === "function") {
+            var v = w.getLastKnownViewWithFocus();
+            return isNull(v) ? undefined : v;
+        }
+        w = w.parentWidget();
+    }
+    return undefined;
 };
 
 /** Remembers where the view looked in the block being left. */
 LayoutCanvas.remember = function(entry) {
-    var view = LayoutCanvas.view(entry.di);
+    var view = LayoutCanvas.view(entry);
     if (isNull(view)) {
         return;
     }
@@ -268,7 +282,7 @@ LayoutCanvas.remember = function(entry) {
 
 /** Back where this tab was, or zoomed onto the sheet (layout) / the whole drawing (model). */
 LayoutCanvas.restoreOrFit = function(entry) {
-    var view = LayoutCanvas.view(entry.di);
+    var view = LayoutCanvas.view(entry);
     if (isNull(view)) {
         return;
     }
@@ -287,8 +301,9 @@ LayoutCanvas.restoreOrFit = function(entry) {
     view.zoomTo(new RBox(new RVector(0, 0), new RVector(s.w, s.h)), s.w * 0.06);
 };
 
-LayoutCanvas.update = function(di, layoutInfo) {
-    var view = LayoutCanvas.view(di);
+LayoutCanvas.update = function(entry, layoutInfo) {
+    var di = entry.di;
+    var view = LayoutCanvas.view(entry);
     if (isNull(view)) {
         return;
     }
@@ -297,17 +312,18 @@ LayoutCanvas.update = function(di, layoutInfo) {
     view.setBackgroundTransform(1.0, new RVector(0, 0));
 
     if (isNull(layoutInfo)) {
-        if (!isNull(LayoutCanvas.modelBackground)) {
-            view.setBackgroundColor(LayoutCanvas.modelBackground);
-            LayoutCanvas.modelBackground = undefined;
+        if (!isNull(entry.modelBackground)) {
+            view.setBackgroundColor(entry.modelBackground);
+            entry.modelBackground = undefined;
         }
         view.regenerate(true);
+        view.repaintView();
         return;
     }
 
     // entering a layout: remember the model background once
-    if (isNull(LayoutCanvas.modelBackground)) {
-        LayoutCanvas.modelBackground = view.getBackgroundColor();
+    if (isNull(entry.modelBackground)) {
+        entry.modelBackground = view.getBackgroundColor();
     }
     view.setBackgroundColor(new QColor(255, 255, 255));
 
@@ -318,7 +334,15 @@ LayoutCanvas.update = function(di, layoutInfo) {
 
     var size = Layouts.paperSize(doc, layoutInfo);
     var box = Layouts.printableBox(doc, layoutInfo);
-    var shadow = size.w * 0.012;
+
+    // The background paths are drawn in a coordinate system where the sheet
+    // is 1000 units wide, then scaled back by the background transform: paths
+    // whose coordinates are tiny (a feet drawing's sheet is 0.9 units wide)
+    // are silently NOT drawn by the view (measured 2026-10-05, 0.9 wide: gone;
+    // the same path at 916 wide under a 0.001 transform: drawn).
+    var K = 1000.0 / size.w;
+    view.setBackgroundTransform(1.0 / K, new RVector(0, 0));
+    var shadow = 1000.0 * 0.012;
 
     function add(path) {
         view.addToBackground(RGraphicsSceneDrawable.createFromPainterPath(path));
@@ -327,25 +351,25 @@ LayoutCanvas.update = function(di, layoutInfo) {
     var path = new RPainterPath();
     path.setPen(new QPen(Qt.NoPen));
     path.setBrush(new QBrush(new QColor(colSurround)));
-    path.addRect(new QRectF(-1.0e8, -1.0e8, 2.0e8, 2.0e8));
+    path.addRect(new QRectF(-1.0e7, -1.0e7, 2.0e7, 2.0e7));
     add(path);
 
     path = new RPainterPath();
     path.setPen(new QPen(Qt.NoPen));
     path.setBrush(new QBrush(new QColor(colShadow)));
-    path.addRect(new QRectF(shadow, -shadow, size.w, size.h));
+    path.addRect(new QRectF(shadow, -shadow, size.w * K, size.h * K));
     add(path);
 
     path = new RPainterPath();
     path.setPen(new QPen(Qt.NoPen));
     path.setBrush(new QBrush(new QColor(255, 255, 255)));
-    path.addRect(new QRectF(0, 0, size.w, size.h));
+    path.addRect(new QRectF(0, 0, size.w * K, size.h * K));
     add(path);
 
     path = new RPainterPath();
     path.setPen(new QPen(new QColor(colBorder)));
     path.setBrush(new QBrush(Qt.NoBrush));
-    path.addRect(new QRectF(0, 0, size.w, size.h));
+    path.addRect(new QRectF(0, 0, size.w * K, size.h * K));
     add(path);
 
     // printable margin: thin dashed blue
@@ -354,8 +378,9 @@ LayoutCanvas.update = function(di, layoutInfo) {
     path = new RPainterPath();
     path.setPen(pen);
     path.setBrush(new QBrush(Qt.NoBrush));
-    path.addRect(new QRectF(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1));
+    path.addRect(new QRectF(box.x1 * K, box.y1 * K, (box.x2 - box.x1) * K, (box.y2 - box.y1) * K));
     add(path);
 
     view.regenerate(true);
+    view.repaintView();
 };
