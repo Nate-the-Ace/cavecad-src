@@ -100,6 +100,13 @@ LayoutTabs.attach = function(root, di) {
     vpLock.toolTip = qsTr("A locked viewport keeps its scale and what it shows");
     vpLock.visible = false;
     row.addWidget(vpLock, 0, 0);
+    var vpLayers = new QPushButton(strip);
+    vpLayers.objectName = "LayoutViewportLayers";
+    vpLayers.text = qsTr("Layers...");
+    vpLayers.toolTip = qsTr("Choose which layers this viewport hides");
+    vpLayers.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    vpLayers.visible = false;
+    row.addWidget(vpLayers, 0, 0);
     var banner = new QLabel(strip);
     banner.objectName = "LayoutEditBanner";
     banner.visible = false;
@@ -134,7 +141,9 @@ LayoutTabs.attach = function(root, di) {
     entry.vpLabel = vpLabel;
     entry.vpScale = vpScale;
     entry.vpLock = vpLock;
+    entry.vpLayers = vpLayers;
     entry.vpShown = undefined;
+    vpLayers.clicked.connect(function() { LayoutTabs.viewportLayers(entry); });
     vpScale["activated(int)"].connect(function(index) { LayoutTabs.scalePicked(entry, index); });
     vpLock.clicked.connect(function(checked) { LayoutTabs.lockClicked(entry, checked); });
     done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
@@ -795,6 +804,7 @@ LayoutTabs.refreshControls = function(entry) {
     entry.vpLabel.visible = show;
     entry.vpScale.visible = show;
     entry.vpLock.visible = show;
+    entry.vpLayers.visible = show;
     if (!show) {
         return;
     }
@@ -970,4 +980,81 @@ LayoutTabs.pageSetup = function(entry, name) {
     Layouts.pageSetup(entry.di, name, changes);
     LayoutTabs.refresh(entry);
     LayoutCanvas.restoreOrFit(entry);
+};
+
+
+// ---------------------------------------------------------------------------
+// Layers hidden in one viewport
+// ---------------------------------------------------------------------------
+
+/** Opens the "layers hidden in this viewport" dialog for the selected viewport. */
+LayoutTabs.viewportLayers = function(entry) {
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp)) {
+        return;
+    }
+    var appWin = RMainWindowQt.getMainWindow();
+    if (Layouts.isLocked(vp)) {
+        appWin.handleUserMessage(qsTr("The viewport is locked: unlock it to change which layers it hides."));
+        return;
+    }
+    var doc = entry.di.getDocument();
+    var names = [];
+    var all = doc.getLayerNames();
+    for (var i = 0; i < all.length; i++) {
+        names.push(String(all[i]));
+    }
+    names.sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : (a.toLowerCase() > b.toLowerCase() ? 1 : 0); });
+    var frozen = {};
+    var ids = vp.getFrozenLayerIds();
+    for (var f = 0; f < ids.length; f++) {
+        frozen[String(doc.getLayerName(ids[f]))] = true;
+    }
+
+    var dialog = new QDialog(appWin);
+    dialog.windowTitle = qsTr("Layers hidden in this viewport");
+    var table = new QTableWidget(names.length, 1, dialog);
+    table.setHorizontalHeaderLabels([qsTr("Hidden in this viewport")]);
+    table.horizontalHeader().stretchLastSection = true;
+    table.minimumWidth = 360;
+    table.minimumHeight = 420;
+    for (var r = 0; r < names.length; r++) {
+        var item = new QTableWidgetItem(names[r]);
+        item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled);
+        item.setCheckState(frozen[names[r]] === true ? Qt.Checked : Qt.Unchecked);
+        table.setItem(r, 0, item);
+    }
+    var buttons = new QDialogButtonBox(dialog);
+    buttons.standardButtons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel;
+    buttons.accepted.connect(function() { dialog.accept(); });
+    buttons.rejected.connect(function() { dialog.reject(); });
+    var box = new QVBoxLayout();
+    box.addWidget(new QLabel(qsTr("Checked layers are hidden in this viewport only; everywhere else they show as usual."), dialog), 0, 0);
+    box.addWidget(table, 1, 0);
+    box.addWidget(buttons, 0, 0);
+    dialog.setLayout(box);
+    var ok = dialog.exec();
+    var chosen = [];
+    if (ok) {
+        for (var k = 0; k < names.length; k++) {
+            if (table.item(k, 0).checkState() === Qt.Checked) {
+                chosen.push(doc.getLayerId(names[k]));
+            }
+        }
+    }
+    destrDialog(dialog);
+    if (!ok) {
+        return;
+    }
+    LayoutTabs.setFrozen(entry, vp, chosen);
+};
+
+/** Hides exactly these layer ids in the viewport (undoable). */
+LayoutTabs.setFrozen = function(entry, vp, layerIds) {
+    var fresh = entry.di.getDocument().queryEntity(vp.getId());
+    fresh.setFrozenLayerIds(layerIds);
+    var op = new RModifyObjectOperation(fresh);
+    op.setText(qsTr("Viewport layers"));
+    entry.di.applyOperation(op);
+    LayoutTabs.refreshControls(entry);
 };
