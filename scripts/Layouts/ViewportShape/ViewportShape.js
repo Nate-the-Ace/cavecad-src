@@ -1,27 +1,35 @@
 /**
  * ViewportShape -- polygon viewports and trimming.
  *
- *   ViewportShape.startPolygon(di)        draw a NEW viewport as a polygon: click the corners
- *   ViewportShape.startTrim(di, vpId)     CUT a polygon out of an existing viewport
+ *   ViewportShape.startPolygon(di)           draw a NEW viewport as a polygon: click the corners
+ *   ViewportShape.startCircle(di)            ... as a circle: click the centre, then a point on the circle
+ *   ViewportShape.startTrim(di, vpId, kind)  CUT a polygon (or "circle") out of an existing viewport
  *
- * Click the corners; a click on the first point, Enter, or the right button
- * closes the shape (three corners at least); Backspace takes the last corner
- * back; Escape cancels. Snaps work as in any drawing tool. One undo step.
+ * Polygon: click the corners; a click on the first point, Enter, or the right
+ * button closes the shape (three corners at least); Backspace takes the last
+ * corner back. Circle: centre, then radius. Escape cancels. Snaps work as in
+ * any drawing tool. One undo step.
+ *
+ * A circle is stored as a many-sided polygon (CIRCLE_SIDES): the shape
+ * machinery has one kind of loop, and 128 sides is smooth at any plot size.
  */
 include("scripts/EAction.js");
 include("scripts/Layouts/Layouts.js");
 include("scripts/Layouts/NewViewport/NewViewport.js");
 
+ViewportShape.CIRCLE_SIDES = 128;
+
 function ViewportShape(guiAction) {
     EAction.call(this, guiAction);
     this.mode = "polygon";
+    this.kind = "polygon";
     this.vpId = RObject.INVALID_ID;
     this.points = [];
 }
 
 ViewportShape.prototype = new EAction();
 
-ViewportShape.start = function(di, mode, vpId) {
+ViewportShape.start = function(di, mode, vpId, kind) {
     var doc = di.getDocument();
     if (isNull(Layouts.current(doc))) {
         EAction.handleUserWarning(qsTr("Click a layout tab first: viewports live on sheets, not in the model."));
@@ -35,17 +43,32 @@ ViewportShape.start = function(di, mode, vpId) {
     }
     var a = new ViewportShape(undefined);
     a.mode = mode;
+    a.kind = isNull(kind) ? "polygon" : kind;
     a.vpId = isNull(vpId) ? RObject.INVALID_ID : vpId;
     ViewportShape.current = a;
     di.setCurrentAction(a);
     return true;
 };
 
-ViewportShape.startPolygon = function(di) { return ViewportShape.start(di, "polygon"); };
-ViewportShape.startTrim = function(di, vpId) { return ViewportShape.start(di, "trim", vpId); };
+ViewportShape.startPolygon = function(di) { return ViewportShape.start(di, "polygon", undefined, "polygon"); };
+ViewportShape.startCircle = function(di) { return ViewportShape.start(di, "polygon", undefined, "circle"); };
+ViewportShape.startTrim = function(di, vpId, kind) { return ViewportShape.start(di, "trim", vpId, kind); };
+
+/** A circle as a closed many-sided loop of {x, y}. */
+ViewportShape.circleLoop = function(cx, cy, r) {
+    var out = [];
+    for (var i = 0; i < ViewportShape.CIRCLE_SIDES; i++) {
+        var a = 2 * Math.PI * i / ViewportShape.CIRCLE_SIDES;
+        out.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return out;
+};
 
 ViewportShape.prototype.getToolTitle = function() {
-    return this.mode === "trim" ? qsTr("Trim Viewport") : qsTr("Polygonal Viewport");
+    if (this.mode === "trim") {
+        return qsTr("Trim Viewport");
+    }
+    return this.kind === "circle" ? qsTr("Circular Viewport") : qsTr("Polygonal Viewport");
 };
 
 ViewportShape.prototype.beginEvent = function() {
@@ -57,6 +80,13 @@ ViewportShape.prototype.beginEvent = function() {
 };
 
 ViewportShape.prototype.prompt = function() {
+    if (this.kind === "circle") {
+        var c = this.points.length === 0 ? qsTr("Centre of the circle") : qsTr("A point on the circle");
+        this.setCommandPrompt(c);
+        this.setLeftMouseTip(c);
+        this.setRightMouseTip(EAction.trCancel);
+        return;
+    }
     var what = this.mode === "trim" ? qsTr("Corner of the piece to cut out") : qsTr("Corner of the viewport");
     var tip = what + (this.points.length >= 3 ? qsTr(" (Enter or right-click to finish)") : "");
     this.setCommandPrompt(tip);
@@ -66,6 +96,19 @@ ViewportShape.prototype.prompt = function() {
 
 ViewportShape.prototype.coordinateEvent = function(event) {
     var p = event.getModelPosition();
+    if (this.kind === "circle") {
+        if (this.points.length === 0) {
+            this.points.push({ x: p.x, y: p.y });
+            this.prompt();
+            return;
+        }
+        var r = Math.sqrt((p.x - this.points[0].x) * (p.x - this.points[0].x) + (p.y - this.points[0].y) * (p.y - this.points[0].y));
+        if (r > 1e-9) {
+            this.points = ViewportShape.circleLoop(this.points[0].x, this.points[0].y, r);
+            this.finishShape();
+        }
+        return;
+    }
     if (this.points.length >= 3 && this.closesOn(p)) {
         this.finishShape();
         return;
@@ -92,6 +135,15 @@ ViewportShape.prototype.coordinateEventPreview = function(event) {
     if (this.points.length === 0) {
         return;
     }
+    if (this.kind === "circle") {
+        var m0 = event.getModelPosition();
+        var rr = Math.sqrt((m0.x - this.points[0].x) * (m0.x - this.points[0].x) + (m0.y - this.points[0].y) * (m0.y - this.points[0].y));
+        if (rr > 1e-9) {
+            di.addAuxShapeToPreview(new RCircle(new RVector(this.points[0].x, this.points[0].y), rr));
+            di.repaintViews();
+        }
+        return;
+    }
     var pl = new RPolyline();
     for (var i = 0; i < this.points.length; i++) {
         pl.appendVertex(new RVector(this.points[i].x, this.points[i].y));
@@ -107,7 +159,7 @@ ViewportShape.prototype.coordinateEventPreview = function(event) {
 
 ViewportShape.prototype.mouseReleaseEvent = function(event) {
     if (event.button() === Qt.RightButton) {
-        if (this.points.length >= 3) {
+        if (this.kind !== "circle" && this.points.length >= 3) {
             this.finishShape();
         }
         else {

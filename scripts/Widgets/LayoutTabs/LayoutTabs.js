@@ -87,11 +87,10 @@ LayoutTabs.attach = function(root, di) {
     // coloured so it cannot be missed: what you are looking at, the viewport's
     // scale / lock / shape tools, and the big "Back to layout" button while you
     // are editing through a viewport. The tab bar stays at the bottom.
+    var entryRef = {};   // filled in below; the menus above are built first
     var top = new QWidget(root);
     top.objectName = "LayoutControlStrip";
     top.setAttribute(Qt.WA_StyledBackground, true);   // a plain QWidget paints no stylesheet background without it
-    top.setStyleSheet("QWidget#LayoutControlStrip { background:#e6f1ff; border-bottom:2px solid #188cff; } " +
-        "QPushButton { padding:2px 10px; } QLabel { color:#12345a; }");
     var topRow = new QHBoxLayout();
     topRow.setContentsMargins(8, 2, 8, 2);
     topRow.setSpacing(6);
@@ -128,23 +127,25 @@ LayoutTabs.attach = function(root, di) {
     var newVp = new QPushButton(top);
     newVp.objectName = "LayoutNewViewport";
     newVp.text = qsTr("New viewport");
-    newVp.toolTip = qsTr("Draw a viewport on this layout: click two corners (Layout menu, command: viewport)");
+    newVp.toolTip = qsTr("Draw a viewport on this layout: a rectangle, a polygon or a circle");
     newVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     newVp.visible = false;
+    var newMenu = new QMenu(newVp);
+    newMenu.addAction(qsTr("Rectangle  (two corners)")).triggered.connect(function() { LayoutTabs.newViewport(entryRef.entry); });
+    newMenu.addAction(qsTr("Polygon  (click the corners)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "polygon"); });
+    newMenu.addAction(qsTr("Circle  (centre, then radius)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "circle"); });
+    newVp.setMenu(newMenu);
     topRow.addWidget(newVp, 0, 0);
-    var polyVp = new QPushButton(top);
-    polyVp.objectName = "LayoutPolygonViewport";
-    polyVp.text = qsTr("Polygon");
-    polyVp.toolTip = qsTr("Draw a viewport as a polygon: click its corners, Enter or right-click to finish");
-    polyVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    polyVp.visible = false;
-    topRow.addWidget(polyVp, 0, 0);
     var trimVp = new QPushButton(top);
     trimVp.objectName = "LayoutTrimViewport";
     trimVp.text = qsTr("Trim");
-    trimVp.toolTip = qsTr("Cut a polygon out of the selected viewport: click its corners, Enter or right-click to finish");
+    trimVp.toolTip = qsTr("Cut a polygon or a circle out of the selected viewport");
     trimVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     trimVp.visible = false;
+    var trimMenu = new QMenu(trimVp);
+    trimMenu.addAction(qsTr("Cut out a polygon  (click the corners)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "trim"); });
+    trimMenu.addAction(qsTr("Cut out a circle  (centre, then radius)")).triggered.connect(function() { LayoutTabs.shapeTool(entryRef.entry, "trim-circle"); });
+    trimVp.setMenu(trimMenu);
     topRow.addWidget(trimVp, 0, 0);
     var squareVp = new QPushButton(top);
     squareVp.objectName = "LayoutSquareViewport";
@@ -209,6 +210,7 @@ LayoutTabs.attach = function(root, di) {
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
     bar.customContextMenuRequested.connect(function(pos) { LayoutTabs.contextMenu(entry, pos); });
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
+    entryRef.entry = entry;
     entry.top = top;
     entry.modeLabel = modeLabel;
     entry.banner = banner;
@@ -219,13 +221,9 @@ LayoutTabs.attach = function(root, di) {
     entry.vpLayers = vpLayers;
     entry.vpBar = vpBar;
     entry.newVp = newVp;
-    entry.polyVp = polyVp;
     entry.trimVp = trimVp;
     entry.squareVp = squareVp;
-    polyVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "polygon"); });
-    trimVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "trim"); });
     squareVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "square"); });
-    newVp.clicked.connect(function() { LayoutTabs.newViewport(entry); });
     vpBar.clicked.connect(function() { LayoutTabs.addScaleBar(entry); });
     entry.vpShown = undefined;
     vpLayers.clicked.connect(function() { LayoutTabs.viewportLayers(entry); });
@@ -347,7 +345,6 @@ LayoutTabs.sync = function(entry) {
     entry.syncing = false;
     entry.newVp.visible = !isNull(cur);
     LayoutTabs.updateMode(entry);
-    entry.polyVp.visible = !isNull(cur);
     LayoutCanvas.update(entry, cur);
 };
 
@@ -358,12 +355,19 @@ LayoutTabs.shapeTool = function(entry, what) {
         ViewportShape.startPolygon(entry.di);
         return;
     }
+    if (what === "circle") {
+        ViewportShape.startCircle(entry.di);
+        return;
+    }
     var vp = LayoutTabs.controlViewport(entry);
     if (isNull(vp)) {
         return;
     }
     if (what === "trim") {
-        ViewportShape.startTrim(entry.di, vp.getId());
+        ViewportShape.startTrim(entry.di, vp.getId(), "polygon");
+    }
+    else if (what === "trim-circle") {
+        ViewportShape.startTrim(entry.di, vp.getId(), "circle");
     }
     else if (what === "square") {
         var doc = entry.di.getDocument();
@@ -378,13 +382,24 @@ LayoutTabs.shapeTool = function(entry, what) {
 
 /** The words at the left of the control strip: where you are. */
 LayoutTabs.updateMode = function(entry) {
+    // A theme applied while the strip is still being built is not always honoured
+    // by the first paint; re-applying it on the first few updates always is.
+    entry.themeCalls = (isNull(entry.themeCalls) ? 0 : entry.themeCalls) + 1;
+    if (entry.themeCalls <= 3) {
+        entry.themeKey = undefined;
+        try {
+            LayoutTabs.applyTheme(entry);
+        }
+        catch (eTheme) {
+        }
+    }
     try {
         var doc = entry.di.getDocument();
         var cur = Layouts.current(doc);
         if (!isNull(entry.editing)) {
             entry.modeLabel.text = qsTr("EDITING THROUGH A VIEWPORT");
             // only the way back is on offer while editing through a viewport
-            var hide = ["vpLabel", "vpScale", "vpLock", "vpLayers", "vpBar", "newVp", "polyVp", "trimVp", "squareVp"];
+            var hide = ["vpLabel", "vpScale", "vpLock", "vpLayers", "vpBar", "newVp", "trimVp", "squareVp"];
             for (var h = 0; h < hide.length; h++) {
                 entry[hide[h]].visible = false;
             }
