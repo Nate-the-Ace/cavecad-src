@@ -20,6 +20,7 @@ function LayoutTabs() {
 
 /** One entry per drawing window: { di, bar, plus, names, syncing, saved }. */
 LayoutTabs.entries = [];
+LayoutTabs.nextId = 1;
 
 LayoutTabs.init = function(basePath) {
     if (!RSettings.getBoolValue("LayoutTabs/Enabled", true)) {
@@ -68,16 +69,32 @@ LayoutTabs.attach = function(root, di) {
     plus.toolTip = qsTr("New layout");
     row.addWidget(plus, 0, 0);
     row.addStretch(1);
+    var banner = new QLabel(strip);
+    banner.objectName = "LayoutEditBanner";
+    banner.visible = false;
+    row.addWidget(banner, 0, 0);
+    var done = new QPushButton(strip);
+    done.objectName = "LayoutEditDone";
+    done.text = qsTr("Back to layout");
+    done.toolTip = qsTr("Leave the viewport and return to the layout");
+    done.visible = false;
+    row.addWidget(done, 0, 0);
     strip.setLayout(row);
     layout.addWidget(strip);
+    var bannerAction = banner;
 
-    var entry = { di: di, strip: strip, bar: bar, plus: plus, names: [], syncing: false, saved: {} };
+    var entry = { di: di, strip: strip, bar: bar, plus: plus, names: [], syncing: false, saved: {},
+        id: LayoutTabs.nextId++, editing: undefined };
+    strip.setProperty("ltId", entry.id);
     LayoutTabs.entries.push(entry);
 
     bar.currentChanged.connect(function(index) { LayoutTabs.tabPicked(entry, index); });
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
     bar.customContextMenuRequested.connect(function(pos) { LayoutTabs.contextMenu(entry, pos); });
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
+    entry.banner = banner;
+    entry.done = done;
+    done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
 
     LayoutTabs.refresh(entry);
 };
@@ -136,6 +153,10 @@ LayoutTabs.refresh = function(entry) {
 
 /** Selects the tab of the block that is current in the document. */
 LayoutTabs.sync = function(entry) {
+    if (!isNull(entry.editing)) {
+        // editing through a viewport: the layout's tab stays selected while the model shows
+        return;
+    }
     var doc = entry.di.getDocument();
     var cur = Layouts.current(doc);
     var wanted = isNull(cur) ? 0 : entry.names.indexOf(cur.name);
@@ -152,6 +173,11 @@ LayoutTabs.sync = function(entry) {
 
 LayoutTabs.tabPicked = function(entry, index) {
     if (entry.syncing || index < 0 || index >= entry.names.length) {
+        return;
+    }
+    if (!isNull(entry.editing)) {
+        // picking a tab while editing through a viewport leaves the viewport first
+        LayoutTabs.exitViewport(entry, true, index === 0 ? null : entry.names[index]);
         return;
     }
     var doc = entry.di.getDocument();
@@ -383,4 +409,220 @@ LayoutCanvas.update = function(entry, layoutInfo) {
 
     view.regenerate(true);
     view.repaintView();
+};
+
+
+// ---------------------------------------------------------------------------
+// EDITING THROUGH A VIEWPORT ("click through")
+//
+// Double-click a viewport on a layout and the model shows exactly as the
+// sheet shows it -- same scale, same place on screen, no jump -- and every
+// tool, snap and selection works on the real model, because the document
+// is simply in model space. The viewport's frame stays where it is on the
+// screen (a dimmed surround says "this is the sheet's window"); panning or
+// zooming slides the model under the frame, and "Back to layout" (or any
+// tab) writes the new view centre and scale into the viewport -- unless it
+// is LOCKED, in which case the contents are left exactly as they were.
+//
+// Why not carry the viewport transform through every tool's mouse, snap and
+// preview code: the model view the user already trusts does all of that
+// with no engine surgery, and the screen looks the same. A TWISTED viewport
+// (the view cannot rotate) shows the model untwisted and is not written
+// back.
+// ---------------------------------------------------------------------------
+
+LayoutTabs.OVERLAY_ID = 1500;
+
+/** The tab strip entry of the drawing window the user is working in. */
+LayoutTabs.entryOfActive = function() {
+    var mc = RMainWindowQt.getMainWindow().getMdiChild();
+    if (isNull(mc)) {
+        return undefined;
+    }
+    var strip = mc.findChild("LayoutTabStrip");
+    if (isNull(strip)) {
+        return undefined;
+    }
+    var id = strip.property("ltId");
+    for (var i = 0; i < LayoutTabs.entries.length; i++) {
+        if (LayoutTabs.entries[i].id === id) {
+            return LayoutTabs.entries[i];
+        }
+    }
+    return undefined;
+};
+
+LayoutTabs.enterViewport = function(di, vpEntity) {
+    var entry = LayoutTabs.entryOfActive();
+    if (isNull(entry) || !isNull(entry.editing)) {
+        return false;
+    }
+    var doc = entry.di.getDocument();
+    var info = Layouts.current(doc);
+    var view = LayoutCanvas.view(entry);
+    if (isNull(info) || isNull(view) || vpEntity.isOverall() || vpEntity.isOff()) {
+        return false;
+    }
+    // fresh copy: the double click handed us a snapshot
+    var vp = doc.queryEntity(vpEntity.getId());
+    if (isNull(vp)) {
+        return false;
+    }
+    var twisted = Layouts.isTwisted(vp);
+    var locked = Layouts.isLocked(vp);
+
+    // where the viewport sits on the SCREEN, kept for the whole edit
+    var c = vp.getCenter(), hw = vp.getWidth() / 2, hh = vp.getHeight() / 2;
+    var s1 = view.mapToView(new RVector(c.x - hw, c.y + hh));
+    var s2 = view.mapToView(new RVector(c.x + hw, c.y - hh));
+
+    // what the model must show for the frame to stay put: the whole visible paper, through the viewport
+    var vis = view.getBox();
+    var m1 = Layouts.paperToModel(vp, vis.getMinimum().x, vis.getMinimum().y);
+    var m2 = Layouts.paperToModel(vp, vis.getMaximum().x, vis.getMaximum().y);
+    var modelBox = new RBox(new RVector(Math.min(m1.x, m2.x), Math.min(m1.y, m2.y)),
+                            new RVector(Math.max(m1.x, m2.x), Math.max(m1.y, m2.y)));
+
+    LayoutCanvas.remember(entry);
+    entry.editing = {
+        viewportId: vp.getId(), layoutName: info.name, locked: locked, twisted: twisted,
+        scale0: vp.getScale(), vc0: vp.getViewCenter(), width: vp.getWidth(), height: vp.getHeight(),
+        screen1: s1, screen2: s2, changed: false
+    };
+
+    Layouts.activate(entry.di, null);
+    LayoutCanvas.update(entry, undefined);
+    view.zoomTo(modelBox, 0);
+    LayoutTabs.drawFrame(entry, view);
+    try {
+        entry.editing.hook = function() { LayoutTabs.drawFrame(entry, LayoutCanvas.view(entry)); };
+        view.viewportChanged.connect(entry.editing.hook);
+    }
+    catch (eHook) {
+    }
+
+    var msg = locked ? qsTr("Editing through a LOCKED viewport: you can edit the model, but the viewport keeps its scale and contents.") :
+        (twisted ? qsTr("Twisted viewport: the model is shown untwisted and the viewport view is not changed.") :
+         qsTr("Editing through the viewport. Pan and zoom to reposition its contents."));
+    entry.banner.text = "  " + msg + "  ";
+    entry.banner.visible = true;
+    entry.done.visible = true;
+    // the layout's own tab stays selected
+    var idx = entry.names.indexOf(info.name);
+    if (idx >= 0) {
+        entry.syncing = true;
+        entry.bar.setCurrentIndex(idx);
+        entry.syncing = false;
+    }
+    return true;
+};
+
+/** The frame (screen-fixed) and dimmed surround, in the model view's coordinates. */
+LayoutTabs.drawFrame = function(entry, view) {
+    var ed = entry.editing;
+    if (isNull(ed) || isNull(view)) {
+        return;
+    }
+    var a = view.mapFromView(ed.screen1), b = view.mapFromView(ed.screen2);
+    ed.frame = new RBox(new RVector(Math.min(a.x, b.x), Math.min(a.y, b.y)),
+                        new RVector(Math.max(a.x, b.x), Math.max(a.y, b.y)));
+    var x1 = ed.frame.getMinimum().x, y1 = ed.frame.getMinimum().y;
+    var x2 = ed.frame.getMaximum().x, y2 = ed.frame.getMaximum().y;
+    var big = Math.max(x2 - x1, y2 - y1) * 200;
+    view.clearOverlay(LayoutTabs.OVERLAY_ID);
+    var dim = new RPainterPath();
+    dim.setPen(new QPen(Qt.NoPen));
+    dim.setBrush(new QBrush(new QColor(128, 128, 128, 90)));
+    dim.addRect(new QRectF(x1 - big, y1 - big, 2 * big + (x2 - x1), 2 * big + (y2 - y1)));
+    dim.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
+    view.addToOverlay(LayoutTabs.OVERLAY_ID, 1, RGraphicsSceneDrawable.createFromPainterPath(dim));
+    var pen = new QPen(new QColor(0x18, 0x8c, 0xff));
+    pen.setWidth(2);
+    pen.setCosmetic(true);
+    var frame = new RPainterPath();
+    frame.setPen(pen);
+    frame.setBrush(new QBrush(Qt.NoBrush));
+    frame.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
+    view.addToOverlay(LayoutTabs.OVERLAY_ID, 2, RGraphicsSceneDrawable.createFromPainterPath(frame));
+};
+
+/**
+ * Leaves the viewport: writes the new view into it (unless locked or
+ * twisted) and shows the layout again -- or `thenLayout` (a name, null for
+ * Model) when a tab was picked.
+ */
+LayoutTabs.exitViewport = function(entry, write, thenLayout) {
+    var ed = entry.editing;
+    if (isNull(ed)) {
+        return;
+    }
+    var doc = entry.di.getDocument();
+    var view = LayoutCanvas.view(entry);
+    var note = "";
+    if (!isNull(view)) {
+        try {
+            if (!isNull(ed.hook)) {
+                view.viewportChanged.disconnect(ed.hook);
+            }
+        }
+        catch (eDis) {
+        }
+        view.clearOverlay(LayoutTabs.OVERLAY_ID);
+        LayoutTabs.drawFrameBox = undefined;
+    }
+    // where the frame is NOW, in model space
+    var frame = ed.frame;
+    var vp = doc.queryEntity(ed.viewportId);
+    if (write === true && !isNull(frame) && !isNull(vp) && !ed.locked && !ed.twisted) {
+        var w = frame.getMaximum().x - frame.getMinimum().x;
+        var cx = (frame.getMinimum().x + frame.getMaximum().x) / 2;
+        var cy = (frame.getMinimum().y + frame.getMaximum().y) / 2;
+        var t = vp.getViewTarget();
+        var newScale = (w > 1e-12) ? ed.width / w : ed.scale0;
+        // a pure pan leaves the scale exactly as it was
+        if (Math.abs(newScale / ed.scale0 - 1) < 1e-7) {
+            newScale = ed.scale0;
+        }
+        var newCenter = new RVector(cx - t.x, cy - t.y);
+        var moved = Math.abs(newScale - ed.scale0) > 0 || newCenter.getDistanceTo(ed.vc0) > 1e-9 * (1 + Math.abs(cx) + Math.abs(cy));
+        if (moved) {
+            vp.setScale(newScale);
+            vp.setViewCenter(newCenter);
+            var op = new RModifyObjectOperation(vp);
+            op.setText(qsTr("Reposition viewport contents"));
+            entry.di.applyOperation(op);
+            note = qsTr("Viewport contents repositioned.");
+        }
+    }
+    else if (write === true && ed.locked) {
+        note = qsTr("The viewport is locked: its contents were left as they were.");
+    }
+    // undefined: back to the same layout; null: Model; a name: that layout
+    var layoutName = (thenLayout === undefined) ? ed.layoutName : thenLayout;
+    entry.editing = undefined;
+    entry.banner.visible = false;
+    entry.done.visible = false;
+    Layouts.activate(entry.di, layoutName);
+    LayoutTabs.sync(entry);
+    LayoutCanvas.restoreOrFit(entry);
+    if (note.length > 0) {
+        try {
+            RMainWindowQt.getMainWindow().handleUserMessage(note);
+        }
+        catch (eMsg) {
+        }
+    }
+};
+
+/** Double click on empty ground OUTSIDE the viewport being edited: back to the layout. */
+LayoutTabs.emptyDoubleClick = function(di, event) {
+    var entry = LayoutTabs.entryOfActive();
+    if (isNull(entry) || isNull(entry.editing) || isNull(entry.editing.frame)) {
+        return;
+    }
+    var p = event.getModelPosition();
+    var f = entry.editing.frame;
+    if (p.x < f.getMinimum().x || p.x > f.getMaximum().x || p.y < f.getMinimum().y || p.y > f.getMaximum().y) {
+        LayoutTabs.exitViewport(entry, true);
+    }
 };

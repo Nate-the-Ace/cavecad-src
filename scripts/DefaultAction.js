@@ -456,7 +456,7 @@ DefaultAction.prototype.mouseDoubleClickEvent = function(event) {
         var strictRange = view.mapDistanceFromView(10);
         var entityId = this.di.getClosestEntity(event.getModelPosition(), range, strictRange, false);
         if (entityId===RObject.INVALID_ID) {
-            this.emptySpaceDoubleClicked();
+            this.emptySpaceDoubleClicked(event);
             return;
         }
 
@@ -465,9 +465,14 @@ DefaultAction.prototype.mouseDoubleClickEvent = function(event) {
     EAction.prototype.mouseDoubleClickEvent.call(this, event);
 };
 
-DefaultAction.prototype.emptySpaceDoubleClicked = function() {
+DefaultAction.prototype.emptySpaceDoubleClicked = function(event) {
     if (this.document.getCurrentViewportId()!==RObject.INVALID_ID) {
         this.di.unsetCurrentViewport();
+    }
+    // CaveCAD: a double click on empty ground outside the viewport being
+    // edited puts the layout back (see Widgets/LayoutTabs/LayoutTabs.js)
+    if (typeof LayoutTabs !== "undefined" && !isNull(event) && typeof LayoutTabs.emptyDoubleClick === "function") {
+        LayoutTabs.emptyDoubleClick(this.di, event);
     }
 };
 
@@ -743,10 +748,12 @@ DefaultAction.prototype.entityDoubleClicked = function(entityId, event) {
         }
     }
 
-    // TODO:
-//    else if (isViewportEntity(entity)) {
-//        this.di.setCurrentViewport(entity.data());
-//    }
+    // CaveCAD: double click on a viewport on a layout = edit through it
+    else if (entity.getType()===RS.EntityViewport) {
+        if (typeof LayoutTabs !== "undefined" && typeof LayoutTabs.enterViewport === "function") {
+            LayoutTabs.enterViewport(this.di, entity);
+        }
+    }
 };
 
 /**

@@ -540,3 +540,64 @@ Layouts.duplicate = function(di, name, newName) {
     Layouts.move(di, newName, Layouts.list(doc).map(function(l) { return l.name; }).indexOf(name) + 1);
     return Layouts.get(doc, newName);
 };
+
+
+// ---------------------------------------------------------------------------
+// Viewports
+// ---------------------------------------------------------------------------
+
+/** Status bit of a viewport's display lock (RViewportData::Locked). */
+Layouts.LOCK_BIT = 0x40000;
+
+/** The viewports (RViewportEntity) of a layout, in drawing order. */
+Layouts.viewports = function(doc, info) {
+    var out = [];
+    var ids = doc.queryBlockEntities(info.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (!isNull(e) && !e.isUndone() && e.getType() === RS.EntityViewport && !e.isOverall()) {
+            out.push(e);
+        }
+    }
+    return out;
+};
+
+Layouts.isLocked = function(vp) {
+    return (vp.getStatus() & Layouts.LOCK_BIT) !== 0;
+};
+
+/** Locks / unlocks a viewport (undoable). Locked: scale and contents cannot change. */
+Layouts.setLocked = function(di, vp, locked) {
+    var status = vp.getStatus();
+    vp.setStatus(locked ? (status | Layouts.LOCK_BIT) : (status & ~Layouts.LOCK_BIT));
+    var op = new RModifyObjectOperation(vp);
+    op.setText(locked ? qsTr("Lock viewport") : qsTr("Unlock viewport"));
+    di.applyOperation(op);
+};
+
+/** True when the viewport is twisted (its contents are rotated on the sheet). */
+Layouts.isTwisted = function(vp) {
+    return Math.abs(vp.getRotation()) > 1e-9;
+};
+
+/** Model-space point shown at paper point (x, y) of an UNTWISTED viewport. */
+Layouts.paperToModel = function(vp, x, y) {
+    var c = vp.getCenter(), vc = vp.getViewCenter(), vt = vp.getViewTarget(), s = vp.getScale();
+    return new RVector((x - c.x) / s + vc.x + vt.x, (y - c.y) / s + vc.y + vt.y);
+};
+
+/** The viewport of the layout under paper point (x, y), the topmost first, or undefined. */
+Layouts.viewportAt = function(doc, info, x, y) {
+    var all = Layouts.viewports(doc, info);
+    for (var i = all.length - 1; i >= 0; i--) {
+        var vp = all[i];
+        if (vp.isOff()) {
+            continue;
+        }
+        var c = vp.getCenter();
+        if (Math.abs(x - c.x) <= vp.getWidth() / 2 && Math.abs(y - c.y) <= vp.getHeight() / 2) {
+            return vp;
+        }
+    }
+    return undefined;
+};
