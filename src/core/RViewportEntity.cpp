@@ -281,6 +281,13 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
         }
     }
 
+    // CaveCAD: a viewport can be told not to show raster images (scanned
+    // field-book pages, aerial photographs). A plotted cave map must not
+    // carry imagery: an aerial is the cave's location baked into a
+    // picture. Custom property ("CaveCAD", "NoRaster") = 1; no member, so
+    // no header layout change.
+    const bool noRaster = getCustomProperty("CaveCAD", "NoRaster", false).toBool();
+
     // render model space block reference into viewport:
     QSet<REntity::Id> ids = doc->queryBlockEntities(doc->getModelSpaceBlockId());
     QList<REntity::Id> list = doc->getStorage().orderBackToFront(ids);
@@ -299,6 +306,10 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
 
         // prevent recursions:
         if (entity->isOfType(RS::EntityViewport)) {
+            continue;
+        }
+
+        if (noRaster && entity->isOfType(RS::EntityImage)) {
             continue;
         }
 

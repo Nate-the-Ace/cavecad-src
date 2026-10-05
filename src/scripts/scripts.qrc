@@ -1542,6 +1542,8 @@
     <file alias="scripts/Layer/UnlockAllLayers/UnlockAllLayers.js">../../scripts/Layer/UnlockAllLayers/UnlockAllLayers.js</file>
     <file alias="scripts/Layer/UnlockAllLayers/UnlockAllLayers.svg">../../scripts/Layer/UnlockAllLayers/UnlockAllLayers.svg</file>
     <file alias="scripts/Layer/UnlockAllLayers/UnlockAllLayersInit.js">../../scripts/Layer/UnlockAllLayers/UnlockAllLayersInit.js</file>
+    <file alias="scripts/Layouts/LayoutPlot.js">../../scripts/Layouts/LayoutPlot.js</file>
+    <file alias="scripts/Layouts/Layouts.js">../../scripts/Layouts/Layouts.js</file>
     <file alias="scripts/Misc/Examples/BlockExamples/BlockExamples.js">../../scripts/Misc/Examples/BlockExamples/BlockExamples.js</file>
     <file alias="scripts/Misc/Examples/BlockExamples/ExAddBlock/ExAddBlock.js">../../scripts/Misc/Examples/BlockExamples/ExAddBlock/ExAddBlock.js</file>
     <file alias="scripts/Misc/Examples/CommandLineExamples/CommandLineExamples.js">../../scripts/Misc/Examples/CommandLineExamples/CommandLineExamples.js</file>
@@ -2819,6 +2821,7 @@
     <file alias="scripts/Widgets/LayerManager/LayerVisibleMixed-inverse.svg">../../scripts/Widgets/LayerManager/LayerVisibleMixed-inverse.svg</file>
     <file alias="scripts/Widgets/LayerManager/LayerVisibleMixed.svg">../../scripts/Widgets/LayerManager/LayerVisibleMixed.svg</file>
     <file alias="scripts/Widgets/LayerManager/RLayerTreeQt.js">../../scripts/Widgets/LayerManager/RLayerTreeQt.js</file>
+    <file alias="scripts/Widgets/LayoutTabs/LayoutTabs.js">../../scripts/Widgets/LayoutTabs/LayoutTabs.js</file>
     <file alias="scripts/Widgets/MenuBar/MenuBar.js">../../scripts/Widgets/MenuBar/MenuBar.js</file>
     <file alias="scripts/Widgets/MenuBar/MenuBarInit.js">../../scripts/Widgets/MenuBar/MenuBarInit.js</file>
     <file alias="scripts/Widgets/MenuBar/PreferencesPage.ui">../../scripts/Widgets/MenuBar/PreferencesPage.ui</file>
