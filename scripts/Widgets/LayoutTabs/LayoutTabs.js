@@ -114,6 +114,27 @@ LayoutTabs.attach = function(root, di) {
     newVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     newVp.visible = false;
     row.addWidget(newVp, 0, 0);
+    var polyVp = new QPushButton(strip);
+    polyVp.objectName = "LayoutPolygonViewport";
+    polyVp.text = qsTr("Polygon");
+    polyVp.toolTip = qsTr("Draw a viewport as a polygon: click its corners, Enter or right-click to finish");
+    polyVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    polyVp.visible = false;
+    row.addWidget(polyVp, 0, 0);
+    var trimVp = new QPushButton(strip);
+    trimVp.objectName = "LayoutTrimViewport";
+    trimVp.text = qsTr("Trim");
+    trimVp.toolTip = qsTr("Cut a polygon out of the selected viewport: click its corners, Enter or right-click to finish");
+    trimVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    trimVp.visible = false;
+    row.addWidget(trimVp, 0, 0);
+    var squareVp = new QPushButton(strip);
+    squareVp.objectName = "LayoutSquareViewport";
+    squareVp.text = qsTr("Rectangle");
+    squareVp.toolTip = qsTr("Put the selected viewport back to a plain rectangle (its outline's bounding box)");
+    squareVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    squareVp.visible = false;
+    row.addWidget(squareVp, 0, 0);
     var vpBar = new QPushButton(strip);
     vpBar.objectName = "LayoutViewportBar";
     vpBar.text = qsTr("Scale bar");
@@ -166,6 +187,12 @@ LayoutTabs.attach = function(root, di) {
     entry.vpLayers = vpLayers;
     entry.vpBar = vpBar;
     entry.newVp = newVp;
+    entry.polyVp = polyVp;
+    entry.trimVp = trimVp;
+    entry.squareVp = squareVp;
+    polyVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "polygon"); });
+    trimVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "trim"); });
+    squareVp.clicked.connect(function() { LayoutTabs.shapeTool(entry, "square"); });
     newVp.clicked.connect(function() { LayoutTabs.newViewport(entry); });
     vpBar.clicked.connect(function() { LayoutTabs.addScaleBar(entry); });
     entry.vpShown = undefined;
@@ -282,7 +309,33 @@ LayoutTabs.sync = function(entry) {
     }
     entry.syncing = false;
     entry.newVp.visible = !isNull(cur);
+    entry.polyVp.visible = !isNull(cur);
     LayoutCanvas.update(entry, cur);
+};
+
+/** Polygon / trim / back-to-rectangle on the selected viewport. */
+LayoutTabs.shapeTool = function(entry, what) {
+    include("scripts/Layouts/ViewportShape/ViewportShape.js");
+    if (what === "polygon") {
+        ViewportShape.startPolygon(entry.di);
+        return;
+    }
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp)) {
+        return;
+    }
+    if (what === "trim") {
+        ViewportShape.startTrim(entry.di, vp.getId());
+    }
+    else if (what === "square") {
+        var doc = entry.di.getDocument();
+        if (Layouts.isLocked(vp)) {
+            EAction.handleUserWarning(qsTr("This viewport is locked: unlock it to change its shape."));
+            return;
+        }
+        Layouts.setClip(entry.di, vp, [], qsTr("Viewport back to a rectangle"));
+        LayoutTabs.refreshControls(entry);
+    }
 };
 
 /** Starts the New Viewport tool on this layout. */
@@ -884,6 +937,13 @@ LayoutTabs.refreshControls = function(entry) {
         LayoutTabs.drawGlyph(entry);
     }
     catch (eGlyph) {
+    }
+    try {
+        var sel = LayoutTabs.controlViewport(entry);
+        entry.trimVp.visible = !isNull(sel) && isNull(entry.editing);
+        entry.squareVp.visible = !isNull(sel) && isNull(entry.editing) && Layouts.hasClip(sel);
+    }
+    catch (eShape) {
     }
     var vp = LayoutTabs.controlViewport(entry);
     var show = !isNull(vp);

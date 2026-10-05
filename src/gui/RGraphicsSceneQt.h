@@ -118,6 +118,7 @@ public:
     virtual void exportImage(const RImageData& image, bool forceSelected = false);
     virtual QList<RPainterPath> exportText(const RTextBasedData& text, bool forceSelected = false);
     virtual void exportClipRectangle(const RBox& clipRectangles, bool forceSelected = false);
+    virtual void exportClipPath(const QPainterPath& clipPath, bool forceSelected = false);
     virtual void clearClipRectangles();
     virtual void exportTransform(const RTransform& t);
     virtual void exportEndTransform();
@@ -158,6 +159,7 @@ public:
 
     bool hasClipRectangleFor(RObject::Id entityId, bool preview = false) const;
     RBox getClipRectangle(RObject::Id entityId, bool preview = false) const;
+    QPainterPath getClipPath(RObject::Id entityId, bool preview = false) const;
 
     void addDrawable(RObject::Id entityId, RGraphicsSceneDrawable& drawable, bool draft = false, bool preview = false);
 
@@ -191,10 +193,12 @@ private:
 
     QHash<RObject::Id, QList<RGraphicsSceneDrawable> > drawables;
     QHash<RObject::Id, RBox> clipRectangles;
+    QHash<RObject::Id, QPainterPath> clipPaths;
 
     // getPreviewEntityIds() relies on keys() being ordered: keep these maps
     QMap<RObject::Id, QList<RGraphicsSceneDrawable> > previewDrawables;
     QMap<RObject::Id, RBox> previewClipRectangles;
+    QMap<RObject::Id, QPainterPath> previewClipPaths;
 
     bool decorating;
     bool screenBasedLinetypesOverride;

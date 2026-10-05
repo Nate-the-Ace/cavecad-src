@@ -1516,6 +1516,12 @@ void RGraphicsViewImage::paintEntityThread(RGraphicsViewWorker* worker, RObject:
 
         if (worker!=NULL) {
             worker->setClipRect(QRectF(clipRectangle.getMinimum().x, clipRectangle.getMinimum().y, clipRectangle.getWidth(), clipRectangle.getHeight()));
+            // a polygonal viewport clips to its shape, not its bounding box
+            QPainterPath clipPath = sceneQt->getClipPath(id, preview);
+            if (!clipPath.isEmpty()) {
+                clipPath.translate(paintOffset.x, paintOffset.y);
+                worker->setClipPath(clipPath);
+            }
         }
     }
     else {

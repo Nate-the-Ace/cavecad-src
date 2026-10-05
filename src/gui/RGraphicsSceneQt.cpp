@@ -876,9 +876,38 @@ void RGraphicsSceneQt::exportClipRectangle(const RBox& clipRectangle, bool force
     }
 }
 
+void RGraphicsSceneQt::exportClipPath(const QPainterPath& clipPath, bool forceSelected) {
+    Q_UNUSED(forceSelected)
+
+    if (exportToPreview) {
+        previewClipPaths.insert(getBlockRefOrEntityId(), clipPath);
+    }
+    else {
+        clipPaths.insert(getBlockRefOrEntityId(), clipPath);
+    }
+}
+
+QPainterPath RGraphicsSceneQt::getClipPath(REntity::Id entityId, bool preview) const {
+    if (preview) {
+        QMap<RObject::Id, QPainterPath>::const_iterator it = previewClipPaths.constFind(entityId);
+        if (it!=previewClipPaths.constEnd()) {
+            return it.value();
+        }
+    }
+    else {
+        QHash<RObject::Id, QPainterPath>::const_iterator it = clipPaths.constFind(entityId);
+        if (it!=clipPaths.constEnd()) {
+            return it.value();
+        }
+    }
+    return QPainterPath();
+}
+
 void RGraphicsSceneQt::clearClipRectangles() {
     previewClipRectangles.clear();
     clipRectangles.clear();
+    previewClipPaths.clear();
+    clipPaths.clear();
 }
 
 void RGraphicsSceneQt::exportTransform(const RTransform& t) {
@@ -941,6 +970,7 @@ void RGraphicsSceneQt::unexportEntity(REntity::Id entityId) {
     if (!exportToPreview) {
         drawables.remove(entityId);
         clipRectangles.remove(entityId);
+        clipPaths.remove(entityId);
         drawablesVersion++;
     }
 }
@@ -948,10 +978,12 @@ void RGraphicsSceneQt::unexportEntity(REntity::Id entityId) {
 void RGraphicsSceneQt::deleteDrawables() {
     drawables.clear();
     clipRectangles.clear();
+    clipPaths.clear();
     drawablesVersion++;
 
     previewDrawables.clear();
     previewClipRectangles.clear();
+    previewClipPaths.clear();
 }
 
 QList<RGraphicsSceneDrawable> RGraphicsSceneQt::getDrawablesList(REntity::Id entityId) {
@@ -1193,6 +1225,7 @@ void RGraphicsSceneQt::exportEntities(bool allBlocks, bool undone, bool invisibl
 //        }
 
         clipRectangles.insert(threadScenes[i]->clipRectangles);
+        clipPaths.insert(threadScenes[i]->clipPaths);
         referencePoints.insert(threadScenes[i]->referencePoints);
 
         //threadScenes[i]->drawables.clear();
@@ -1268,6 +1301,10 @@ void RGraphicsSceneQt::highlightEntity(REntity& entity) {
     }
     if (clipRectangle.isValid()) {
         previewClipRectangles.insert(entity.getId(), clipRectangle);
+        QPainterPath clipPath = getClipPath(entity.getId());
+        if (!clipPath.isEmpty()) {
+            previewClipPaths.insert(entity.getId(), clipPath);
+        }
         //exportClipRectangle(clipRect);
     }
     // highlighted entities are previews on top of original entities:

@@ -187,6 +187,56 @@ void RViewportEntity::setData(RViewportData& d) {
     data.setDocument(getDocument());
 }
 
+/**
+ * CaveCAD: the shape of a polygonal viewport, or an empty path for the plain
+ * rectangle. Stored as custom properties CaveCAD/Clip0, Clip1, ... (a file
+ * keeps strings only ~1000 characters, so the text is cut in pieces):
+ *
+ *   loop|loop|...   loop = x,y;x,y;...   (paper units from the viewport centre)
+ *
+ * The first loop is the outline; each later loop is a piece CUT OUT of it.
+ */
+QPainterPath RViewportEntity::getClipShape() const {
+    QString text;
+    for (int i = 0; i < 64; i++) {
+        QString piece = getCustomProperty("CaveCAD", QString("Clip%1").arg(i), QString()).toString();
+        if (piece.isEmpty()) {
+            break;
+        }
+        text += piece;
+    }
+    if (text.isEmpty()) {
+        return QPainterPath();
+    }
+    QPainterPath result;
+    bool first = true;
+    QStringList loops = text.split('|', Qt::SkipEmptyParts);
+    for (int l = 0; l < loops.length(); l++) {
+        QPolygonF poly;
+        QStringList pts = loops[l].split(';', Qt::SkipEmptyParts);
+        for (int k = 0; k < pts.length(); k++) {
+            QStringList xy = pts[k].split(',');
+            if (xy.length() == 2) {
+                poly << QPointF(data.position.x + xy[0].toDouble(), data.position.y + xy[1].toDouble());
+            }
+        }
+        if (poly.length() < 3) {
+            continue;
+        }
+        QPainterPath loop;
+        loop.addPolygon(poly);
+        loop.closeSubpath();
+        if (first) {
+            result = loop;
+            first = false;
+        }
+        else {
+            result = result.subtracted(loop);
+        }
+    }
+    return first ? QPainterPath() : result;
+}
+
 void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelected) const {
     Q_UNUSED(preview)
     Q_UNUSED(forceSelected)
@@ -224,9 +274,22 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
 
             e.setPixelWidth(true);
         }
-        QList<RLine> lines = viewportBox.getLines2d();
-        for (int i=0; i<lines.length(); i++) {
-            e.exportLine(lines[i]);
+        QPainterPath shape = getClipShape();
+        if (shape.isEmpty()) {
+            QList<RLine> lines = viewportBox.getLines2d();
+            for (int i=0; i<lines.length(); i++) {
+                e.exportLine(lines[i]);
+            }
+        }
+        else {
+            // a polygonal / trimmed viewport draws its own outline
+            QList<QPolygonF> outline = shape.toSubpathPolygons();
+            for (int p=0; p<outline.length(); p++) {
+                for (int k=0; k+1<outline[p].length(); k++) {
+                    e.exportLine(RLine(RVector(outline[p][k].x(), outline[p][k].y()),
+                                       RVector(outline[p][k+1].x(), outline[p][k+1].y())));
+                }
+            }
         }
         if (active) {
             e.setPixelWidth(false);
@@ -239,7 +302,17 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
     }
 
     // clip rectangle export
-    e.exportClipRectangle(viewportBox);
+    {
+        QPainterPath shape = getClipShape();
+        if (shape.isEmpty()) {
+            e.exportClipRectangle(viewportBox);
+        }
+        else {
+            QRectF bb = shape.boundingRect();
+            e.exportClipRectangle(RBox(RVector(bb.left(), bb.top()), RVector(bb.right(), bb.bottom())));
+            e.exportClipPath(shape);
+        }
+    }
 
     //RVector offset = getViewOffset();
     //RVector offset(0,0);

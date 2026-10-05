@@ -106,6 +106,7 @@ public:
     virtual void eraseRect(const QRectF& rect) = 0;
 
     virtual void setClipRect(const QRectF& rect) = 0;
+    virtual void setClipPath(const QPainterPath& path) { Q_UNUSED(path) }
     virtual void setClipping(bool on) = 0;
     virtual void setOpacity(double opacity) = 0;
     virtual void save() = 0;

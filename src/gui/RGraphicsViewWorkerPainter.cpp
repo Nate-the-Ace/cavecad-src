@@ -185,6 +185,13 @@ void RGraphicsViewWorkerPainter::setClipRect(const QRectF& rect) {
     painter->setClipRect(rect);
 }
 
+void RGraphicsViewWorkerPainter::setClipPath(const QPainterPath& path) {
+    if (painter==NULL) {
+        return;
+    }
+    painter->setClipPath(path, Qt::ReplaceClip);
+}
+
 void RGraphicsViewWorkerPainter::setClipping(bool on) {
     if (painter==NULL) {
         return;

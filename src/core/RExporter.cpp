@@ -1718,6 +1718,11 @@ void RExporter::exportClipRectangle(const RBox& clipRectangle, bool forceSelecte
     Q_UNUSED(forceSelected)
 }
 
+void RExporter::exportClipPath(const QPainterPath& clipPath, bool forceSelected) {
+    Q_UNUSED(clipPath)
+    Q_UNUSED(forceSelected)
+}
+
 void RExporter::clearClipRectangles() {
 }
 

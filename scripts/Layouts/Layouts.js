@@ -605,8 +605,7 @@ Layouts.viewportAt = function(doc, info, x, y) {
         if (vp.isOff()) {
             continue;
         }
-        var c = vp.getCenter();
-        if (Math.abs(x - c.x) <= vp.getWidth() / 2 && Math.abs(y - c.y) <= vp.getHeight() / 2) {
+        if (Layouts.shapeContains(vp, x, y)) {
             return vp;
         }
     }
@@ -759,6 +758,161 @@ Layouts.setViewportScale = function(di, vp, feetPerInch) {
     var op = new RModifyObjectOperation(vp);
     op.setText(qsTr("Viewport scale"));
     di.applyOperation(op);
+    return true;
+};
+
+
+// ---------------------------------------------------------------------------
+// Viewport shape: polygon outline and cut-outs
+//
+// A viewport is a rectangle until it is given a SHAPE: an outline polygon and
+// any number of pieces cut out of it. The shape is stored in the viewport's
+// custom properties CaveCAD/Clip0, Clip1, ... (long text is cut in pieces: a
+// file keeps strings only ~1000 characters) as
+//     loop|loop|...        loop = x,y;x,y;...   paper units from the centre
+// the first loop the outline, the others cut out of it. The engine clips and
+// outlines to it (RViewportEntity::getClipShape). The viewport's centre,
+// width and height stay the outline's bounding box, so everything that works
+// with a rectangle (scale, lock, the rotation grip, snaps to the box) goes on
+// working.
+// ---------------------------------------------------------------------------
+
+Layouts.CLIP_PIECE = 700;
+
+/** The loops of a viewport's shape as absolute paper points: [[{x,y},...], ...] (outline first), or [] for a rectangle. */
+Layouts.clipLoops = function(vp) {
+    var text = "";
+    for (var i = 0; i < 64; i++) {
+        var piece = vp.getCustomProperty("CaveCAD", "Clip" + i, "");
+        if (isNull(piece) || String(piece) === "") {
+            break;
+        }
+        text += String(piece);
+    }
+    var c = vp.getCenter(), out = [];
+    var loops = text.split("|");
+    for (var l = 0; l < loops.length; l++) {
+        if (loops[l] === "") {
+            continue;
+        }
+        var pts = [], parts = loops[l].split(";");
+        for (var k = 0; k < parts.length; k++) {
+            var xy = parts[k].split(",");
+            if (xy.length === 2) {
+                pts.push({ x: c.x + parseFloat(xy[0]), y: c.y + parseFloat(xy[1]) });
+            }
+        }
+        if (pts.length >= 3) {
+            out.push(pts);
+        }
+    }
+    return out;
+};
+
+Layouts.hasClip = function(vp) {
+    return Layouts.clipLoops(vp).length > 0;
+};
+
+/** Writes loops (absolute paper points, outline first) into the entity; no operation applied. */
+Layouts._writeClip = function(vp, loops) {
+    for (var i = 0; i < 64; i++) {
+        var old = vp.getCustomProperty("CaveCAD", "Clip" + i, "");
+        if (isNull(old) || String(old) === "") {
+            break;
+        }
+        vp.removeCustomProperty("CaveCAD", "Clip" + i);
+    }
+    if (loops.length === 0) {
+        return;
+    }
+    // the outline's bounding box becomes the viewport's box; contents stay where they are on the paper
+    var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (var p = 0; p < loops[0].length; p++) {
+        x1 = Math.min(x1, loops[0][p].x); x2 = Math.max(x2, loops[0][p].x);
+        y1 = Math.min(y1, loops[0][p].y); y2 = Math.max(y2, loops[0][p].y);
+    }
+    var nc = new RVector((x1 + x2) / 2, (y1 + y2) / 2);
+    var keep = Layouts.paperToModel(vp, nc.x, nc.y);
+    vp.setViewCenter(new RVector(keep.x - vp.getViewTarget().x, keep.y - vp.getViewTarget().y));
+    vp.setCenter(nc);
+    vp.setWidth(x2 - x1);
+    vp.setHeight(y2 - y1);
+    var text = [];
+    for (var l = 0; l < loops.length; l++) {
+        var pts = [];
+        for (var k = 0; k < loops[l].length; k++) {
+            pts.push((loops[l][k].x - nc.x) + "," + (loops[l][k].y - nc.y));
+        }
+        text.push(pts.join(";"));
+    }
+    var all = text.join("|");
+    for (var n = 0; n * Layouts.CLIP_PIECE < all.length; n++) {
+        vp.setCustomProperty("CaveCAD", "Clip" + n, all.substr(n * Layouts.CLIP_PIECE, Layouts.CLIP_PIECE));
+    }
+};
+
+/** Gives the viewport a shape (undoable). `loops`: absolute paper points, outline first; [] restores the rectangle. */
+Layouts.setClip = function(di, vp, loops, text) {
+    var doc = di.getDocument();
+    var fresh = doc.queryEntity(vp.getId());
+    if (isNull(fresh)) {
+        return false;
+    }
+    if (loops.length > 0 && loops[0].length < 3) {
+        return false;
+    }
+    if (loops.length === 0) {
+        // back to the rectangle that bounds the shape now
+        Layouts._writeClip(fresh, []);
+    }
+    else {
+        Layouts._writeClip(fresh, loops);
+    }
+    var op = new RModifyObjectOperation(fresh);
+    op.setText(isNull(text) ? qsTr("Viewport shape") : text);
+    di.applyOperation(op);
+    return true;
+};
+
+/** Cuts a polygon (absolute paper points) out of the viewport's shape (undoable). */
+Layouts.cutOut = function(di, vp, loop) {
+    if (loop.length < 3) {
+        return false;
+    }
+    var loops = Layouts.clipLoops(vp);
+    if (loops.length === 0) {
+        var c = vp.getCenter(), hw = vp.getWidth() / 2, hh = vp.getHeight() / 2;
+        loops = [[{ x: c.x - hw, y: c.y - hh }, { x: c.x + hw, y: c.y - hh }, { x: c.x + hw, y: c.y + hh }, { x: c.x - hw, y: c.y + hh }]];
+    }
+    loops.push(loop);
+    return Layouts.setClip(di, vp, loops, qsTr("Trim viewport"));
+};
+
+/** True when paper point (x, y) is inside the viewport's shape. */
+Layouts.shapeContains = function(vp, x, y) {
+    var loops = Layouts.clipLoops(vp);
+    if (loops.length === 0) {
+        var c = vp.getCenter();
+        return Math.abs(x - c.x) <= vp.getWidth() / 2 && Math.abs(y - c.y) <= vp.getHeight() / 2;
+    }
+    var inside = function(pts) {
+        var hit = false;
+        for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+            if (((pts[i].y > y) !== (pts[j].y > y)) &&
+                (x < (pts[j].x - pts[i].x) * (y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x)) {
+                hit = !hit;
+            }
+        }
+        return hit;
+    };
+    if (!inside(loops[0])) {
+        return false;
+    }
+    for (var l = 1; l < loops.length; l++) {
+        if (inside(loops[l])) {
+            return false;
+        }
+    }
     return true;
 };
 

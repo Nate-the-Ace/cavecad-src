@@ -20,6 +20,7 @@
 #ifndef RVIEWPORTENTITY_H
 #define RVIEWPORTENTITY_H
 
+#include <QPainterPath>
 #include "core_global.h"
 
 #include "REntity.h"
@@ -98,6 +99,7 @@ public:
             bool humanReadable = false, bool noAttributes = false, bool showOnRequest = false);
 
     virtual void exportEntity(RExporter& e, bool preview=false, bool forceSelected=false) const;
+    QPainterPath getClipShape() const;
 
     virtual RViewportData& getData() {
         return data;

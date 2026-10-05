@@ -56,6 +56,7 @@ public:
     virtual void eraseRect(const QRectF& rect);
 
     virtual void setClipRect(const QRectF& rect);
+    virtual void setClipPath(const QPainterPath& path);
     virtual void setClipping(bool on);
     virtual void setOpacity(double opacity);
     virtual void save();
