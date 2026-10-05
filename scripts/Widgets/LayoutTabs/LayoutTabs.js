@@ -75,11 +75,17 @@ LayoutTabs.attach = function(root, di) {
     row.addWidget(banner, 0, 0);
     var done = new QPushButton(strip);
     done.objectName = "LayoutEditDone";
+    // never taller than the tab bar: showing the edit banner must not change
+    // the height of the strip (a taller strip shrinks the view, and a view
+    // that changes size re-fits the very zoom the sheet is shown at)
+    done.maximumHeight = bar.sizeHint.height();
+    banner.maximumHeight = bar.sizeHint.height();
     done.text = qsTr("Back to layout");
     done.toolTip = qsTr("Leave the viewport and return to the layout");
     done.visible = false;
     row.addWidget(done, 0, 0);
     strip.setLayout(row);
+    strip.setFixedHeight(bar.sizeHint.height() + 2);
     layout.addWidget(strip);
     var bannerAction = banner;
 
@@ -304,9 +310,13 @@ LayoutCanvas.remember = function(entry) {
     }
     var doc = entry.di.getDocument();
     var b = view.getBox();
-    // plain numbers: a wrapper object can stay tied to the view's own box
+    var o = view.getOffset();
+    // plain numbers: a wrapper object can stay tied to the view's own box.
+    // The EXACT factor and offset are kept too: refitting a box re-derives
+    // the zoom from the widget's size, which is not what "back where it was" means.
     entry.saved[doc.getCurrentBlockId()] = { x1: b.getMinimum().x, y1: b.getMinimum().y,
-        x2: b.getMaximum().x, y2: b.getMaximum().y };
+        x2: b.getMaximum().x, y2: b.getMaximum().y,
+        factor: view.getFactor(), ox: o.x, oy: o.y, w: view.getWidth(), h: view.getHeight() };
 };
 
 /** Back where this tab was, or zoomed onto the sheet (layout) / the whole drawing (model). */
@@ -318,7 +328,16 @@ LayoutCanvas.restoreOrFit = function(entry) {
     var doc = entry.di.getDocument();
     var box = entry.saved[doc.getCurrentBlockId()];
     if (!isNull(box)) {
-        view.zoomTo(new RBox(new RVector(box.x1, box.y1), new RVector(box.x2, box.y2)), 0);
+        if (box.w === view.getWidth() && box.h === view.getHeight()) {
+            // same window: the very same zoom and place, bit for bit
+            view.setFactor(box.factor);
+            view.setOffset(new RVector(box.ox, box.oy));
+            view.regenerate(true);
+            view.repaintView();
+        }
+        else {
+            view.zoomTo(new RBox(new RVector(box.x1, box.y1), new RVector(box.x2, box.y2)), 0);
+        }
         return;
     }
     var cur = Layouts.current(doc);
@@ -475,10 +494,18 @@ LayoutTabs.enterViewport = function(di, vpEntity) {
     var twisted = Layouts.isTwisted(vp);
     var locked = Layouts.isLocked(vp);
 
+    // The banner and the button go up FIRST and the window settles: whatever
+    // they do to the layout happens before anything is measured.
+    entry.banner.visible = true;
+    entry.done.visible = true;
+    QCoreApplication.processEvents();
+
     // where the viewport sits on the SCREEN, kept for the whole edit
     var c = vp.getCenter(), hw = vp.getWidth() / 2, hh = vp.getHeight() / 2;
     var s1 = view.mapToView(new RVector(c.x - hw, c.y + hh));
     var s2 = view.mapToView(new RVector(c.x + hw, c.y - hh));
+    var layoutFactor = view.getFactor();
+    var corner = Layouts.paperToModel(vp, c.x - hw, c.y + hh);
 
     // what the model must show for the frame to stay put: the whole visible paper, through the viewport
     var vis = view.getBox();
@@ -496,7 +523,19 @@ LayoutTabs.enterViewport = function(di, vpEntity) {
 
     Layouts.activate(entry.di, null);
     LayoutCanvas.update(entry, undefined);
-    view.zoomTo(modelBox, 0);
+    // EXACT, not a refit: the model gets the sheet's own zoom times the
+    // viewport scale, and is slid until the viewport's corner sits on the
+    // very pixel it sat on. (Refitting a box re-derives the zoom from the
+    // widget's aspect and drifted the frame by a couple of percent.)
+    view.setFactor(layoutFactor * vp.getScale());
+    for (var pass = 0; pass < 3; pass++) {
+        var now = view.mapToView(corner);
+        var o = view.getOffset();
+        view.setOffset(new RVector(o.x + (s1.x - now.x) / view.getFactor(),
+                                   o.y - (s1.y - now.y) / view.getFactor()));
+    }
+    view.regenerate(true);
+    view.repaintView();
     LayoutTabs.drawFrame(entry, view);
     try {
         entry.editing.hook = function() { LayoutTabs.drawFrame(entry, LayoutCanvas.view(entry)); };
@@ -509,8 +548,6 @@ LayoutTabs.enterViewport = function(di, vpEntity) {
         (twisted ? qsTr("Twisted viewport: the model is shown untwisted and the viewport view is not changed.") :
          qsTr("Editing through the viewport. Pan and zoom to reposition its contents."));
     entry.banner.text = "  " + msg + "  ";
-    entry.banner.visible = true;
-    entry.done.visible = true;
     // the layout's own tab stays selected
     var idx = entry.names.indexOf(info.name);
     if (idx >= 0) {
@@ -575,7 +612,12 @@ LayoutTabs.exitViewport = function(entry, write, thenLayout) {
             }
             view.clearOverlay(LayoutTabs.OVERLAY_ID);
         }
-        // where the frame is NOW, in model space
+        // where the frame is NOW, in model space -- from the live view, not
+        // from the last time the overlay happened to be redrawn
+        if (!isNull(view)) {
+            LayoutTabs.drawFrame(entry, view);
+            view.clearOverlay(LayoutTabs.OVERLAY_ID);
+        }
         var frame = ed.frame;
         var vp = doc.queryEntity(ed.viewportId);
         if (write === true && !isNull(frame) && !isNull(vp) && !ed.locked && !ed.twisted) {
