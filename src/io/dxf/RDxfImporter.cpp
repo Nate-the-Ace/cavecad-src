@@ -1558,6 +1558,7 @@ void RDxfImporter::addViewport(const DL_ViewportData& data) {
     entity->setOff(data.status==0);
     entity->setViewportId(data.id);
     entity->setOverall(data.id==1);
+    entity->setLocked((data.flags & 0x4000)!=0);
     entity->setViewCenter(RVector(data.vcx, data.vcy));
     entity->setViewTarget(RVector(data.tx, data.ty, data.tz));
     entity->setScale(data.viewHeight>1.0e-12 ? data.height/data.viewHeight : 1.0);

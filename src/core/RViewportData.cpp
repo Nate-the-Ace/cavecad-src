@@ -120,6 +120,10 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
         ret = true;
     }
     else if (referencePoint.equalsFuzzy(position + RVector(0,height/4))) {
+        if (isLocked()) {
+            // the contents grip: a locked viewport keeps what it shows
+            return false;
+        }
         viewCenter -= offset/scaleFactor;
         ret = true;
     }

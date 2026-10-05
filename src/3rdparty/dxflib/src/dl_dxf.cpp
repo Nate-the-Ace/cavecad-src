@@ -2332,6 +2332,7 @@ void DL_Dxf::addViewport(DL_CreationInterface* creationInterface) {
     vd.tz = getRealValue(37, 0.0);
     vd.viewHeight = getRealValue(45, vd.height);
     vd.twist = getRealValue(51, 0.0);
+    vd.flags = getIntValue(90, 0);
     vd.frozenLayers = viewportFrozenLayers;
 
     creationInterface->addViewport(vd);
@@ -3833,6 +3834,7 @@ void DL_Dxf::writeViewport(DL_WriterA& dw,
     dw.dxfReal(37, data.tz);
     dw.dxfReal(45, data.viewHeight);
     dw.dxfReal(51, data.twist);
+    dw.dxfInt(90, data.flags);
     for (size_t i=0; i<data.frozenLayers.size(); i++) {
         dw.dxfString(3, data.frozenLayers[i]);
     }

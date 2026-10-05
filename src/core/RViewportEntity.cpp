@@ -47,6 +47,7 @@ RPropertyTypeId RViewportEntity::PropertyHeight;
 RPropertyTypeId RViewportEntity::PropertyScale;
 RPropertyTypeId RViewportEntity::PropertyRotation;
 RPropertyTypeId RViewportEntity::PropertyOn;
+RPropertyTypeId RViewportEntity::PropertyLocked;
 RPropertyTypeId RViewportEntity::PropertyViewCenterX;
 RPropertyTypeId RViewportEntity::PropertyViewCenterY;
 RPropertyTypeId RViewportEntity::PropertyViewTargetX;
@@ -86,6 +87,7 @@ void RViewportEntity::init() {
     RViewportEntity::PropertyScale.generateId(RViewportEntity::getRtti(), "", QT_TRANSLATE_NOOP("REntity", "Scale"), false, RPropertyAttributes::Geometry);
     RViewportEntity::PropertyRotation.generateId(RViewportEntity::getRtti(), "", QT_TRANSLATE_NOOP("REntity", "Rotation"), false, RPropertyAttributes::Geometry);
     RViewportEntity::PropertyOn.generateId(RViewportEntity::getRtti(), "", QT_TRANSLATE_NOOP("REntity", "On"));
+    RViewportEntity::PropertyLocked.generateId(RViewportEntity::getRtti(), "", QT_TRANSLATE_NOOP("REntity", "Locked"));
     RViewportEntity::PropertyViewCenterX.generateId(RViewportEntity::getRtti(), QT_TRANSLATE_NOOP("REntity", "View Center"), QT_TRANSLATE_NOOP("REntity", "X"), false, RPropertyAttributes::Geometry);
     RViewportEntity::PropertyViewCenterY.generateId(RViewportEntity::getRtti(), QT_TRANSLATE_NOOP("REntity", "View Center"), QT_TRANSLATE_NOOP("REntity", "Y"), false, RPropertyAttributes::Geometry);
     RViewportEntity::PropertyViewTargetX.generateId(RViewportEntity::getRtti(), QT_TRANSLATE_NOOP("REntity", "View Target"), QT_TRANSLATE_NOOP("REntity", "X"), false, RPropertyAttributes::Geometry);
@@ -99,6 +101,15 @@ void RViewportEntity::init() {
 
 bool RViewportEntity::setProperty(RPropertyTypeId propertyTypeId,
         const QVariant& value, RTransaction* transaction) {
+
+    // CaveCAD: a locked viewport keeps its scale and what it shows:
+    if (data.isLocked() && (
+            propertyTypeId==PropertyScale || propertyTypeId==PropertyRotation ||
+            propertyTypeId==PropertyViewCenterX || propertyTypeId==PropertyViewCenterY ||
+            propertyTypeId==PropertyViewTargetX || propertyTypeId==PropertyViewTargetY ||
+            propertyTypeId==PropertyViewTargetZ)) {
+        return false;
+    }
 
     bool ret = REntity::setProperty(propertyTypeId, value, transaction);
     ret = ret || RObject::setMember(data.position.x, value, PropertyCenterX == propertyTypeId);
@@ -120,6 +131,11 @@ bool RViewportEntity::setProperty(RPropertyTypeId propertyTypeId,
         bool on = !data.isOff();
         ret = ret || RObject::setMember(on, value);
         data.setOff(!on);
+    }
+    if (PropertyLocked==propertyTypeId) {
+        bool locked = data.isLocked();
+        ret = ret || RObject::setMember(locked, value);
+        data.setLocked(locked);
     }
 
     return ret;
@@ -144,6 +160,8 @@ QPair<QVariant, RPropertyAttributes> RViewportEntity::getProperty(
         return qMakePair(QVariant(data.rotation), RPropertyAttributes(RPropertyAttributes::Angle));
     } else if (propertyTypeId == PropertyOn) {
         return qMakePair(QVariant(!data.isOff()), RPropertyAttributes());
+    } else if (propertyTypeId == PropertyLocked) {
+        return qMakePair(QVariant(data.isLocked()), RPropertyAttributes());
     } else if (propertyTypeId == PropertyViewCenterX) {
         return qMakePair(QVariant(data.viewCenter.x), RPropertyAttributes());
     } else if (propertyTypeId == PropertyViewCenterY) {

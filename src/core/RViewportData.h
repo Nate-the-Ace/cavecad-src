@@ -59,7 +59,8 @@ protected:
 
 public:
     enum Status {
-        Off = 0x20000
+        Off = 0x20000,
+        Locked = 0x40000
     };
 
 public:
@@ -221,6 +222,17 @@ public:
 
     bool isOff() const {
         return testStatusFlag(Off);
+    }
+    /**
+     * A locked viewport keeps its scale and what it shows: grips, the
+     * property editor and the "enter viewport" pan / zoom all refuse to
+     * change them (display lock, as in other CAD programs).
+     */
+    bool isLocked() const {
+        return testStatusFlag(Locked);
+    }
+    void setLocked(bool v) {
+        setStatusFlag(Locked, v);
     }
 
     void setOff(bool v) {

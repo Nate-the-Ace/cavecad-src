@@ -1813,7 +1813,7 @@ struct DXFLIB_EXPORT DL_ViewportData {
     DL_ViewportData()
         : cx(0.0), cy(0.0), cz(0.0), width(1.0), height(1.0),
           status(1), id(2), vcx(0.0), vcy(0.0), tx(0.0), ty(0.0), tz(0.0),
-          viewHeight(1.0), twist(0.0) {}
+          viewHeight(1.0), twist(0.0), flags(0) {}
 
     double cx, cy, cz;
     double width, height;
@@ -1824,6 +1824,8 @@ struct DXFLIB_EXPORT DL_ViewportData {
     double viewHeight;
     /*! Twist angle in degrees. */
     double twist;
+    /*! Flags (group 90); 0x4000 = display locked, as in other CAD programs. */
+    int flags;
     std::vector<std::string> frozenLayers;
 };
 

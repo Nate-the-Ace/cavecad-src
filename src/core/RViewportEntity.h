@@ -58,6 +58,7 @@ public:
     static RPropertyTypeId PropertyScale;
     static RPropertyTypeId PropertyRotation;
     static RPropertyTypeId PropertyOn;
+    static RPropertyTypeId PropertyLocked;
     static RPropertyTypeId PropertyViewCenterX;
     static RPropertyTypeId PropertyViewCenterY;
     static RPropertyTypeId PropertyViewTargetX;
@@ -190,6 +191,12 @@ public:
 
     bool isOff() const {
         return data.isOff();
+    }
+    bool isLocked() const {
+        return data.isLocked();
+    }
+    void setLocked(bool v) {
+        data.setLocked(v);
     }
 
     void setOff(bool v) {

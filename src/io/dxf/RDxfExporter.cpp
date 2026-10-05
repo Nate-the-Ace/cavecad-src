@@ -1857,6 +1857,7 @@ void RDxfExporter::writeViewport(const RViewportEntity& vp) {
     double scale = vp.getScale();
     d.viewHeight = scale>1.0e-12 ? vp.getHeight()/scale : vp.getHeight();
     d.twist = RMath::rad2deg(vp.getRotation());
+    d.flags = vp.isLocked() ? 0x4000 : 0;
 
     QList<RObject::Id> frozen = vp.getFrozenLayerIds();
     for (int i=0; i<frozen.length(); i++) {
