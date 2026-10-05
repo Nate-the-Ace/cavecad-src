@@ -303,7 +303,10 @@ LayoutCanvas.remember = function(entry) {
         return;
     }
     var doc = entry.di.getDocument();
-    entry.saved[doc.getCurrentBlockId()] = view.getBox();
+    var b = view.getBox();
+    // plain numbers: a wrapper object can stay tied to the view's own box
+    entry.saved[doc.getCurrentBlockId()] = { x1: b.getMinimum().x, y1: b.getMinimum().y,
+        x2: b.getMaximum().x, y2: b.getMaximum().y };
 };
 
 /** Back where this tab was, or zoomed onto the sheet (layout) / the whole drawing (model). */
@@ -314,8 +317,8 @@ LayoutCanvas.restoreOrFit = function(entry) {
     }
     var doc = entry.di.getDocument();
     var box = entry.saved[doc.getCurrentBlockId()];
-    if (!isNull(box) && box.isValid()) {
-        view.zoomTo(box, 0);
+    if (!isNull(box)) {
+        view.zoomTo(new RBox(new RVector(box.x1, box.y1), new RVector(box.x2, box.y2)), 0);
         return;
     }
     var cur = Layouts.current(doc);
@@ -324,7 +327,8 @@ LayoutCanvas.restoreOrFit = function(entry) {
         return;
     }
     var s = Layouts.paperSize(doc, cur);
-    view.zoomTo(new RBox(new RVector(0, 0), new RVector(s.w, s.h)), s.w * 0.06);
+    // margin is in PIXELS (an int): a fraction of a feet-sized sheet would be 0
+    view.zoomTo(new RBox(new RVector(0, 0), new RVector(s.w, s.h)), 40);
 };
 
 LayoutCanvas.update = function(entry, layoutInfo) {
@@ -559,43 +563,49 @@ LayoutTabs.exitViewport = function(entry, write, thenLayout) {
     var doc = entry.di.getDocument();
     var view = LayoutCanvas.view(entry);
     var note = "";
-    if (!isNull(view)) {
-        try {
-            if (!isNull(ed.hook)) {
-                view.viewportChanged.disconnect(ed.hook);
+    // whatever happens below, the window must come out of edit mode
+    try {
+        if (!isNull(view)) {
+            try {
+                if (!isNull(ed.hook)) {
+                    view.viewportChanged.disconnect(ed.hook);
+                }
+            }
+            catch (eDis) {
+            }
+            view.clearOverlay(LayoutTabs.OVERLAY_ID);
+        }
+        // where the frame is NOW, in model space
+        var frame = ed.frame;
+        var vp = doc.queryEntity(ed.viewportId);
+        if (write === true && !isNull(frame) && !isNull(vp) && !ed.locked && !ed.twisted) {
+            var w = frame.getMaximum().x - frame.getMinimum().x;
+            var cx = (frame.getMinimum().x + frame.getMaximum().x) / 2;
+            var cy = (frame.getMinimum().y + frame.getMaximum().y) / 2;
+            var t = vp.getViewTarget();
+            var newScale = (w > 1e-12) ? ed.width / w : ed.scale0;
+            // a pure pan leaves the scale exactly as it was
+            if (Math.abs(newScale / ed.scale0 - 1) < 1e-7) {
+                newScale = ed.scale0;
+            }
+            var newCenter = new RVector(cx - t.x, cy - t.y);
+            var moved = Math.abs(newScale - ed.scale0) > 0 ||
+                newCenter.getDistanceTo(ed.vc0) > 1e-9 * (1 + Math.abs(cx) + Math.abs(cy));
+            if (moved) {
+                vp.setScale(newScale);
+                vp.setViewCenter(newCenter);
+                var op = new RModifyObjectOperation(vp);
+                op.setText(qsTr("Reposition viewport contents"));
+                entry.di.applyOperation(op);
+                note = qsTr("Viewport contents repositioned.");
             }
         }
-        catch (eDis) {
-        }
-        view.clearOverlay(LayoutTabs.OVERLAY_ID);
-        LayoutTabs.drawFrameBox = undefined;
-    }
-    // where the frame is NOW, in model space
-    var frame = ed.frame;
-    var vp = doc.queryEntity(ed.viewportId);
-    if (write === true && !isNull(frame) && !isNull(vp) && !ed.locked && !ed.twisted) {
-        var w = frame.getMaximum().x - frame.getMinimum().x;
-        var cx = (frame.getMinimum().x + frame.getMaximum().x) / 2;
-        var cy = (frame.getMinimum().y + frame.getMaximum().y) / 2;
-        var t = vp.getViewTarget();
-        var newScale = (w > 1e-12) ? ed.width / w : ed.scale0;
-        // a pure pan leaves the scale exactly as it was
-        if (Math.abs(newScale / ed.scale0 - 1) < 1e-7) {
-            newScale = ed.scale0;
-        }
-        var newCenter = new RVector(cx - t.x, cy - t.y);
-        var moved = Math.abs(newScale - ed.scale0) > 0 || newCenter.getDistanceTo(ed.vc0) > 1e-9 * (1 + Math.abs(cx) + Math.abs(cy));
-        if (moved) {
-            vp.setScale(newScale);
-            vp.setViewCenter(newCenter);
-            var op = new RModifyObjectOperation(vp);
-            op.setText(qsTr("Reposition viewport contents"));
-            entry.di.applyOperation(op);
-            note = qsTr("Viewport contents repositioned.");
+        else if (write === true && ed.locked) {
+            note = qsTr("The viewport is locked: its contents were left as they were.");
         }
     }
-    else if (write === true && ed.locked) {
-        note = qsTr("The viewport is locked: its contents were left as they were.");
+    catch (eExit) {
+        qWarning("LayoutTabs.exitViewport: " + eExit);
     }
     // undefined: back to the same layout; null: Model; a name: that layout
     var layoutName = (thenLayout === undefined) ? ed.layoutName : thenLayout;

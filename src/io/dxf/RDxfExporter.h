@@ -80,7 +80,7 @@ public:
 
     void writeEntity(RObject::Id id);
     void writeEntity(const REntity& e);
-    void writeCustomProperties(const REntity& e);
+    void writeCustomProperties(const REntity& e, const QMap<QString, QVariantMap>& extra = QMap<QString, QVariantMap>());
     void writePoint(const RPointEntity& p);
     void writeLine(const RLineEntity& l);
     void writeXLine(const RXLineEntity& l);

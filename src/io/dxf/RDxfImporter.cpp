@@ -66,6 +66,7 @@
 #include "RXLineEntity.h"
 #include "RLayout.h"
 #include "RViewportEntity.h"
+#include "RWipeoutEntity.h"
 
 
 RDxfImporter::RDxfImporter(RDocument& document, RMessageHandler* messageHandler, RProgressHandler* progressHandler)
@@ -455,9 +456,26 @@ void RDxfImporter::endBlock() {
 
 void RDxfImporter::endEntity() {
     if (polyline.countVertices()>1) {
-        QSharedPointer<RPolylineEntity> entity(new RPolylineEntity(document, RPolylineData(polyline)));
-        entity->setPolylineGen(polylinePlineGen);
-        importEntity(entity);
+        // CaveCAD: a closed polyline marked "Wipeout=1" is a wipeout
+        // (see RDxfExporter::writeEntity)
+        bool isWipeout = false;
+        if (xData.contains("CaveCAD")) {
+            QList<QPair<int, QVariant> > list = xData["CaveCAD"];
+            for (int xi=0; xi<list.length(); xi++) {
+                if (list[xi].first==1000 && list[xi].second.toString()=="Wipeout=1") {
+                    isWipeout = true;
+                }
+            }
+        }
+        if (isWipeout) {
+            QSharedPointer<RWipeoutEntity> wipeout(new RWipeoutEntity(document, RWipeoutData(polyline)));
+            importEntity(wipeout);
+        }
+        else {
+            QSharedPointer<RPolylineEntity> entity(new RPolylineEntity(document, RPolylineData(polyline)));
+            entity->setPolylineGen(polylinePlineGen);
+            importEntity(entity);
+        }
         polyline = RPolyline();
     }
     if (leader.countVertices()>1) {

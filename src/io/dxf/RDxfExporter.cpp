@@ -59,6 +59,7 @@
 #include "RXLineEntity.h"
 #include "RLayout.h"
 #include "RViewportEntity.h"
+#include "RWipeoutEntity.h"
 
 RDxfExporter::RDxfExporter(RDocument& document,
     RMessageHandler* messageHandler,
@@ -327,9 +328,11 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
                 }
             }
         }
-        dw->tableAppid(2 + xdataAppids.size());
+        xdataAppids.remove("CaveCAD");
+        dw->tableAppid(3 + xdataAppids.size());
         dxf.writeAppid(*dw, "ACAD");
         dxf.writeAppid(*dw, "QCAD");
+        dxf.writeAppid(*dw, "CaveCAD");
         QSet<QString>::iterator ai;
         for (ai = xdataAppids.begin(); ai != xdataAppids.end(); ++ai) {
             dxf.writeAppid(*dw, (const char*)RDxfExporter::escapeUnicode(*ai));
@@ -862,6 +865,19 @@ void RDxfExporter::writeEntity(const REntity& e) {
     case RS::EntityViewport:
         writeViewport(dynamic_cast<const RViewportEntity&>(e));
         break;
+    case RS::EntityWipeout: {
+        // CaveCAD: a wipeout travels as a closed polyline marked
+        // "Wipeout=1" (read back by RDxfImporter::endEntity). There is
+        // no standard-DXF wipeout in the free writer.
+        const RWipeoutEntity& w = dynamic_cast<const RWipeoutEntity&>(e);
+        writePolyline(w.getData(), false);
+        QMap<QString, QVariantMap> marker;
+        QVariantMap vm;
+        vm.insert("Wipeout", "1");
+        marker.insert("CaveCAD", vm);
+        writeCustomProperties(e, marker);
+        return;
+    }
     case RS::EntitySolid:
         writeSolid(dynamic_cast<const RSolidEntity&>(e));
         break;
@@ -892,8 +908,17 @@ void RDxfExporter::writeEntity(const REntity& e) {
 /**
  * Writes the given entity's custom properties as XDATA.
  */
-void RDxfExporter::writeCustomProperties(const REntity& e) {
+void RDxfExporter::writeCustomProperties(const REntity& e, const QMap<QString, QVariantMap>& extra) {
     QMap<QString, QVariantMap> props = e.getCustomProperties();
+    QMap<QString, QVariantMap>::const_iterator ei;
+    for (ei = extra.constBegin(); ei != extra.constEnd(); ++ei) {
+        QVariantMap merged = props.value(ei.key());
+        QVariantMap::const_iterator vi;
+        for (vi = ei.value().constBegin(); vi != ei.value().constEnd(); ++vi) {
+            merged.insert(vi.key(), vi.value());
+        }
+        props.insert(ei.key(), merged);
+    }
     QMap<QString, QVariantMap>::iterator it;
     for (it = props.begin(); it != props.end(); ++it) {
         QString title = it.key();
