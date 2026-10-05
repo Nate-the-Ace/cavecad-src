@@ -868,6 +868,7 @@ LayoutTabs.controlViewport = function(entry) {
 
 LayoutTabs.refreshControlsAll = function() {
     LayoutTabs.prune();
+    LayoutTabs.drawGlyphAll();
     for (var i = 0; i < LayoutTabs.entries.length; i++) {
         try {
             LayoutTabs.refreshControls(LayoutTabs.entries[i]);
@@ -879,6 +880,11 @@ LayoutTabs.refreshControlsAll = function() {
 };
 
 LayoutTabs.refreshControls = function(entry) {
+    try {
+        LayoutTabs.drawGlyph(entry);
+    }
+    catch (eGlyph) {
+    }
     var vp = LayoutTabs.controlViewport(entry);
     var show = !isNull(vp);
     entry.vpLabel.visible = show;
@@ -1151,4 +1157,85 @@ LayoutTabs.addScaleBar = function(entry) {
     }
     Layouts.addScaleBarFor(entry.di.getDocument(), entry.di, vp);
     LayoutTabs.refreshControls(entry);
+};
+
+
+// ---------------------------------------------------------------------------
+// The rotation glyph: a horizontal diamond above a selected viewport.
+// Click it to turn the viewport's contents (see Layouts/RotateViewport).
+// Drawn as a screen-fixed overlay, like the editing frame.
+// ---------------------------------------------------------------------------
+
+LayoutTabs.GLYPH_ID = 1501;
+LayoutTabs.GLYPH_HALF_W = 13;
+LayoutTabs.GLYPH_HALF_H = 7;
+LayoutTabs.GLYPH_GAP = 18;
+
+/** The one viewport the glyph belongs to: selected, on the layout showing, not being edited through. */
+LayoutTabs.glyphViewport = function(entry) {
+    if (!isNull(entry.editing)) {
+        return undefined;
+    }
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp) || vp.isOverall() || Layouts.isLocked(vp)) {
+        return undefined;
+    }
+    return vp;
+};
+
+/** Screen position (view pixels) of the glyph's centre for a viewport. */
+LayoutTabs.glyphScreen = function(view, vp) {
+    var c = vp.getCenter();
+    var top = view.mapToView(new RVector(c.x, c.y + vp.getHeight() / 2));
+    return { x: top.x, y: top.y - LayoutTabs.GLYPH_GAP };
+};
+
+/**
+ * The rotation grip: a horizontal diamond above the selected viewport,
+ * registered with the CustomGrips library (which owns the widget, its place
+ * and its clicks).
+ */
+LayoutTabs.registerGrips = function() {
+    include("scripts/Widgets/CustomGrips/CustomGrips.js");
+    CustomGrips.register({
+        id: "viewport-rotate",
+        shape: "diamond",
+        size: [2 * LayoutTabs.GLYPH_HALF_W + 2, 2 * LayoutTabs.GLYPH_HALF_H + 2],
+        tooltip: qsTr("Rotate the viewport's contents: move the mouse round, or type an angle"),
+        target: function(entry) { return LayoutTabs.glyphViewport(entry); },
+        anchor: function(view, vp) { return LayoutTabs.glyphScreen(view, vp); },
+        onClick: function(entry, vp) { LayoutTabs.glyphClicked(entry); }
+    });
+};
+
+LayoutTabs.drawGlyph = function(entry) {
+    if (isNull(entry.view)) {
+        entry.view = function() { return LayoutCanvas.view(entry); };
+    }
+    if (isNull(CustomGrips.grips["viewport-rotate"])) {
+        LayoutTabs.registerGrips();
+    }
+    CustomGrips.refresh(entry);
+};
+
+LayoutTabs.drawGlyphAll = function() {
+    for (var i = 0; i < LayoutTabs.entries.length; i++) {
+        try {
+            if (LayoutTabs.live(LayoutTabs.entries[i])) {
+                LayoutTabs.drawGlyph(LayoutTabs.entries[i]);
+            }
+        }
+        catch (e) {
+        }
+    }
+};
+
+/** The glyph was clicked: start the rotation tool on the selected viewport. */
+LayoutTabs.glyphClicked = function(entry) {
+    var vp = LayoutTabs.glyphViewport(entry);
+    if (isNull(vp)) {
+        return;
+    }
+    include("scripts/Layouts/RotateViewport/RotateViewport.js");
+    RotateViewport.start(entry.di, vp.getId());
 };
