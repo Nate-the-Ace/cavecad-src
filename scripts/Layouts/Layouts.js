@@ -601,3 +601,152 @@ Layouts.viewportAt = function(doc, info, x, y) {
     }
     return undefined;
 };
+
+
+// ---------------------------------------------------------------------------
+// Viewport scale
+//
+// A viewport's scale is stored the way the engine needs it -- paper units per
+// model unit -- and SPOKEN the way a cave map is: feet of cave per inch of
+// paper ("1\" = 40 ft"), or a ratio for metric work. The list below is the
+// standard set; a person's own scales are added to it (and kept between runs)
+// with Layouts.addCustomScale.
+// ---------------------------------------------------------------------------
+
+/** Standard scales, feet of cave per inch of paper. Metric ratios 1:N are N/12 ft per inch. */
+Layouts.STANDARD_SCALES = [
+    { label: "1\" = 10 ft", feetPerInch: 10 }, { label: "1\" = 20 ft", feetPerInch: 20 },
+    { label: "1\" = 25 ft", feetPerInch: 25 }, { label: "1\" = 30 ft", feetPerInch: 30 },
+    { label: "1\" = 40 ft", feetPerInch: 40 }, { label: "1\" = 50 ft", feetPerInch: 50 },
+    { label: "1\" = 60 ft", feetPerInch: 60 }, { label: "1\" = 80 ft", feetPerInch: 80 },
+    { label: "1\" = 100 ft", feetPerInch: 100 }, { label: "1\" = 150 ft", feetPerInch: 150 },
+    { label: "1\" = 200 ft", feetPerInch: 200 }, { label: "1\" = 300 ft", feetPerInch: 300 },
+    { label: "1\" = 400 ft", feetPerInch: 400 }, { label: "1\" = 500 ft", feetPerInch: 500 },
+    { label: "1:100", feetPerInch: 100 / 12 }, { label: "1:200", feetPerInch: 200 / 12 },
+    { label: "1:250", feetPerInch: 250 / 12 }, { label: "1:500", feetPerInch: 500 / 12 },
+    { label: "1:1000", feetPerInch: 1000 / 12 }, { label: "1:2000", feetPerInch: 2000 / 12 }
+];
+
+Layouts.CUSTOM_SCALES_KEY = "Layouts/CustomScales";
+
+/** The person's own scales (feet per inch), ascending. */
+Layouts.customScales = function() {
+    var text = "";
+    try {
+        text = String(RSettings.getStringValue(Layouts.CUSTOM_SCALES_KEY, ""));
+    } catch (e) {
+        text = "";
+    }
+    var out = [];
+    var parts = text.split(",");
+    for (var i = 0; i < parts.length; i++) {
+        var v = parseFloat(parts[i]);
+        if (isFinite(v) && v > 0) {
+            out.push(v);
+        }
+    }
+    out.sort(function(a, b) { return a - b; });
+    return out;
+};
+
+Layouts.sameScale = function(a, b) {
+    return Math.abs(a - b) <= 1e-6 * Math.max(Math.abs(a), Math.abs(b));
+};
+
+/** Label of a scale: the standard one's own, else "1\" = N ft (custom)". */
+Layouts.scaleLabel = function(feetPerInch) {
+    for (var i = 0; i < Layouts.STANDARD_SCALES.length; i++) {
+        if (Layouts.sameScale(Layouts.STANDARD_SCALES[i].feetPerInch, feetPerInch)) {
+            return Layouts.STANDARD_SCALES[i].label;
+        }
+    }
+    return "1\" = " + (Math.round(feetPerInch * 1000) / 1000) + " ft";
+};
+
+/** Standard + custom scales, ascending: [{label, feetPerInch, custom}]. */
+Layouts.scales = function() {
+    var list = [];
+    var i;
+    for (i = 0; i < Layouts.STANDARD_SCALES.length; i++) {
+        list.push({ label: Layouts.STANDARD_SCALES[i].label,
+            feetPerInch: Layouts.STANDARD_SCALES[i].feetPerInch, custom: false });
+    }
+    var mine = Layouts.customScales();
+    for (i = 0; i < mine.length; i++) {
+        var present = false;
+        for (var k = 0; k < list.length; k++) {
+            if (Layouts.sameScale(list[k].feetPerInch, mine[i])) {
+                present = true;
+            }
+        }
+        if (!present) {
+            list.push({ label: Layouts.scaleLabel(mine[i]), feetPerInch: mine[i], custom: true });
+        }
+    }
+    list.sort(function(a, b) { return a.feetPerInch - b.feetPerInch; });
+    return list;
+};
+
+/** Adds a scale to the person's list (kept between runs). \return false when invalid or already listed. */
+Layouts.addCustomScale = function(feetPerInch) {
+    if (!isFinite(feetPerInch) || !(feetPerInch > 0)) {
+        return false;
+    }
+    var all = Layouts.scales();
+    for (var i = 0; i < all.length; i++) {
+        if (Layouts.sameScale(all[i].feetPerInch, feetPerInch)) {
+            return false;
+        }
+    }
+    var mine = Layouts.customScales();
+    mine.push(feetPerInch);
+    RSettings.setValue(Layouts.CUSTOM_SCALES_KEY, mine.join(","));
+    return true;
+};
+
+/** Removes one of the person's own scales (the standard ones stay). */
+Layouts.removeCustomScale = function(feetPerInch) {
+    var mine = Layouts.customScales();
+    var keep = [];
+    for (var i = 0; i < mine.length; i++) {
+        if (!Layouts.sameScale(mine[i], feetPerInch)) {
+            keep.push(mine[i]);
+        }
+    }
+    RSettings.setValue(Layouts.CUSTOM_SCALES_KEY, keep.join(","));
+    return keep.length !== mine.length;
+};
+
+/** Drawing units in one inch of paper / in one foot of ground. */
+Layouts.paperInch = function(doc) {
+    return RUnit.convert(1, RS.Inch, doc.getUnit());
+};
+Layouts.groundFoot = function(doc) {
+    return RUnit.convert(1, RS.Foot, doc.getUnit());
+};
+
+/** Engine scale (paper units per model unit) for "1 inch of paper = feetPerInch feet of cave". */
+Layouts.scaleFor = function(doc, feetPerInch) {
+    return Layouts.paperInch(doc) / (feetPerInch * Layouts.groundFoot(doc));
+};
+
+/** A viewport's scale as feet of cave per inch of paper. */
+Layouts.feetPerInch = function(doc, vp) {
+    return (Layouts.paperInch(doc) / vp.getScale()) / Layouts.groundFoot(doc);
+};
+
+/**
+ * Sets a viewport's scale about the point it is already showing (undoable).
+ * \return false when the viewport is locked (nothing changes).
+ */
+Layouts.setViewportScale = function(di, vp, feetPerInch) {
+    if (Layouts.isLocked(vp) || !isFinite(feetPerInch) || !(feetPerInch > 0)) {
+        return false;
+    }
+    var doc = di.getDocument();
+    vp.setScale(Layouts.scaleFor(doc, feetPerInch));
+    var op = new RModifyObjectOperation(vp);
+    op.setText(qsTr("Viewport scale"));
+    di.applyOperation(op);
+    return true;
+};

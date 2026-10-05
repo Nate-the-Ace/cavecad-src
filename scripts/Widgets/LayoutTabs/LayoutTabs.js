@@ -38,6 +38,16 @@ LayoutTabs.init = function(basePath) {
     adapter.currentBlockSet.connect(function(di) { LayoutTabs.syncAll(); });
     adapter.blocksCleared.connect(function() { LayoutTabs.refreshAll(); });
     LayoutTabs.adapter = adapter;
+
+    // the viewport controls follow the selection and any change to a viewport
+    var sel = new RSelectionListenerAdapter();
+    appWin.addSelectionListener(sel);
+    sel.selectionChanged.connect(function(di) { LayoutTabs.refreshControlsAll(); });
+    LayoutTabs.selAdapter = sel;
+    var tx = new RTransactionListenerAdapter();
+    appWin.addTransactionListener(tx);
+    tx.transactionUpdated.connect(function(document, transaction) { LayoutTabs.refreshControlsAll(); });
+    LayoutTabs.txAdapter = tx;
 };
 
 /** Called for every new drawing window with its root widget. */
@@ -69,6 +79,23 @@ LayoutTabs.attach = function(root, di) {
     plus.toolTip = qsTr("New layout");
     row.addWidget(plus, 0, 0);
     row.addStretch(1);
+    // the selected viewport's scale and lock (shown only when exactly one is selected)
+    var vpLabel = new QLabel(strip);
+    vpLabel.objectName = "LayoutViewportLabel";
+    vpLabel.text = qsTr("Viewport:");
+    vpLabel.visible = false;
+    row.addWidget(vpLabel, 0, 0);
+    var vpScale = new QComboBox(strip);
+    vpScale.objectName = "LayoutViewportScale";
+    vpScale.toolTip = qsTr("Scale of the selected viewport");
+    vpScale.visible = false;
+    row.addWidget(vpScale, 0, 0);
+    var vpLock = new QCheckBox(strip);
+    vpLock.objectName = "LayoutViewportLock";
+    vpLock.text = qsTr("Locked");
+    vpLock.toolTip = qsTr("A locked viewport keeps its scale and what it shows");
+    vpLock.visible = false;
+    row.addWidget(vpLock, 0, 0);
     var banner = new QLabel(strip);
     banner.objectName = "LayoutEditBanner";
     banner.visible = false;
@@ -100,6 +127,12 @@ LayoutTabs.attach = function(root, di) {
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
     entry.banner = banner;
     entry.done = done;
+    entry.vpLabel = vpLabel;
+    entry.vpScale = vpScale;
+    entry.vpLock = vpLock;
+    entry.vpShown = undefined;
+    vpScale["activated(int)"].connect(function(index) { LayoutTabs.scalePicked(entry, index); });
+    vpLock.clicked.connect(function(checked) { LayoutTabs.lockClicked(entry, checked); });
     done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
 
     LayoutTabs.refresh(entry);
@@ -708,4 +741,150 @@ LayoutTabs.emptyDoubleClick = function(di, event) {
     if (p.x < f.getMinimum().x || p.x > f.getMaximum().x || p.y < f.getMinimum().y || p.y > f.getMaximum().y) {
         LayoutTabs.exitViewport(entry, true);
     }
+};
+
+
+// ---------------------------------------------------------------------------
+// The selected viewport's scale and lock, in the tab strip.
+// ---------------------------------------------------------------------------
+
+/** The viewport to show controls for: the one selected, or the one being edited through. */
+LayoutTabs.controlViewport = function(entry) {
+    var doc = entry.di.getDocument();
+    var info = Layouts.current(doc);
+    if (isNull(info)) {
+        if (!isNull(entry.editing)) {
+            var edited = doc.queryEntity(entry.editing.viewportId);
+            return isNull(edited) || edited.isUndone() ? undefined : edited;
+        }
+        return undefined;
+    }
+    var ids = doc.querySelectedEntities();
+    if (ids.length !== 1) {
+        return undefined;
+    }
+    var e = doc.queryEntity(ids[0]);
+    if (isNull(e) || e.getType() !== RS.EntityViewport || e.isOverall() || e.getBlockId() !== info.blockId) {
+        return undefined;
+    }
+    return e;
+};
+
+LayoutTabs.refreshControlsAll = function() {
+    for (var i = 0; i < LayoutTabs.entries.length; i++) {
+        try {
+            LayoutTabs.refreshControls(LayoutTabs.entries[i]);
+        }
+        catch (e) {
+            // a closed window's strip
+        }
+    }
+};
+
+LayoutTabs.refreshControls = function(entry) {
+    var vp = LayoutTabs.controlViewport(entry);
+    var show = !isNull(vp);
+    entry.vpLabel.visible = show;
+    entry.vpScale.visible = show;
+    entry.vpLock.visible = show;
+    if (!show) {
+        return;
+    }
+    var doc = entry.di.getDocument();
+    var locked = Layouts.isLocked(vp);
+    var fpi = Layouts.feetPerInch(doc, vp);
+    var scales = Layouts.scales();
+    var combo = entry.vpScale;
+    combo.blockSignals(true);
+    combo.clear();
+    var current = -1;
+    for (var i = 0; i < scales.length; i++) {
+        combo.addItem(scales[i].label + (scales[i].custom ? "  (mine)" : ""));
+        if (Layouts.sameScale(scales[i].feetPerInch, fpi)) {
+            current = i;
+        }
+    }
+    entry.vpScales = scales;
+    // not on the list (a zoom, or a typed value): shown first, as it is
+    if (current < 0) {
+        combo.insertItem(0, Layouts.scaleLabel(fpi) + "  (current)");
+        entry.vpScaleOffset = 1;
+        current = 0;
+    }
+    else {
+        entry.vpScaleOffset = 0;
+    }
+    combo.addItem(qsTr("Add a scale..."));
+    combo.addItem(qsTr("Remove one of my scales..."));
+    combo.setCurrentIndex(current);
+    combo.enabled = !locked;
+    combo.blockSignals(false);
+    entry.vpLock.blockSignals(true);
+    entry.vpLock.checked = locked;
+    entry.vpLock.blockSignals(false);
+    entry.vpShown = vp.getId();
+};
+
+LayoutTabs.scalePicked = function(entry, index) {
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp) || isNull(entry.vpScales)) {
+        return;
+    }
+    var offset = entry.vpScaleOffset;
+    var n = entry.vpScales.length;
+    var appWin = RMainWindowQt.getMainWindow();
+    if (index === n + offset) {
+        // add a scale
+        var fpi = Layouts.feetPerInch(entry.di.getDocument(), vp);
+        var ft = QInputDialog.getDouble(appWin, qsTr("Add a scale"),
+            qsTr("Feet of cave per inch of paper (for 1:N, N divided by 12):"), fpi, 0.01, 100000, 3);
+        if (isNull(ft) || !(ft > 0)) {
+            LayoutTabs.refreshControls(entry);
+            return;
+        }
+        Layouts.addCustomScale(ft);
+        Layouts.setViewportScale(entry.di, vp, ft);
+        LayoutTabs.refreshControls(entry);
+        return;
+    }
+    if (index === n + offset + 1) {
+        // remove one of mine
+        var mine = Layouts.customScales();
+        if (mine.length === 0) {
+            QMessageBox.information(appWin, qsTr("Scales"), qsTr("You have not added any scales of your own."));
+            LayoutTabs.refreshControls(entry);
+            return;
+        }
+        var labels = [];
+        for (var m = 0; m < mine.length; m++) {
+            labels.push(Layouts.scaleLabel(mine[m]));
+        }
+        var chosen = QInputDialog.getItem(appWin, qsTr("Remove a scale"), qsTr("Scale to remove:"), labels, 0, false);
+        if (!isNull(chosen) && String(chosen) !== "") {
+            var at = labels.indexOf(String(chosen));
+            if (at >= 0) {
+                Layouts.removeCustomScale(mine[at]);
+            }
+        }
+        LayoutTabs.refreshControls(entry);
+        return;
+    }
+    var pick = index - offset;
+    if (pick < 0 || pick >= n) {
+        LayoutTabs.refreshControls(entry);
+        return;
+    }
+    if (!Layouts.setViewportScale(entry.di, vp, entry.vpScales[pick].feetPerInch)) {
+        RMainWindowQt.getMainWindow().handleUserMessage(qsTr("The viewport is locked: unlock it to change its scale."));
+    }
+    LayoutTabs.refreshControls(entry);
+};
+
+LayoutTabs.lockClicked = function(entry, checked) {
+    var vp = LayoutTabs.controlViewport(entry);
+    if (isNull(vp)) {
+        return;
+    }
+    Layouts.setLocked(entry.di, vp, checked === true);
+    LayoutTabs.refreshControls(entry);
 };
