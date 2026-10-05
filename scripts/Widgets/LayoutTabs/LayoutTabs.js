@@ -231,11 +231,36 @@ LayoutTabs.attach = function(root, di) {
     vpLock.clicked.connect(function(checked) { LayoutTabs.lockClicked(entry, checked); });
     done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
 
+    LayoutTabs.ensureLayout(entry);
     LayoutTabs.refresh(entry);
     try {
         LayoutTabs.applyTheme(entry);
     }
     catch (eFirst) {
+    }
+};
+
+/**
+ * EVERY DRAWING HAS A LAYOUT TAB. A file that arrives with no layout gets one
+ * ("Layout", Letter or A3 by its unit) so the Model/Layout pair is always
+ * there; the cave suite fills the empty one with the default sheet when it is
+ * first opened. Made as part of loading: not an undo step, and not a change
+ * the caver is asked to save.
+ */
+LayoutTabs.ensureLayout = function(entry) {
+    try {
+        var doc = entry.di.getDocument();
+        if (Layouts.list(doc).length > 0) {
+            return;
+        }
+        var wasModified = doc.isModified();
+        var metric = (doc.getUnit() === RS.Millimeter || doc.getUnit() === RS.Centimeter || doc.getUnit() === RS.Meter);
+        Layouts.create(entry.di, { name: "Layout", paper: metric ? "A3" : "Letter", landscape: true });
+        doc.resetTransactionStack();
+        doc.setModified(wasModified);
+    }
+    catch (e) {
+        qWarning("LayoutTabs.ensureLayout: " + e);
     }
 };
 
@@ -459,6 +484,18 @@ LayoutTabs.tabPicked = function(entry, index) {
 };
 
 LayoutTabs.addLayout = function(entry) {
+    // the cave suite makes new layouts from templates (Layouts.newFromTemplate)
+    if (typeof Layouts.newFromTemplate === "function") {
+        var made = Layouts.newFromTemplate(entry.di);
+        if (made === true) {
+            LayoutTabs.refresh(entry);
+            var infoNow = Layouts.current(entry.di.getDocument());
+            LayoutCanvas.remember(entry);
+            LayoutTabs.sync(entry);
+            LayoutCanvas.restoreOrFit(entry);
+        }
+        return;
+    }
     var doc = entry.di.getDocument();
     var metric = (doc.getUnit() === RS.Millimeter || doc.getUnit() === RS.Centimeter || doc.getUnit() === RS.Meter);
     var info = Layouts.create(entry.di, { paper: metric ? "A3" : "Letter", landscape: true });
