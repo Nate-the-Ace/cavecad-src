@@ -107,6 +107,13 @@ LayoutTabs.attach = function(root, di) {
     vpLayers.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     vpLayers.visible = false;
     row.addWidget(vpLayers, 0, 0);
+    var newVp = new QPushButton(strip);
+    newVp.objectName = "LayoutNewViewport";
+    newVp.text = qsTr("New viewport");
+    newVp.toolTip = qsTr("Draw a viewport on this layout: click two corners (Layout menu, command: viewport)");
+    newVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
+    newVp.visible = false;
+    row.addWidget(newVp, 0, 0);
     var vpBar = new QPushButton(strip);
     vpBar.objectName = "LayoutViewportBar";
     vpBar.text = qsTr("Scale bar");
@@ -138,6 +145,14 @@ LayoutTabs.attach = function(root, di) {
         id: LayoutTabs.nextId++, editing: undefined };
     strip.setProperty("ltId", entry.id);
     LayoutTabs.entries.push(entry);
+    // A CLOSED WINDOW'S entry must go with it: its document is freed, and the
+    // listeners below would ask that dead document for its current block --
+    // a crash, not an exception, so no try/catch can save it.
+    try {
+        strip.destroyed.connect(function() { entry.dead = true; LayoutTabs.prune(); });
+    }
+    catch (eDestroyed) {
+    }
 
     bar.currentChanged.connect(function(index) { LayoutTabs.tabPicked(entry, index); });
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
@@ -150,6 +165,8 @@ LayoutTabs.attach = function(root, di) {
     entry.vpLock = vpLock;
     entry.vpLayers = vpLayers;
     entry.vpBar = vpBar;
+    entry.newVp = newVp;
+    newVp.clicked.connect(function() { LayoutTabs.newViewport(entry); });
     vpBar.clicked.connect(function() { LayoutTabs.addScaleBar(entry); });
     entry.vpShown = undefined;
     vpLayers.clicked.connect(function() { LayoutTabs.viewportLayers(entry); });
@@ -160,7 +177,31 @@ LayoutTabs.attach = function(root, di) {
     LayoutTabs.refresh(entry);
 };
 
+/** Forgets the entries of windows that have closed. */
+LayoutTabs.prune = function() {
+    for (var i = LayoutTabs.entries.length - 1; i >= 0; i--) {
+        if (!LayoutTabs.live(LayoutTabs.entries[i])) {
+            LayoutTabs.entries.splice(i, 1);
+        }
+    }
+};
+
+/** True while the entry's window (strip widget) still exists. */
+LayoutTabs.live = function(entry) {
+    if (entry.dead === true) {
+        return false;
+    }
+    try {
+        return !isNull(entry.strip) && !isNull(entry.strip.parentWidget()) &&
+            !isNull(entry.strip.objectName);
+    }
+    catch (e) {
+        return false;
+    }
+};
+
 LayoutTabs.refreshAll = function() {
+    LayoutTabs.prune();
     for (var i = 0; i < LayoutTabs.entries.length; i++) {
         try {
             LayoutTabs.refresh(LayoutTabs.entries[i]);
@@ -174,6 +215,7 @@ LayoutTabs.refreshAll = function() {
 };
 
 LayoutTabs.syncAll = function() {
+    LayoutTabs.prune();
     for (var i = 0; i < LayoutTabs.entries.length; i++) {
         try {
             LayoutTabs.sync(LayoutTabs.entries[i]);
@@ -239,7 +281,18 @@ LayoutTabs.sync = function(entry) {
         entry.bar.setCurrentIndex(wanted);
     }
     entry.syncing = false;
+    entry.newVp.visible = !isNull(cur);
     LayoutCanvas.update(entry, cur);
+};
+
+/** Starts the New Viewport tool on this layout. */
+LayoutTabs.newViewport = function(entry) {
+    var action = RGuiAction.getByScriptFile("scripts/Layouts/NewViewport/NewViewport.js");
+    if (isNull(action)) {
+        EAction.handleUserWarning(qsTr("New Viewport is not available in this build."));
+        return;
+    }
+    action.slotTrigger();
 };
 
 LayoutTabs.tabPicked = function(entry, index) {
@@ -797,6 +850,7 @@ LayoutTabs.controlViewport = function(entry) {
 };
 
 LayoutTabs.refreshControlsAll = function() {
+    LayoutTabs.prune();
     for (var i = 0; i < LayoutTabs.entries.length; i++) {
         try {
             LayoutTabs.refreshControls(LayoutTabs.entries[i]);
