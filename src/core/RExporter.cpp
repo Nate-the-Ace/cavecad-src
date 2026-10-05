@@ -64,6 +64,7 @@ RExporter::RExporter()
       clipping(false),
       annotationScale(0.0),
       annotationDepth(0),
+      annotationAppend(false),
       wipeout(false),
       frameless(false),
       pixelWidth(false),
@@ -91,6 +92,7 @@ RExporter::RExporter(RDocument& document, RMessageHandler *messageHandler, RProg
       clipping(false),
       annotationScale(0.0),
       annotationDepth(0),
+      annotationAppend(false),
       wipeout(false),
       frameless(false),
       pixelWidth(false),
@@ -754,7 +756,9 @@ void RExporter::exportEntity(QSharedPointer<REntity> entity, bool preview, bool 
                 if (RAnnotation::sameScale(all[i].fpi, fpi)) {
                     continue;
                 }
+                annotationAppend = true;
                 exportEntity(RAnnotation::representation(entity, all[i], adoc, true), preview, allBlocks, false, invisible);
+                annotationAppend = false;
             }
         }
         annotationDepth--;
@@ -818,9 +822,11 @@ void RExporter::exportEntity(QSharedPointer<REntity> entity, bool preview, bool 
             twoColorSelectedMode = true;
         }
 
-        startEntity(/* topLevelEntity = */ blockRefOrViewportSet || blockRefViewportStack.isEmpty());
+        // (a shaded-back scale of an annotative text is not "the" entity: it must not wipe what is already drawn for it)
+        const bool topLevel = (blockRefOrViewportSet || blockRefViewportStack.isEmpty()) && !annotationAppend;
+        startEntity(/* topLevelEntity = */ topLevel);
         exportCurrentEntity(preview, forceSelected);
-        endEntity(blockRefOrViewportSet || blockRefViewportStack.isEmpty());
+        endEntity(topLevel);
 
         // export again, with secondary selection color:
         if (visualExporter) {

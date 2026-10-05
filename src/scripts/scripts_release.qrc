@@ -1,6 +1,19 @@
 <!DOCTYPE RCC><RCC version="1.0">
   <qresource>
     <file alias="scripts/AddOn.js">../../scripts/AddOn.js</file>
+    <file alias="scripts/Annotate/AddCurrentScale/AddCurrentScale.js">../../scripts/Annotate/AddCurrentScale/AddCurrentScale.js</file>
+    <file alias="scripts/Annotate/AddCurrentScale/AddCurrentScaleInit.js">../../scripts/Annotate/AddCurrentScale/AddCurrentScaleInit.js</file>
+    <file alias="scripts/Annotate/AnnotationScale/AnnotationScale.js">../../scripts/Annotate/AnnotationScale/AnnotationScale.js</file>
+    <file alias="scripts/Annotate/AnnotationScale/AnnotationScaleInit.js">../../scripts/Annotate/AnnotationScale/AnnotationScaleInit.js</file>
+    <file alias="scripts/Annotate/AnnotationVisibility/AnnotationVisibility.js">../../scripts/Annotate/AnnotationVisibility/AnnotationVisibility.js</file>
+    <file alias="scripts/Annotate/AnnotationVisibility/AnnotationVisibilityInit.js">../../scripts/Annotate/AnnotationVisibility/AnnotationVisibilityInit.js</file>
+    <file alias="scripts/Annotate/Annotative.js">../../scripts/Annotate/Annotative.js</file>
+    <file alias="scripts/Annotate/DeleteCurrentScale/DeleteCurrentScale.js">../../scripts/Annotate/DeleteCurrentScale/DeleteCurrentScale.js</file>
+    <file alias="scripts/Annotate/DeleteCurrentScale/DeleteCurrentScaleInit.js">../../scripts/Annotate/DeleteCurrentScale/DeleteCurrentScaleInit.js</file>
+    <file alias="scripts/Annotate/MakeAnnotative/MakeAnnotative.js">../../scripts/Annotate/MakeAnnotative/MakeAnnotative.js</file>
+    <file alias="scripts/Annotate/MakeAnnotative/MakeAnnotativeInit.js">../../scripts/Annotate/MakeAnnotative/MakeAnnotativeInit.js</file>
+    <file alias="scripts/Annotate/MakeNotAnnotative/MakeNotAnnotative.js">../../scripts/Annotate/MakeNotAnnotative/MakeNotAnnotative.js</file>
+    <file alias="scripts/Annotate/MakeNotAnnotative/MakeNotAnnotativeInit.js">../../scripts/Annotate/MakeNotAnnotative/MakeNotAnnotativeInit.js</file>
     <file alias="scripts/Apollonius.js">../../scripts/Apollonius.js</file>
     <file alias="scripts/Block/AddBlock/AddBlock-inverse.svg">../../scripts/Block/AddBlock/AddBlock-inverse.svg</file>
     <file alias="scripts/Block/AddBlock/AddBlock.js">../../scripts/Block/AddBlock/AddBlock.js</file>
