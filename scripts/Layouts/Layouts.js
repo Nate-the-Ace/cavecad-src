@@ -335,6 +335,7 @@ Layouts.create = function(di, opts) {
                 reuse.setText(qsTr("Create layout"));
                 reuse.addObject(blank, false);
                 di.applyOperation(reuse);
+                Layouts.applyPrintSettings(di, name);
                 return Layouts.get(doc, name);
             }
         }
@@ -360,6 +361,7 @@ Layouts.create = function(di, opts) {
     addBlock.addObject(block, false);
     di.applyOperation(addBlock);
 
+    Layouts.applyPrintSettings(di, name, group);
     return Layouts.get(doc, name);
 };
 
@@ -452,6 +454,15 @@ Layouts.setPaper = function(di, name, changes) {
             layout.setPlotPaperMarginTopMM(m.t);
         }
     }, qsTr("Page setup"));
+};
+
+/** Page setup that also keeps the block's print settings in step. */
+Layouts.pageSetup = function(di, name, changes) {
+    var info = Layouts.setPaper(di, name, changes);
+    if (!isNull(info)) {
+        Layouts.applyPrintSettings(di, info.name);
+    }
+    return Layouts.get(di.getDocument(), isNull(info) ? name : info.name);
 };
 
 /** Sets "auto" or "manual". */
@@ -747,6 +758,66 @@ Layouts.setViewportScale = function(di, vp, feetPerInch) {
     vp.setScale(Layouts.scaleFor(doc, feetPerInch));
     var op = new RModifyObjectOperation(vp);
     op.setText(qsTr("Viewport scale"));
+    di.applyOperation(op);
+    return true;
+};
+
+
+// ---------------------------------------------------------------------------
+// Print settings on the layout's block
+//
+// Print.js reads the page settings of a LAYOUT block from the block's own
+// custom properties (title "QCAD", the same keys as the document variables,
+// see Print.getValue) and falls back on the document's. So File > Print and
+// Print Preview on a layout tab are WYSIWYG once the block carries its
+// sheet's paper: millimetre paper, 1:1 (paper coordinates are drawing units,
+// see the header), no offset, one page, no margins of its own.
+// ---------------------------------------------------------------------------
+
+/** The Print.js keys and values for a layout. */
+Layouts.printSettings = function(info) {
+    var shorter = Math.min(info.paperMM.w, info.paperMM.h);
+    var longer = Math.max(info.paperMM.w, info.paperMM.h);
+    var s = {};
+    s["UnitSettings/PaperUnit"] = RS.Millimeter;
+    s["PageSettings/PaperWidth"] = shorter;
+    s["PageSettings/PaperHeight"] = longer;
+    s["PageSettings/PageOrientation"] = info.paperMM.w >= info.paperMM.h ? "Landscape" : "Portrait";
+    s["PageSettings/Scale"] = "1:1";
+    s["PageSettings/OffsetX"] = 0;
+    s["PageSettings/OffsetY"] = 0;
+    s["MultiPageSettings/Rows"] = 1;
+    s["MultiPageSettings/Columns"] = 1;
+    s["MultiPageSettings/GlueMarginsLeft"] = 0;
+    s["MultiPageSettings/GlueMarginsTop"] = 0;
+    s["MultiPageSettings/GlueMarginsRight"] = 0;
+    s["MultiPageSettings/GlueMarginsBottom"] = 0;
+    s["MultiPageSettings/PrintCropMarks"] = false;
+    s["PageTagSettings/EnablePageTags"] = false;
+    s["ColorSettings/ColorMode"] = "FullColor";
+    return s;
+};
+
+/** Writes a layout's print settings onto its block (one undoable step with whatever called it). */
+Layouts.applyPrintSettings = function(di, name, group) {
+    var doc = di.getDocument();
+    var info = Layouts.get(doc, name);
+    if (isNull(info)) {
+        return false;
+    }
+    var block = doc.queryBlock(info.blockId);
+    var settings = Layouts.printSettings(info);
+    for (var key in settings) {
+        if (settings.hasOwnProperty(key)) {
+            block.setCustomProperty("QCAD", key, settings[key]);
+        }
+    }
+    var op = new RModifyObjectsOperation();
+    op.setText(qsTr("Layout print settings"));
+    if (!isNull(group)) {
+        op.setTransactionGroup(group);
+    }
+    op.addObject(block, false);
     di.applyOperation(op);
     return true;
 };

@@ -277,13 +277,14 @@ LayoutTabs.contextMenu = function(entry, pos) {
     var menu = new QMenu(entry.bar);
     var self = this;
     var actNew = menu.addAction(qsTr("New layout"));
-    var actRename, actDup, actDelete, actLeft, actRight, actRevert;
+    var actRename, actDup, actDelete, actLeft, actRight, actRevert, actSetup;
     if (index > 0) {
         menu.addSeparator();
         if (typeof Layouts.canRevertOf === "function" && entry.states[index] !== "auto" &&
             Layouts.canRevertOf(entry.di.getDocument(), Layouts.get(entry.di.getDocument(), entry.names[index]))) {
             actRevert = menu.addAction(qsTr("Revert to automatic"));
         }
+        actSetup = menu.addAction(qsTr("Page setup..."));
         actRename = menu.addAction(qsTr("Rename..."));
         actDup = menu.addAction(qsTr("Duplicate"));
         actLeft = menu.addAction(qsTr("Move left"));
@@ -308,6 +309,9 @@ LayoutTabs.contextMenu = function(entry, pos) {
             Layouts.revertOf(entry.di.getDocument(), entry.di, name);
             LayoutTabs.refresh(entry);
         }
+    }
+    else if (index > 0 && chosen.text === actSetup.text) {
+        LayoutTabs.pageSetup(entry, name);
     }
     else if (index > 0 && chosen.text === actRename.text) {
         LayoutTabs.rename(entry, index);
@@ -891,4 +895,79 @@ LayoutTabs.lockClicked = function(entry, checked) {
     }
     Layouts.setLocked(entry.di, vp, checked === true);
     LayoutTabs.refreshControls(entry);
+};
+
+
+// ---------------------------------------------------------------------------
+// Page setup: paper, orientation and margin of one layout.
+// ---------------------------------------------------------------------------
+
+LayoutTabs.pageSetup = function(entry, name) {
+    var doc = entry.di.getDocument();
+    var info = Layouts.get(doc, name);
+    if (isNull(info)) {
+        return;
+    }
+    var appWin = RMainWindowQt.getMainWindow();
+    var dialog = new QDialog(appWin);
+    dialog.windowTitle = qsTr("Page setup - %1").arg(name);
+    var form = new QVBoxLayout();
+    function row(label, widget) {
+        var r = new QHBoxLayout();
+        r.addWidget(new QLabel(label, dialog), 0, 0);
+        r.addWidget(widget, 1, 0);
+        form.addLayout(r);
+    }
+    var paper = new QComboBox(dialog);
+    var current = Layouts.paperNameOf(info.paperMM.w, info.paperMM.h);
+    var at = 0;
+    for (var i = 0; i < Layouts.PAPERS.length; i++) {
+        paper.addItem(Layouts.PAPERS[i].name);
+        if (Layouts.PAPERS[i].name === current) {
+            at = i;
+        }
+    }
+    var custom = (current === "");
+    if (custom) {
+        paper.insertItem(0, Math.round(info.paperMM.w) + " x " + Math.round(info.paperMM.h) + " mm (current)");
+        at = 0;
+    }
+    paper.setCurrentIndex(at);
+    row(qsTr("Paper:"), paper);
+    var landscape = new QCheckBox(dialog);
+    landscape.text = qsTr("Landscape");
+    landscape.checked = info.paperMM.w >= info.paperMM.h;
+    row("", landscape);
+    var margin = new QDoubleSpinBox(dialog);
+    margin.setRange(0, 5);
+    margin.setDecimals(2);
+    margin.setSingleStep(0.05);
+    margin.suffix = qsTr(" in");
+    margin.value = info.marginsMM.l / 25.4;
+    row(qsTr("Margin:"), margin);
+    var buttons = new QDialogButtonBox(dialog);
+    buttons.standardButtons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel;
+    buttons.accepted.connect(function() { dialog.accept(); });
+    buttons.rejected.connect(function() { dialog.reject(); });
+    var box = new QVBoxLayout();
+    box.addLayout(form);
+    box.addWidget(buttons, 0, 0);
+    dialog.setLayout(box);
+    var ok = dialog.exec();
+    var changes = {};
+    if (ok) {
+        var idx = paper.currentIndex;
+        if (!(custom && idx === 0)) {
+            changes.paper = Layouts.PAPERS[custom ? idx - 1 : idx].name;
+        }
+        changes.landscape = landscape.checked;
+        changes.margins = margin.value * 25.4;
+    }
+    destrDialog(dialog);
+    if (!ok) {
+        return;
+    }
+    Layouts.pageSetup(entry.di, name, changes);
+    LayoutTabs.refresh(entry);
+    LayoutCanvas.restoreOrFit(entry);
 };
