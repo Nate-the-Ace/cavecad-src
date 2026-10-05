@@ -72,7 +72,7 @@ function RLayerTreeQt(parent) {
     this.header().setVisible(true);
     this.setHeaderLabels([qsTr("Layer"), qsTr("On"), qsTr("Freeze"),
         qsTr("Lock"), qsTr("Plot"), qsTr("Color"), qsTr("Linetype"),
-        qsTr("Lineweight")]);
+        qsTr("Lineweight"), qsTr("VP Freeze")]);
     // SQUARE, and the previews stay out of the table because of it.
     // A tree has ONE icon size for every column: widening it to 64x16
     // so a dash pattern could show its full length stretched the four
@@ -169,7 +169,8 @@ RLayerTreeQt.colPlot = 4;
 RLayerTreeQt.colColor = 5;
 RLayerTreeQt.colLinetype = 6;
 RLayerTreeQt.colLineweight = 7;
-RLayerTreeQt.COLUMNS = 8;
+RLayerTreeQt.colVpFreeze = 8;
+RLayerTreeQt.COLUMNS = 9;
 
 /**
  * The toggle columns, as { column, get, set, icons } -- everything the
@@ -242,6 +243,7 @@ RLayerTreeQt.initColumnWidths = function(tree) {
     tree.setColumnWidth(RLayerTreeQt.colColor, 90);
     tree.setColumnWidth(RLayerTreeQt.colLinetype, 120);
     tree.setColumnWidth(RLayerTreeQt.colLineweight, 90);
+    tree.setColumnWidth(RLayerTreeQt.colVpFreeze, 70);
 };
 
 /**
@@ -441,9 +443,42 @@ RLayerTreeQt.prototype.hiddenColumns = function() {
 
 RLayerTreeQt.prototype.applyColumnVisibility = function() {
     var hidden = this.hiddenColumns();
-    for (var i=1; i<RLayerTreeQt.COLUMNS; i++) {
+    for (var i=1; i<RLayerTreeQt.colVpFreeze; i++) {
         this.setColumnHidden(i, hidden.indexOf(i)>=0);
     }
+    // VP FREEZE IS NOT THE CAVER'S TO HIDE: it is there exactly when a
+    // viewport is the thing being worked on (editing through one, or one
+    // selected on a layout), and gone otherwise -- the AutoCAD behaviour.
+    this.setColumnHidden(RLayerTreeQt.colVpFreeze, isNull(this.vp));
+};
+
+/**
+ * The viewport the layers are being worked on THROUGH, or undefined: the
+ * one being edited through, else the one selected on the layout showing
+ * (LayoutTabs knows; this palette knows nothing of layouts beyond that).
+ */
+RLayerTreeQt.prototype.findViewport = function() {
+    try {
+        if (typeof LayoutTabs !== "undefined" && isFunction(LayoutTabs.activeViewport)) {
+            return LayoutTabs.activeViewport();
+        }
+    }
+    catch (e) {
+    }
+    return undefined;
+};
+
+/** Layer ids frozen in the active viewport, as { id: true }. */
+RLayerTreeQt.prototype.vpFrozenSet = function() {
+    var set = {};
+    if (isNull(this.vp)) {
+        return set;
+    }
+    var ids = this.vp.getFrozenLayerIds();
+    for (var i=0; i<ids.length; i++) {
+        set[ids[i]] = true;
+    }
+    return set;
 };
 
 /**
@@ -458,7 +493,7 @@ RLayerTreeQt.prototype.headerMenu = function(pos) {
     var hidden = this.hiddenColumns();
 
     this.columnMenu = new QMenu(this);
-    for (var i=1; i<RLayerTreeQt.COLUMNS; i++) {
+    for (var i=1; i<RLayerTreeQt.colVpFreeze; i++) {
         var action = this.columnMenu.addAction(
             String(this.headerItem().text(i)));
         action.checkable = true;
@@ -690,6 +725,11 @@ RLayerTreeQt.prototype.updateLayers = function(documentInterface) {
     // layer after a click three rows away, so the popup named one layer
     // and the highlight showed another.
     var wasSelected = this.selectedNames();
+
+    // the viewport being worked through (VP Freeze column), read once per rebuild
+    this.vp = this.findViewport();
+    this.vpFrozen = this.vpFrozenSet();
+    this.applyColumnVisibility();
 
     // Dropped so the inactive colour is mixed again from the palette
     // this rebuild sees, which is what makes it follow a theme change.
@@ -1001,6 +1041,12 @@ RLayerTreeQt.prototype.updateLayerIcons = function(item, layer, doc) {
         item.setIcon(sw.column, RLayerTreeQt[sw.icons][Number(on)]);
     }
 
+    if (!isNull(this.vp)) {
+        // frozen in THIS viewport: the same snowflake as Freeze, per viewport
+        item.setIcon(RLayerTreeQt.colVpFreeze,
+            RLayerTreeQt.iconFreeze[Number(this.vpFrozen[layer.getId()] !== true)]);
+    }
+
     var colorText = LayerStates.colorToText(layer.getColor());
     item.setText(RLayerTreeQt.colColor, isNull(colorText) ? "" : colorText);
     var swatch = RLayerTreeQt.swatch(colorText);
@@ -1085,6 +1131,23 @@ RLayerTreeQt.prototype.collectLayerItems = function(item) {
  */
 RLayerTreeQt.prototype.updateGroupIcons = function(groupItem, layers) {
     var rows = this.collectLayerItems(groupItem);
+    if (!isNull(this.vp) && rows.length > 0) {
+        var vpOn = 0, vpCount = 0;
+        for (var r=0; r<rows.length; r++) {
+            var vl = layers[String(rows[r].data(RLayerTreeQt.colName, RLayerTreeQt.RoleName))];
+            if (isNull(vl)) {
+                continue;
+            }
+            vpCount++;
+            if (this.vpFrozen[vl.getId()] !== true) {
+                vpOn++;
+            }
+        }
+        if (vpCount > 0) {
+            groupItem.setIcon(RLayerTreeQt.colVpFreeze, vpOn === 0 ? RLayerTreeQt.iconFreeze[0] :
+                (vpOn === vpCount ? RLayerTreeQt.iconFreeze[1] : RLayerTreeQt.iconFreezeMixed));
+        }
+    }
     var switches = RLayerTreeQt.switches();
     var i, sw;
 
@@ -1468,6 +1531,11 @@ RLayerTreeQt.prototype.itemColumnClickedSlot = function(item, column) {
         return;
     }
 
+    if (column===RLayerTreeQt.colVpFreeze) {
+        this.toggleVpFreeze(item);
+        return;
+    }
+
     var switches = RLayerTreeQt.switches();
     for (var i=0; i<switches.length; i++) {
         if (switches[i].column!==column) {
@@ -1485,6 +1553,53 @@ RLayerTreeQt.prototype.itemColumnClickedSlot = function(item, column) {
         }
         return;
     }
+};
+
+/**
+ * VP Freeze: freezes / thaws layers in the viewport being worked through
+ * only (the model is untouched, other viewports are untouched). Decided once
+ * from the whole set, as the other switches are: if any of them is showing in
+ * the viewport they all go frozen, else they all come back.
+ */
+RLayerTreeQt.prototype.toggleVpFreeze = function(item) {
+    if (isNull(this.vp) || isNull(this.di)) {
+        return;
+    }
+    var names = (this.isGroupItem(item) && !item.isSelected()) ?
+        this.collectLayerItems(item).map(function(row) {
+            return String(row.data(RLayerTreeQt.colName, RLayerTreeQt.RoleName));
+        }) : this.targetsFor(item);
+    var doc = this.di.getDocument();
+    var chosen = [];
+    for (var i=0; i<names.length; i++) {
+        var id = doc.getLayerId(names[i]);
+        if (id !== RObject.INVALID_ID) {
+            chosen.push(id);
+        }
+    }
+    if (chosen.length === 0) {
+        return;
+    }
+    var set = this.vpFrozenSet();
+    var anyShowing = false;
+    for (var c=0; c<chosen.length; c++) {
+        if (set[chosen[c]] !== true) {
+            anyShowing = true;
+        }
+    }
+    for (var d=0; d<chosen.length; d++) {
+        if (anyShowing) { set[chosen[d]] = true; } else { delete set[chosen[d]]; }
+    }
+    var ids = [];
+    for (var k in set) {
+        if (set.hasOwnProperty(k)) {
+            ids.push(Number(k));
+        }
+    }
+    if (isFunction(LayoutTabs.setViewportFrozen)) {
+        LayoutTabs.setViewportFrozen(this.vp, ids);
+    }
+    this.updateLayers(this.di);
 };
 
 /**

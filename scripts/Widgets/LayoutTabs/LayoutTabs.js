@@ -62,6 +62,7 @@ LayoutTabs.attach = function(root, di) {
 
     var strip = new QWidget(root);
     strip.objectName = "LayoutTabStrip";
+    strip.setAttribute(Qt.WA_StyledBackground, true);
     var row = new QHBoxLayout();
     row.setContentsMargins(0, 0, 0, 0);
     row.setSpacing(2);
@@ -88,6 +89,7 @@ LayoutTabs.attach = function(root, di) {
     // are editing through a viewport. The tab bar stays at the bottom.
     var top = new QWidget(root);
     top.objectName = "LayoutControlStrip";
+    top.setAttribute(Qt.WA_StyledBackground, true);   // a plain QWidget paints no stylesheet background without it
     top.setStyleSheet("QWidget#LayoutControlStrip { background:#e6f1ff; border-bottom:2px solid #188cff; } " +
         "QPushButton { padding:2px 10px; } QLabel { color:#12345a; }");
     var topRow = new QHBoxLayout();
@@ -232,6 +234,11 @@ LayoutTabs.attach = function(root, di) {
     done.clicked.connect(function() { LayoutTabs.exitViewport(entry, true); });
 
     LayoutTabs.refresh(entry);
+    try {
+        LayoutTabs.applyTheme(entry);
+    }
+    catch (eFirst) {
+    }
 };
 
 /** Forgets the entries of windows that have closed. */
@@ -805,6 +812,7 @@ LayoutTabs.enterViewport = function(di, vpEntity) {
 
     LayoutTabs.updateMode(entry);
     Layouts.activate(entry.di, null);
+    LayoutTabs.syncLayerManager();
     LayoutCanvas.update(entry, undefined);
     // EXACT, not a refit: the model gets the sheet's own zoom times the
     // viewport scale, and is slid until the viewport's corner sits on the
@@ -960,6 +968,7 @@ LayoutTabs.exitViewport = function(entry, write, thenLayout) {
     entry.done.visible = false;
     Layouts.activate(entry.di, layoutName);
     LayoutTabs.sync(entry);
+    LayoutTabs.syncLayerManager();
     LayoutCanvas.restoreOrFit(entry);
     if (note.length > 0) {
         try {
@@ -1013,6 +1022,7 @@ LayoutTabs.controlViewport = function(entry) {
 LayoutTabs.refreshControlsAll = function() {
     LayoutTabs.prune();
     LayoutTabs.drawGlyphAll();
+    LayoutTabs.syncLayerManager();
     for (var i = 0; i < LayoutTabs.entries.length; i++) {
         try {
             LayoutTabs.refreshControls(LayoutTabs.entries[i]);
@@ -1024,6 +1034,11 @@ LayoutTabs.refreshControlsAll = function() {
 };
 
 LayoutTabs.refreshControls = function(entry) {
+    try {
+        LayoutTabs.applyTheme(entry);
+    }
+    catch (eTheme) {
+    }
     try {
         LayoutTabs.drawGlyph(entry);
     }
@@ -1389,4 +1404,123 @@ LayoutTabs.glyphClicked = function(entry) {
     }
     include("scripts/Layouts/RotateViewport/RotateViewport.js");
     RotateViewport.start(entry.di, vp.getId());
+};
+
+
+// ---------------------------------------------------------------------------
+// Layer Manager's VP Freeze column
+// ---------------------------------------------------------------------------
+
+/**
+ * The viewport the layers are being worked through: the one edited through,
+ * else the one selected on the layout showing. A fresh entity each call.
+ */
+LayoutTabs.activeViewport = function() {
+    var entry = LayoutTabs.entryOfActive();
+    if (isNull(entry)) {
+        return undefined;
+    }
+    var doc = entry.di.getDocument();
+    if (!isNull(entry.editing)) {
+        var ed = doc.queryEntity(entry.editing.viewportId);
+        return isNull(ed) ? undefined : ed;
+    }
+    var vp = LayoutTabs.controlViewport(entry);
+    return isNull(vp) ? undefined : vp;
+};
+
+/** Sets a viewport's frozen layers (one undo step), then refreshes what shows them. */
+LayoutTabs.setViewportFrozen = function(vp, layerIds) {
+    var entry = LayoutTabs.entryOfActive();
+    if (isNull(entry)) {
+        return;
+    }
+    var doc = entry.di.getDocument();
+    var fresh = doc.queryEntity(vp.getId());
+    if (isNull(fresh) || Layouts.isLocked(fresh)) {
+        EAction.handleUserWarning(qsTr("This viewport is locked: unlock it to change its layers."));
+        return;
+    }
+    fresh.setFrozenLayerIds(layerIds);
+    var op = new RModifyObjectOperation(fresh);
+    op.setText(qsTr("Viewport layers"));
+    entry.di.applyOperation(op);
+};
+
+/** Tells the Layer Manager when the viewport it works through has changed. */
+LayoutTabs.syncLayerManager = function() {
+    try {
+        if (typeof RLayerTreeQt === "undefined" || isNull(RLayerTreeQt.instance) || isNull(RLayerTreeQt.instance.di)) {
+            return;
+        }
+        var now = LayoutTabs.activeViewport();
+        var id = isNull(now) ? -1 : now.getId();
+        var key = id + ":" + (isNull(now) ? "" : now.getFrozenLayerIds().join(","));
+        if (key !== LayoutTabs.layerManagerKey) {
+            LayoutTabs.layerManagerKey = key;
+            RLayerTreeQt.instance.updateLayers(RLayerTreeQt.instance.di);
+        }
+    }
+    catch (e) {
+    }
+};
+
+
+// ---------------------------------------------------------------------------
+// Theme: the strips are coloured from the application's own palette, so the
+// text is readable in a light theme and in a dark one. (They used a fixed
+// light blue with whatever text colour the theme brought, which is pale on
+// pale in a dark theme.) Re-applied whenever the controls refresh, so a theme
+// change catches up on the next click.
+// ---------------------------------------------------------------------------
+
+/** True when the application's window colour is dark. */
+LayoutTabs.isDark = function() {
+    try {
+        return QApplication.palette().color(QPalette.Window).value() < 128;
+    }
+    catch (e) {
+        return true;
+    }
+};
+
+/** The colours for the current theme. */
+LayoutTabs.colors = function() {
+    if (LayoutTabs.isDark()) {
+        return { stripBg: "#1d3a5c", stripBorder: "#4aa3ff", text: "#eaf3ff", mode: "#ffffff",
+            btnBg: "#2f5a8c", btnBorder: "#6fb2ff", btnHover: "#3b6ea8", btnDisabled: "#8aa0b8",
+            bannerBg: "#5a4210", bannerText: "#ffe6a8", bannerBorder: "#d9a63c",
+            tabBarBg: "#1b2733", tabText: "#dbe7f3", tabBg: "#2a3a4a", tabBorder: "#4c6076" };
+    }
+    return { stripBg: "#e6f1ff", stripBorder: "#188cff", text: "#12345a", mode: "#0b3d75",
+        btnBg: "#ffffff", btnBorder: "#7aa9d8", btnHover: "#eef6ff", btnDisabled: "#8a9bb0",
+        bannerBg: "#fff1cf", bannerText: "#7a2e00", bannerBorder: "#e0a53a",
+        tabBarBg: "#e9edf2", tabText: "#243447", tabBg: "#f7f9fb", tabBorder: "#b7c3d0" };
+};
+
+LayoutTabs.applyTheme = function(entry) {
+    var c = LayoutTabs.colors();
+    var key = LayoutTabs.isDark() ? "dark" : "light";
+    if (entry.themeKey === key) {
+        return;
+    }
+    entry.themeKey = key;
+    entry.top.setStyleSheet(
+        "QWidget#LayoutControlStrip { background:" + c.stripBg + "; border-bottom:2px solid " + c.stripBorder + "; } " +
+        "QLabel { color:" + c.text + "; background:transparent; } " +
+        "QCheckBox { color:" + c.text + "; } " +
+        "QPushButton { color:" + c.text + "; background:" + c.btnBg + "; border:1px solid " + c.btnBorder + "; border-radius:4px; padding:2px 10px; } " +
+        "QPushButton:hover { background:" + c.btnHover + "; } " +
+        "QPushButton:disabled { color:" + c.btnDisabled + "; } " +
+        "QComboBox { color:" + c.text + "; background:" + c.btnBg + "; border:1px solid " + c.btnBorder + "; border-radius:3px; padding:1px 6px; } " +
+        "QComboBox QAbstractItemView { color:" + c.text + "; background:" + c.btnBg + "; }");
+    entry.modeLabel.setStyleSheet("font-weight:bold; color:" + c.mode + ";");
+    entry.banner.setStyleSheet("font-weight:bold; color:" + c.bannerText + "; background:" + c.bannerBg + "; border:1px solid " + c.bannerBorder + "; border-radius:3px; padding:1px 8px;");
+    entry.done.setStyleSheet("QPushButton { background:#188cff; color:white; font-weight:bold; border:1px solid #0b5fb5; border-radius:4px; padding:3px 14px; } QPushButton:hover { background:#0f78e0; }");
+    entry.strip.setStyleSheet(
+        "QWidget#LayoutTabStrip { background:" + c.tabBarBg + "; } " +
+        "QTabBar { background:" + c.tabBarBg + "; } " +
+        "QTabBar::tab { color:" + c.tabText + "; background:" + c.tabBg + "; border:1px solid " + c.tabBorder + "; padding:4px 14px; margin-right:2px; border-bottom-left-radius:4px; border-bottom-right-radius:4px; } " +
+        "QTabBar::tab:selected { background:#188cff; color:white; font-weight:bold; border-color:#0b5fb5; } " +
+        "QToolButton { color:" + c.tabText + "; }");
 };
