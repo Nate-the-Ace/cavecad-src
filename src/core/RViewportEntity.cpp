@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with QCAD.
  */
+#include "RAnnotation.h"
 #include "RBlock.h"
 #include "RBlockReferenceData.h"
 #include "RDocument.h"
@@ -380,6 +381,11 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
     // no header layout change.
     const bool noRaster = getCustomProperty("CaveCAD", "NoRaster", false).toBool();
 
+    // CaveCAD: annotative text drawn inside this viewport takes the viewport's own
+    // scale (feet per inch), whatever the document's current annotation scale is.
+    const double annotationScaleBefore = e.getAnnotationScale();
+    e.setAnnotationScale(RAnnotation::scaleOfViewport(doc, data.scaleFactor));
+
     // render model space block reference into viewport.
     //
     // CaveCAD: only the model entities whose box meets the part of model
@@ -481,6 +487,7 @@ void RViewportEntity::exportEntity(RExporter& e, bool preview, bool forceSelecte
     }
 
     e.setClipping(false);
+    e.setAnnotationScale(annotationScaleBefore);
 
     model->setOrigin(RVector(0,0));
 

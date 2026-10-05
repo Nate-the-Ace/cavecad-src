@@ -150,6 +150,7 @@ add_library(cavecadcore SHARED
     RStorageLayerSort.cpp RStorageLayerSort.h
     RTabletEvent.cpp RTabletEvent.h
     RTerminateEvent.h
+    RAnnotation.cpp RAnnotation.h
     RTextBasedData.cpp RTextBasedData.h
     RTextBasedEntity.cpp RTextBasedEntity.h
     RTextLayout.cpp RTextLayout.h

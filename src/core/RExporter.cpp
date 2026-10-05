@@ -27,6 +27,7 @@
 #include "RDocument.h"
 #include "REllipse.h"
 #include "REntity.h"
+#include "RAnnotation.h"
 #include "RExporter.h"
 #include "RLayer.h"
 #include "RLine.h"
@@ -61,6 +62,8 @@ RExporter::RExporter()
       pixelSizeHint(0.5),
       pixelUnit(false),
       clipping(false),
+      annotationScale(0.0),
+      annotationDepth(0),
       wipeout(false),
       frameless(false),
       pixelWidth(false),
@@ -86,6 +89,8 @@ RExporter::RExporter(RDocument& document, RMessageHandler *messageHandler, RProg
       pixelSizeHint(0.5),
       pixelUnit(false),
       clipping(false),
+      annotationScale(0.0),
+      annotationDepth(0),
       wipeout(false),
       frameless(false),
       pixelWidth(false),
@@ -721,6 +726,38 @@ void RExporter::exportView(RView::Id viewId) {
  */
 void RExporter::exportEntity(QSharedPointer<REntity> entity, bool preview, bool allBlocks, bool forceSelected, bool invisible) {
     if (entity.isNull()) {
+        return;
+    }
+
+    // CaveCAD: an ANNOTATIVE text is drawn as its representation at the scale
+    // being drawn at (see RAnnotation). Visual exporters only: a file writer
+    // keeps the stored geometry.
+    if (annotationDepth==0 && isVisualExporter() && entity->isOfType(RS::EntityText) && RAnnotation::isAnnotative(*entity)) {
+        RDocument* adoc = entity->getDocument();
+        if (adoc==NULL) {
+            adoc = document;
+        }
+        const bool inViewport = !getCurrentViewport().isNull();
+        const double fpi = annotationScale > 0.0 ? annotationScale : RAnnotation::currentScale(adoc);
+        RAnnotation::Rep rep;
+        annotationDepth++;
+        if (RAnnotation::findRep(*entity, fpi, rep)) {
+            exportEntity(RAnnotation::representation(entity, rep, adoc), preview, allBlocks, forceSelected, invisible);
+        }
+        else if (!inViewport) {
+            // not drawn at this scale: clear what an earlier regeneration left
+            unexportEntity(entity->getId());
+        }
+        if (!inViewport && RAnnotation::ghostsVisible(adoc)) {
+            QList<RAnnotation::Rep> all = RAnnotation::representations(*entity);
+            for (int i=0; i<all.length(); i++) {
+                if (RAnnotation::sameScale(all[i].fpi, fpi)) {
+                    continue;
+                }
+                exportEntity(RAnnotation::representation(entity, all[i], adoc, true), preview, allBlocks, false, invisible);
+            }
+        }
+        annotationDepth--;
         return;
     }
 

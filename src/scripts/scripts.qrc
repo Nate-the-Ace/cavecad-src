@@ -1544,9 +1544,11 @@
     <file alias="scripts/Layer/UnlockAllLayers/UnlockAllLayersInit.js">../../scripts/Layer/UnlockAllLayers/UnlockAllLayersInit.js</file>
     <file alias="scripts/Layouts/LayoutPlot.js">../../scripts/Layouts/LayoutPlot.js</file>
     <file alias="scripts/Layouts/Layouts.js">../../scripts/Layouts/Layouts.js</file>
+    <file alias="scripts/Layouts/MoveVertex/MoveVertex.js">../../scripts/Layouts/MoveVertex/MoveVertex.js</file>
     <file alias="scripts/Layouts/NewViewport/NewViewport.js">../../scripts/Layouts/NewViewport/NewViewport.js</file>
     <file alias="scripts/Layouts/NewViewport/NewViewportInit.js">../../scripts/Layouts/NewViewport/NewViewportInit.js</file>
     <file alias="scripts/Layouts/RotateViewport/RotateViewport.js">../../scripts/Layouts/RotateViewport/RotateViewport.js</file>
+    <file alias="scripts/Layouts/ViewportShape/ViewportShape.js">../../scripts/Layouts/ViewportShape/ViewportShape.js</file>
     <file alias="scripts/Misc/Examples/BlockExamples/BlockExamples.js">../../scripts/Misc/Examples/BlockExamples/BlockExamples.js</file>
     <file alias="scripts/Misc/Examples/BlockExamples/ExAddBlock/ExAddBlock.js">../../scripts/Misc/Examples/BlockExamples/ExAddBlock/ExAddBlock.js</file>
     <file alias="scripts/Misc/Examples/CommandLineExamples/CommandLineExamples.js">../../scripts/Misc/Examples/CommandLineExamples/CommandLineExamples.js</file>

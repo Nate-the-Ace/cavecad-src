@@ -103,6 +103,8 @@ public:
 
     //virtual RBox getClipRectangle() const;
     virtual void setClipping(bool on);
+    void setAnnotationScale(double fpi) { annotationScale = fpi; }
+    double getAnnotationScale() const { return annotationScale; }
     bool getClipping() const;
 
     virtual void setWipeout(bool on);
@@ -424,6 +426,9 @@ protected:
     double pixelSizeHint;
     bool pixelUnit;
     bool clipping;
+    /** CaveCAD: annotation scale being drawn at (feet per inch), 0 = the document's current one; depth guards the substitution against recursing. */
+    double annotationScale;
+    int annotationDepth;
     bool wipeout;
     bool frameless;
     bool pixelWidth;
