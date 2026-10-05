@@ -143,15 +143,25 @@ LayoutTabs.refresh = function(entry) {
     while (bar.count > 0) {
         bar.removeTab(bar.count - 1);
     }
+    entry.states = [];
     for (var k = 0; k < names.length; k++) {
-        var text = names[k] === Layouts.MODEL ? qsTr("Model") : names[k];
+        var info = k > 0 ? layouts[k - 1] : undefined;
+        // AUTO sheets are generated and owned by Sheet Setup; a sheet edited by hand
+        // (or made by hand) is MANUAL and marked with a star
+        var state = isNull(info) ? undefined :
+            ((typeof Layouts.stateOf === "function") ? Layouts.stateOf(doc, info) : info.mode);
+        entry.states.push(state);   // index-aligned with the tabs (Model first)
+        var text = k === 0 ? qsTr("Model") : (names[k] + (state === "auto" ? "" : " *"));
         bar.addTab(text);
         if (k > 0) {
-            var info = layouts[k - 1];
-            bar.setTabToolTip(k, (info.mode === "auto" ? qsTr("Automatic sheet") : qsTr("Manual sheet")) +
-                (Layouts.paperNameOf(info.paperMM.w, info.paperMM.h) ? " - " + Layouts.paperNameOf(info.paperMM.w, info.paperMM.h) : ""));
+            var paper = Layouts.paperNameOf(info.paperMM.w, info.paperMM.h);
+            var what = state === "auto" ? qsTr("Automatic sheet: Sheet Setup rewrites it") :
+                (state === "edited" ? qsTr("Edited by hand: Sheet Setup leaves it alone (right-click: Revert to automatic)") :
+                 qsTr("Manual sheet: Sheet Setup leaves it alone"));
+            bar.setTabToolTip(k, what + (paper ? " - " + paper : ""));
         }
     }
+
     entry.names = names;
     entry.syncing = false;
     LayoutTabs.sync(entry);
@@ -230,9 +240,13 @@ LayoutTabs.contextMenu = function(entry, pos) {
     var menu = new QMenu(entry.bar);
     var self = this;
     var actNew = menu.addAction(qsTr("New layout"));
-    var actRename, actDup, actDelete, actLeft, actRight;
+    var actRename, actDup, actDelete, actLeft, actRight, actRevert;
     if (index > 0) {
         menu.addSeparator();
+        if (typeof Layouts.canRevertOf === "function" && entry.states[index] !== "auto" &&
+            Layouts.canRevertOf(entry.di.getDocument(), Layouts.get(entry.di.getDocument(), entry.names[index]))) {
+            actRevert = menu.addAction(qsTr("Revert to automatic"));
+        }
         actRename = menu.addAction(qsTr("Rename..."));
         actDup = menu.addAction(qsTr("Duplicate"));
         actLeft = menu.addAction(qsTr("Move left"));
@@ -247,6 +261,16 @@ LayoutTabs.contextMenu = function(entry, pos) {
     var name = index > 0 ? entry.names[index] : undefined;
     if (chosen.text === actNew.text) {
         LayoutTabs.addLayout(entry);
+    }
+    else if (index > 0 && !isNull(actRevert) && chosen.text === actRevert.text) {
+        var appWinR = RMainWindowQt.getMainWindow();
+        var sure = QMessageBox.question(appWinR, qsTr("Revert to automatic"),
+            qsTr("Throw away every change made by hand to sheet \"%1\" and generate it again? You can undo this.").arg(name),
+            QMessageBox.Yes | QMessageBox.No);
+        if (sure === QMessageBox.Yes) {
+            Layouts.revertOf(entry.di.getDocument(), entry.di, name);
+            LayoutTabs.refresh(entry);
+        }
     }
     else if (index > 0 && chosen.text === actRename.text) {
         LayoutTabs.rename(entry, index);
@@ -365,15 +389,22 @@ LayoutCanvas.update = function(entry, layoutInfo) {
             view.setBackgroundColor(entry.modelBackground);
             entry.modelBackground = undefined;
         }
+        if (entry.gridWasOn === true) {
+            view.setGridVisible(true);
+        }
+        entry.gridWasOn = undefined;
         view.regenerate(true);
         view.repaintView();
         return;
     }
 
-    // entering a layout: remember the model background once
+    // entering a layout: remember the model background once; the grid is a
+    // model-space aid and has no place on a sheet of paper
     if (isNull(entry.modelBackground)) {
         entry.modelBackground = view.getBackgroundColor();
+        entry.gridWasOn = view.isGridVisible();
     }
+    view.setGridVisible(false);
     view.setBackgroundColor(new QColor(255, 255, 255));
 
     var dark = RSettings.hasDarkGuiBackground();
