@@ -81,82 +81,110 @@ LayoutTabs.attach = function(root, di) {
     plus.autoRaise = true;
     plus.toolTip = qsTr("New layout");
     row.addWidget(plus, 0, 0);
-    row.addStretch(1);
+    // THE VIEWPORT CONTROLS LIVE AT THE TOP of the drawing, in a strip that is
+    // always there (so the view never changes size when a layout is picked) and
+    // coloured so it cannot be missed: what you are looking at, the viewport's
+    // scale / lock / shape tools, and the big "Back to layout" button while you
+    // are editing through a viewport. The tab bar stays at the bottom.
+    var top = new QWidget(root);
+    top.objectName = "LayoutControlStrip";
+    top.setStyleSheet("QWidget#LayoutControlStrip { background:#e6f1ff; border-bottom:2px solid #188cff; } " +
+        "QPushButton { padding:2px 10px; } QLabel { color:#12345a; }");
+    var topRow = new QHBoxLayout();
+    topRow.setContentsMargins(8, 2, 8, 2);
+    topRow.setSpacing(6);
+    var modeLabel = new QLabel(top);
+    modeLabel.objectName = "LayoutModeLabel";
+    modeLabel.setStyleSheet("font-weight:bold; color:#0b3d75;");
+    topRow.addWidget(modeLabel, 0, 0);
+    topRow.addStretch(1);
     // the selected viewport's scale and lock (shown only when exactly one is selected)
-    var vpLabel = new QLabel(strip);
+    var vpLabel = new QLabel(top);
     vpLabel.objectName = "LayoutViewportLabel";
     vpLabel.text = qsTr("Viewport:");
     vpLabel.visible = false;
-    row.addWidget(vpLabel, 0, 0);
-    var vpScale = new QComboBox(strip);
+    topRow.addWidget(vpLabel, 0, 0);
+    var vpScale = new QComboBox(top);
     vpScale.objectName = "LayoutViewportScale";
     vpScale.toolTip = qsTr("Scale of the selected viewport");
     vpScale.visible = false;
     vpScale.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    row.addWidget(vpScale, 0, 0);
-    var vpLock = new QCheckBox(strip);
+    topRow.addWidget(vpScale, 0, 0);
+    var vpLock = new QCheckBox(top);
     vpLock.objectName = "LayoutViewportLock";
     vpLock.text = qsTr("Locked");
     vpLock.toolTip = qsTr("A locked viewport keeps its scale and what it shows");
     vpLock.visible = false;
-    row.addWidget(vpLock, 0, 0);
-    var vpLayers = new QPushButton(strip);
+    topRow.addWidget(vpLock, 0, 0);
+    var vpLayers = new QPushButton(top);
     vpLayers.objectName = "LayoutViewportLayers";
     vpLayers.text = qsTr("Layers...");
     vpLayers.toolTip = qsTr("Choose which layers this viewport hides");
     vpLayers.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     vpLayers.visible = false;
-    row.addWidget(vpLayers, 0, 0);
-    var newVp = new QPushButton(strip);
+    topRow.addWidget(vpLayers, 0, 0);
+    var newVp = new QPushButton(top);
     newVp.objectName = "LayoutNewViewport";
     newVp.text = qsTr("New viewport");
     newVp.toolTip = qsTr("Draw a viewport on this layout: click two corners (Layout menu, command: viewport)");
     newVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     newVp.visible = false;
-    row.addWidget(newVp, 0, 0);
-    var polyVp = new QPushButton(strip);
+    topRow.addWidget(newVp, 0, 0);
+    var polyVp = new QPushButton(top);
     polyVp.objectName = "LayoutPolygonViewport";
     polyVp.text = qsTr("Polygon");
     polyVp.toolTip = qsTr("Draw a viewport as a polygon: click its corners, Enter or right-click to finish");
     polyVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     polyVp.visible = false;
-    row.addWidget(polyVp, 0, 0);
-    var trimVp = new QPushButton(strip);
+    topRow.addWidget(polyVp, 0, 0);
+    var trimVp = new QPushButton(top);
     trimVp.objectName = "LayoutTrimViewport";
     trimVp.text = qsTr("Trim");
     trimVp.toolTip = qsTr("Cut a polygon out of the selected viewport: click its corners, Enter or right-click to finish");
     trimVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     trimVp.visible = false;
-    row.addWidget(trimVp, 0, 0);
-    var squareVp = new QPushButton(strip);
+    topRow.addWidget(trimVp, 0, 0);
+    var squareVp = new QPushButton(top);
     squareVp.objectName = "LayoutSquareViewport";
     squareVp.text = qsTr("Rectangle");
     squareVp.toolTip = qsTr("Put the selected viewport back to a plain rectangle (its outline's bounding box)");
     squareVp.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     squareVp.visible = false;
-    row.addWidget(squareVp, 0, 0);
-    var vpBar = new QPushButton(strip);
+    topRow.addWidget(squareVp, 0, 0);
+    var vpBar = new QPushButton(top);
     vpBar.objectName = "LayoutViewportBar";
     vpBar.text = qsTr("Scale bar");
     vpBar.toolTip = qsTr("Add a scale bar that follows this viewport's scale");
     vpBar.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     vpBar.visible = false;
-    row.addWidget(vpBar, 0, 0);
-    var banner = new QLabel(strip);
+    topRow.addWidget(vpBar, 0, 0);
+    var banner = new QLabel(top);
     banner.objectName = "LayoutEditBanner";
+    banner.setStyleSheet("font-weight:bold; color:#7a2e00; background:#fff1cf; border:1px solid #e0a53a; border-radius:3px; padding:1px 8px;");
     banner.visible = false;
-    row.addWidget(banner, 0, 0);
-    var done = new QPushButton(strip);
+    topRow.addWidget(banner, 0, 0);
+    var done = new QPushButton(top);
     done.objectName = "LayoutEditDone";
     // never taller than the tab bar: showing the edit banner must not change
     // the height of the strip (a taller strip shrinks the view, and a view
     // that changes size re-fits the very zoom the sheet is shown at)
     done.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
     banner.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    done.text = qsTr("Back to layout");
+    done.text = qsTr("\u2190 Back to layout");
+    done.setStyleSheet("QPushButton { background:#188cff; color:white; font-weight:bold; border:1px solid #0b5fb5; border-radius:4px; padding:3px 14px; } " +
+        "QPushButton:hover { background:#0f78e0; }");
     done.toolTip = qsTr("Leave the viewport and return to the layout");
     done.visible = false;
-    row.addWidget(done, 0, 0);
+    topRow.addWidget(done, 0, 0);
+    top.setLayout(topRow);
+    top.setFixedHeight(LayoutTabs.STRIP_HEIGHT + 6);
+    try {
+        layout.insertWidget(0, top);
+    }
+    catch (eInsert) {
+        layout.addWidget(top);
+    }
+    row.addStretch(1);
     strip.setLayout(row);
     strip.setFixedHeight(LayoutTabs.STRIP_HEIGHT);
     layout.addWidget(strip);
@@ -179,6 +207,8 @@ LayoutTabs.attach = function(root, di) {
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
     bar.customContextMenuRequested.connect(function(pos) { LayoutTabs.contextMenu(entry, pos); });
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
+    entry.top = top;
+    entry.modeLabel = modeLabel;
     entry.banner = banner;
     entry.done = done;
     entry.vpLabel = vpLabel;
@@ -309,6 +339,7 @@ LayoutTabs.sync = function(entry) {
     }
     entry.syncing = false;
     entry.newVp.visible = !isNull(cur);
+    LayoutTabs.updateMode(entry);
     entry.polyVp.visible = !isNull(cur);
     LayoutCanvas.update(entry, cur);
 };
@@ -335,6 +366,30 @@ LayoutTabs.shapeTool = function(entry, what) {
         }
         Layouts.setClip(entry.di, vp, [], qsTr("Viewport back to a rectangle"));
         LayoutTabs.refreshControls(entry);
+    }
+};
+
+/** The words at the left of the control strip: where you are. */
+LayoutTabs.updateMode = function(entry) {
+    try {
+        var doc = entry.di.getDocument();
+        var cur = Layouts.current(doc);
+        if (!isNull(entry.editing)) {
+            entry.modeLabel.text = qsTr("EDITING THROUGH A VIEWPORT");
+            // only the way back is on offer while editing through a viewport
+            var hide = ["vpLabel", "vpScale", "vpLock", "vpLayers", "vpBar", "newVp", "polyVp", "trimVp", "squareVp"];
+            for (var h = 0; h < hide.length; h++) {
+                entry[hide[h]].visible = false;
+            }
+        }
+        else if (isNull(cur)) {
+            entry.modeLabel.text = qsTr("MODEL SPACE  -  the cave itself.  Pick a layout tab below to compose a sheet.");
+        }
+        else {
+            entry.modeLabel.text = qsTr("LAYOUT \u201c%1\u201d  -  double-click a viewport to edit through it").arg(cur.name);
+        }
+    }
+    catch (e) {
     }
 };
 
@@ -727,13 +782,28 @@ LayoutTabs.enterViewport = function(di, vpEntity) {
     var modelBox = new RBox(new RVector(Math.min(m1.x, m2.x), Math.min(m1.y, m2.y)),
                             new RVector(Math.max(m1.x, m2.x), Math.max(m1.y, m2.y)));
 
+    // a polygonal / trimmed viewport keeps its shape while it is edited through:
+    // its corners are fixed on the screen like the rectangle's two corners are
+    var shape = [];
+    var loops = Layouts.clipLoops(vp);
+    for (var li = 0; li < loops.length; li++) {
+        var sl = [];
+        for (var pi = 0; pi < loops[li].length; pi++) {
+            var sp = view.mapToView(new RVector(loops[li][pi].x, loops[li][pi].y));
+            sl.push({ x: sp.x, y: sp.y });
+        }
+        shape.push(sl);
+    }
+
     LayoutCanvas.remember(entry);
     entry.editing = {
+        shape: shape,
         viewportId: vp.getId(), layoutName: info.name, locked: locked, twisted: twisted,
         scale0: vp.getScale(), vc0: vp.getViewCenter(), width: vp.getWidth(), height: vp.getHeight(),
         screen1: s1, screen2: s2, changed: false
     };
 
+    LayoutTabs.updateMode(entry);
     Layouts.activate(entry.di, null);
     LayoutCanvas.update(entry, undefined);
     // EXACT, not a refit: the model gets the sheet's own zoom times the
@@ -788,15 +858,36 @@ LayoutTabs.drawFrame = function(entry, view) {
     dim.setPen(new QPen(Qt.NoPen));
     dim.setBrush(new QBrush(new QColor(128, 128, 128, 90)));
     dim.addRect(new QRectF(x1 - big, y1 - big, 2 * big + (x2 - x1), 2 * big + (y2 - y1)));
-    dim.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
-    view.addToOverlay(LayoutTabs.OVERLAY_ID, 1, RGraphicsSceneDrawable.createFromPainterPath(dim));
     var pen = new QPen(new QColor(0x18, 0x8c, 0xff));
     pen.setWidth(2);
     pen.setCosmetic(true);
     var frame = new RPainterPath();
     frame.setPen(pen);
     frame.setBrush(new QBrush(Qt.NoBrush));
-    frame.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
+    if (!isNull(ed.shape) && ed.shape.length > 0) {
+        // the viewport's own shape: every loop (outline, then the pieces cut out of it)
+        // is added to the dim path too, so the surround AND the holes are dimmed
+        for (var sl = 0; sl < ed.shape.length; sl++) {
+            var poly = [];
+            for (var sp = 0; sp < ed.shape[sl].length; sp++) {
+                var m = view.mapFromView(new RVector(ed.shape[sl][sp].x, ed.shape[sl][sp].y));
+                poly.push(m);
+            }
+            dim.moveTo(poly[0].x, poly[0].y);
+            frame.moveTo(poly[0].x, poly[0].y);
+            for (var q = 1; q < poly.length; q++) {
+                dim.lineTo(poly[q].x, poly[q].y);
+                frame.lineTo(poly[q].x, poly[q].y);
+            }
+            dim.closeSubpath();
+            frame.closeSubpath();
+        }
+    }
+    else {
+        dim.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
+        frame.addRect(new QRectF(x1, y1, x2 - x1, y2 - y1));
+    }
+    view.addToOverlay(LayoutTabs.OVERLAY_ID, 1, RGraphicsSceneDrawable.createFromPainterPath(dim));
     view.addToOverlay(LayoutTabs.OVERLAY_ID, 2, RGraphicsSceneDrawable.createFromPainterPath(frame));
 };
 
