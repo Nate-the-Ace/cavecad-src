@@ -306,7 +306,24 @@ LayoutTabs.tabPicked = function(entry, index) {
     }
     var doc = entry.di.getDocument();
     LayoutCanvas.remember(entry);
-    Layouts.activate(entry.di, index === 0 ? null : entry.names[index]);
+    var target = index === 0 ? null : entry.names[index];
+    // The empty default layout opens as the default sheet when the cave suite
+    // can make one (it renames the layout, so the tabs are rebuilt).
+    if (target === "Layout" && typeof Layouts.pristineOf === "function" &&
+            typeof Layouts.starterOf === "function" && !isNull(Layouts.pristineOf(doc))) {
+        var made = "";
+        try {
+            made = Layouts.starterOf(doc, entry.di);
+        }
+        catch (eStarter) {
+            made = "";
+        }
+        if (made !== "") {
+            LayoutTabs.refresh(entry);
+            target = made;
+        }
+    }
+    Layouts.activate(entry.di, target);
     LayoutTabs.sync(entry);
     LayoutCanvas.restoreOrFit(entry);
 };
