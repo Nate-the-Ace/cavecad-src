@@ -674,22 +674,8 @@ LayoutTabs.tabPicked = function(entry, index) {
     var doc = entry.di.getDocument();
     LayoutCanvas.remember(entry);
     var target = index === 0 ? null : entry.names[index];
-    // The empty default layout opens as the default sheet when the cave suite
-    // can make one (it renames the layout, so the tabs are rebuilt).
-    if (target === "Layout" && typeof Layouts.pristineOf === "function" &&
-            typeof Layouts.starterOf === "function" && !isNull(Layouts.pristineOf(doc))) {
-        var made = "";
-        try {
-            made = Layouts.starterOf(doc, entry.di);
-        }
-        catch (eStarter) {
-            made = "";
-        }
-        if (made !== "") {
-            LayoutTabs.refresh(entry);
-            target = made;
-        }
-    }
+    // Opening a tab only shows it. It never renames or fills a sheet: that is for the tools that
+    // say so (Sheet Setup, the sheet grid, New from template).
     Layouts.activate(entry.di, target);
     LayoutTabs.sync(entry);
     LayoutCanvas.restoreOrFit(entry);

@@ -20,6 +20,7 @@ function Theme() {
 }
 
 Theme.SETTING = "Theme/Choice";
+Theme.CUSTOM_SETTING = "Theme/CustomAccent";   // the highlight colour of the "custom" theme, "#rrggbb"
 Theme.DEFAULT = "dark/ocean";
 
 /** The colours on offer. `hue` and `sat` (1 = the standard strength) tint the greys; `accent` is the highlight. */
@@ -67,7 +68,34 @@ Theme.choice = function() {
     return { mode: mode, id: id };
 };
 
+/** The highlight colour of the custom theme. */
+Theme.customAccent = function() {
+    var hex = String(RSettings.getStringValue(Theme.CUSTOM_SETTING, "#188cff"));
+    return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex.toLowerCase() : "#188cff";
+};
+
+/** {h (0-360), s, l (0-1)} of "#rrggbb". */
+Theme.hexToHsl = function(hex) {
+    var r = parseInt(hex.substring(1, 3), 16) / 255, g = parseInt(hex.substring(3, 5), 16) / 255, b = parseInt(hex.substring(5, 7), 16) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, sat = 0;
+    if (mx !== mn) {
+        var d = mx - mn;
+        sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        if (mx === r) { h = (g - b) / d + (g < b ? 6 : 0); }
+        else if (mx === g) { h = (b - r) / d + 2; }
+        else { h = (r - g) / d + 4; }
+        h *= 60;
+    }
+    return { h: h, s: sat, l: l };
+};
+
 Theme.preset = function(id) {
+    if (id === "custom") {
+        // the person picks the highlight; the greys are tinted with its hue, as strongly as the colour is saturated
+        var accent = Theme.customAccent();
+        var hsl = Theme.hexToHsl(accent);
+        return { id: "custom", name: "Custom", hue: hsl.h, sat: Math.max(0.12, Math.min(1, hsl.s * 1.05)), accent: accent };
+    }
     for (var i = 0; i < Theme.PRESETS.length; i++) {
         if (Theme.PRESETS[i].id === id) { return Theme.PRESETS[i]; }
     }
@@ -124,7 +152,10 @@ Theme.sheet = function(c, dark) {
     q.push("QToolBar { background:" + c.head + "; border:none; spacing:2px; padding:2px; }");
     q.push("QToolButton { background:transparent; border:1px solid transparent; border-radius:4px; padding:2px; }");
     q.push("QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } QToolButton:pressed, QToolButton:checked { background:" + c.tab + "; border-color:" + c.accent + "; }");
-    q.push("QPushButton { background:" + c.tab + "; border:1px solid " + c.line + "; border-radius:4px; padding:3px 12px; min-height:20px; }");
+    q.push("QPushButton { background:" + c.tab + "; border:1px solid " + c.line + "; border-radius:4px; padding:3px 10px; min-height:20px; }");
+    // a flat push button is a small icon-like control (the "?" help button is 22 px wide): no side padding, or its label has no room
+    q.push("QPushButton:flat { background:transparent; border:1px solid transparent; padding:0px 2px; min-height:0px; }");
+    q.push("QPushButton:flat:hover { background:" + c.hover + "; border-color:" + c.line + "; }");
     q.push("QPushButton:hover { background:" + c.hover + "; } QPushButton:pressed { background:" + c.accent + "; color:#ffffff; } QPushButton:disabled { color:" + c.dim + "; } QPushButton:default { border-color:" + c.accent + "; }");
     q.push("QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox, QComboBox { background:" + c.field + "; border:1px solid " + c.line + "; border-radius:3px; padding:2px 6px; }");
     q.push("QLineEdit:focus, QAbstractSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus, QTextEdit:focus { border-color:" + c.accent + "; }");
@@ -170,6 +201,26 @@ Theme.choose = function(mode, id) {
     }
 };
 
+/** Saves a custom highlight colour with a mode, and applies it. */
+Theme.chooseCustom = function(mode, hex) {
+    RSettings.setValue(Theme.CUSTOM_SETTING, hex);
+    Theme.choose(mode, "custom");
+};
+
+/** Qt's own colour dialog (never the platform's) for the highlight colour; the theme follows the answer. */
+Theme.pickCustom = function(mode) {
+    var dlg = new QColorDialog(RMainWindowQt.getMainWindow());
+    dlg.setOption(4, true);   // DontUseNativeDialog
+    dlg.windowTitle = qsTr("Highlight colour");
+    dlg.setCurrentColor(new QColor(Theme.customAccent()));
+    var accepted = dlg.exec();
+    var hex = String(dlg.currentColor().name());
+    destrDialog(dlg);
+    if (accepted) {
+        Theme.chooseCustom(mode, hex);
+    }
+};
+
 /** A small picture of a theme: its surface, with its highlight along the bottom. */
 Theme.swatch = function(c) {
     var pm = new QPixmap(40, 30);
@@ -203,7 +254,7 @@ Theme.openChooser = function(anchor) {
         "QLabel { color:" + c.dim2 + "; background:transparent; } " +
         "QToolButton { background:transparent; border:2px solid transparent; border-radius:5px; padding:2px; } " +
         "QToolButton:hover { background:" + c.hover + "; } " +
-        "QToolButton[current=\"true\"] { border-color:" + c.accent + "; }");
+        "QToolButton[current=\"true\"], QToolButton:checked { border-color:" + c.accent + "; }");
     var v = new QVBoxLayout();
     v.setContentsMargins(10, 8, 10, 8);
     v.setSpacing(6);
@@ -228,6 +279,39 @@ Theme.openChooser = function(anchor) {
         }
         v.addLayout(row, 0);
     }
+    // custom: the highlight colour and dark or light, nothing else
+    var customHead = new QLabel(qsTr("Custom colour"), pop);
+    v.addWidget(customHead, 0, 0);
+    var crow = new QHBoxLayout();
+    crow.setSpacing(6);
+    var customMode = now.mode;   // the toggle starts at the mode in force
+    var swatchBtn = new QToolButton(pop);
+    swatchBtn.setIcon(Theme.swatch(Theme.colors(customMode, "custom")));
+    swatchBtn.setIconSize(new QSize(40, 30));
+    swatchBtn.text = qsTr("Pick the highlight colour...");
+    swatchBtn.toolButtonStyle = Qt.ToolButtonTextBesideIcon;
+    swatchBtn.toolTip = qsTr("Choose the highlight colour of your own theme");
+    swatchBtn.setProperty("current", now.id === "custom");
+    swatchBtn.clicked.connect(function() {
+        if (typeof Ribbon !== "undefined") { Ribbon.closePopup(); }
+        Theme.pickCustom(customMode);
+    });
+    crow.addWidget(swatchBtn, 0, 0);
+    var modeButtons = [ { mode: "dark", title: qsTr("Dark") }, { mode: "light", title: qsTr("Light") } ];
+    for (var mb = 0; mb < modeButtons.length; mb++) {
+        var tb = new QToolButton(pop);
+        tb.text = modeButtons[mb].title;
+        tb.checkable = true;
+        tb.checked = customMode === modeButtons[mb].mode;
+        tb.setMinimumWidth(56);
+        tb.clicked.connect((function(mode) { return function() {
+            if (typeof Ribbon !== "undefined") { Ribbon.closePopup(); }
+            Theme.chooseCustom(mode, Theme.customAccent());
+        }; })(modeButtons[mb].mode));
+        crow.addWidget(tb, 0, 0);
+    }
+    crow.addStretch(1);
+    v.addLayout(crow, 0);
     var foot = new QLabel(qsTr("Toolbar icons match the mode from the next launch."), pop);
     v.addWidget(foot, 0, 0);
     pop.setLayout(v);
