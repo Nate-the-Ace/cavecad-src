@@ -359,6 +359,264 @@ LayoutTabs.updateMode = function(entry) {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Sheet settings: the paper of the layout that is showing, edited in the ribbon
+// ---------------------------------------------------------------------------
+
+LayoutTabs.MARGIN_PRESETS = [
+    { name: qsTr("None"), mm: 0 }, { name: qsTr("Narrow  (1/4 in)"), mm: 6.35 },
+    { name: qsTr("Normal  (1/2 in)"), mm: 12.7 }, { name: qsTr("Wide  (1 in)"), mm: 25.4 }
+];
+
+LayoutTabs.COLOR_MODES = [
+    { id: "FullColor", name: qsTr("Full colour") }, { id: "Grayscale", name: qsTr("Greyscale") },
+    { id: "BlackWhite", name: qsTr("Black and white") }
+];
+
+/** A small "label: field" grid for a ribbon panel. */
+LayoutTabs.sheetGrid = function(parent) {
+    var box = new QWidget(parent);
+    var grid = new QGridLayout();
+    grid.setContentsMargins(0, 2, 0, 0);
+    grid.setHorizontalSpacing(4);
+    grid.setVerticalSpacing(2);
+    box.setLayout(grid);
+    return { box: box, grid: grid };
+};
+
+LayoutTabs.sheetSpin = function(parent, onDone) {
+    var sp = new QDoubleSpinBox(parent);
+    sp.setRange(0, 5000);
+    sp.setDecimals(2);
+    sp.setMinimumWidth(78);
+    sp.editingFinished.connect(onDone);
+    return sp;
+};
+
+LayoutTabs.sheetLabel = function(text, parent) {
+    var l = new QLabel(text, parent);
+    l.alignment = Qt.AlignRight | Qt.AlignVCenter;
+    return l;
+};
+
+/** The sheet settings widgets the ribbon builds; they are kept on the entry and refreshed from the layout. */
+LayoutTabs.sheetWidgets = function(entry) {
+    if (isNull(entry.sheetW)) { entry.sheetW = {}; }
+    return entry.sheetW;
+};
+
+LayoutTabs.makeSheetPaper = function(entry, parent) {
+    var W = LayoutTabs.sheetWidgets(entry);
+    var g = LayoutTabs.sheetGrid(parent);
+    W.paper = new QComboBox(g.box);
+    W.paper.setMinimumWidth(130);
+    W.paper["activated(int)"].connect(function(index) { LayoutTabs.sheetPaperPicked(entry, index); });
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Size"), g.box), 0, 0);
+    g.grid.addWidget(W.paper, 0, 1);
+    var orient = new QWidget(g.box);
+    var oh = new QHBoxLayout();
+    oh.setContentsMargins(0, 0, 0, 0);
+    oh.setSpacing(2);
+    W.portrait = new QToolButton(orient);
+    W.portrait.text = qsTr("Portrait");
+    W.portrait.checkable = true;
+    W.portrait.clicked.connect(function() { LayoutTabs.sheetApply(entry, { landscape: false }); });
+    W.landscape = new QToolButton(orient);
+    W.landscape.text = qsTr("Landscape");
+    W.landscape.checkable = true;
+    W.landscape.clicked.connect(function() { LayoutTabs.sheetApply(entry, { landscape: true }); });
+    oh.addWidget(W.portrait, 1, 0);
+    oh.addWidget(W.landscape, 1, 0);
+    orient.setLayout(oh);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Orientation"), g.box), 1, 0);
+    g.grid.addWidget(orient, 1, 1);
+    W.units = new QComboBox(g.box);
+    W.units.addItem(qsTr("Inches"));
+    W.units.addItem(qsTr("Millimetres"));
+    W.units["activated(int)"].connect(function(index) { LayoutTabs.sheetApply(entry, { units: index === 0 ? Layouts.INCHES : Layouts.MILLIMETERS }); });
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Units"), g.box), 2, 0);
+    g.grid.addWidget(W.units, 2, 1);
+    return g.box;
+};
+
+LayoutTabs.makeSheetCustom = function(entry, parent) {
+    var W = LayoutTabs.sheetWidgets(entry);
+    var g = LayoutTabs.sheetGrid(parent);
+    var done = function() { LayoutTabs.sheetCustomEdited(entry); };
+    W.width = LayoutTabs.sheetSpin(g.box, done);
+    W.height = LayoutTabs.sheetSpin(g.box, done);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Width"), g.box), 0, 0);
+    g.grid.addWidget(W.width, 0, 1);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Height"), g.box), 1, 0);
+    g.grid.addWidget(W.height, 1, 1);
+    return g.box;
+};
+
+LayoutTabs.makeSheetMargins = function(entry, parent) {
+    var W = LayoutTabs.sheetWidgets(entry);
+    var g = LayoutTabs.sheetGrid(parent);
+    var done = function() { LayoutTabs.sheetMarginsEdited(entry); };
+    W.preset = new QComboBox(g.box);
+    W.preset["activated(int)"].connect(function(index) { LayoutTabs.sheetPresetPicked(entry, index); });
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Preset"), g.box), 0, 0);
+    g.grid.addWidget(W.preset, 0, 1);
+    W.mTop = LayoutTabs.sheetSpin(g.box, done);
+    W.mBottom = LayoutTabs.sheetSpin(g.box, done);
+    W.mLeft = LayoutTabs.sheetSpin(g.box, done);
+    W.mRight = LayoutTabs.sheetSpin(g.box, done);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Top"), g.box), 1, 0);
+    g.grid.addWidget(W.mTop, 1, 1);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Bottom"), g.box), 1, 2);
+    g.grid.addWidget(W.mBottom, 1, 3);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Left"), g.box), 2, 0);
+    g.grid.addWidget(W.mLeft, 2, 1);
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Right"), g.box), 2, 2);
+    g.grid.addWidget(W.mRight, 2, 3);
+    return g.box;
+};
+
+LayoutTabs.makeSheetPrint = function(entry, parent) {
+    var W = LayoutTabs.sheetWidgets(entry);
+    var g = LayoutTabs.sheetGrid(parent);
+    W.color = new QComboBox(g.box);
+    for (var i = 0; i < LayoutTabs.COLOR_MODES.length; i++) { W.color.addItem(LayoutTabs.COLOR_MODES[i].name); }
+    W.color["activated(int)"].connect(function(index) { LayoutTabs.sheetColorPicked(entry, index); });
+    g.grid.addWidget(LayoutTabs.sheetLabel(qsTr("Print in"), g.box), 0, 0);
+    g.grid.addWidget(W.color, 0, 1);
+    var note = new QLabel(qsTr("Scale is set on each viewport"), g.box);
+    g.grid.addWidget(note, 1, 1);
+    return g.box;
+};
+
+/** Fills the sheet settings from the layout that is showing. */
+LayoutTabs.refreshSheet = function(entry) {
+    var W = entry.sheetW;
+    if (isNull(W) || isNull(W.paper) || isNull(W.mTop) || isNull(W.width) || isNull(W.color)) {
+        return;
+    }
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    if (isNull(cur)) {
+        return;
+    }
+    var info = Layouts.get(doc, cur.name);
+    if (isNull(info)) {
+        return;
+    }
+    var inches = info.units === Layouts.INCHES;
+    var color = Layouts.getColorMode(doc, info);
+    var sig = [cur.name, info.paperMM.w, info.paperMM.h, info.units, info.marginsMM.l, info.marginsMM.r, info.marginsMM.t, info.marginsMM.b, color].join("|");
+    if (entry.sheetSig === sig) {
+        return;
+    }
+    entry.sheetSig = sig;
+    entry.sheetBusy = true;
+    var show = function(mm) { return inches ? mm / 25.4 : mm; };
+    var setSpin = function(sp, mm) {
+        sp.setDecimals(inches ? 3 : 1);
+        sp.setSingleStep(inches ? 0.05 : 1);
+        sp.suffix = inches ? qsTr(" in") : qsTr(" mm");
+        sp.value = show(mm);
+    };
+    // paper size list: the named papers, with the current size first when it is none of them
+    var current = Layouts.paperNameOf(info.paperMM.w, info.paperMM.h);
+    W.paper.clear();
+    var at = 0;
+    entry.sheetCustomPaper = (current === "");
+    if (entry.sheetCustomPaper) {
+        W.paper.addItem(qsTr("Custom"));
+    }
+    for (var i = 0; i < Layouts.PAPERS.length; i++) {
+        W.paper.addItem(Layouts.PAPERS[i].name);
+        if (Layouts.PAPERS[i].name === current) { at = W.paper.count - 1; }
+    }
+    W.paper.setCurrentIndex(at);
+    var landscape = info.paperMM.w >= info.paperMM.h;
+    W.portrait.checked = !landscape;
+    W.landscape.checked = landscape;
+    W.units.setCurrentIndex(inches ? 0 : 1);
+    setSpin(W.width, info.paperMM.w);
+    setSpin(W.height, info.paperMM.h);
+    setSpin(W.mTop, info.marginsMM.t);
+    setSpin(W.mBottom, info.marginsMM.b);
+    setSpin(W.mLeft, info.marginsMM.l);
+    setSpin(W.mRight, info.marginsMM.r);
+    // margin presets, with "Custom" first when the four margins match none
+    var m = info.marginsMM;
+    var even = Math.abs(m.l - m.r) < 0.001 && Math.abs(m.l - m.t) < 0.001 && Math.abs(m.l - m.b) < 0.001;
+    var match = -1;
+    for (var p = 0; p < LayoutTabs.MARGIN_PRESETS.length; p++) {
+        if (even && Math.abs(m.l - LayoutTabs.MARGIN_PRESETS[p].mm) < 0.01) { match = p; }
+    }
+    W.preset.clear();
+    W.preset.addItem(qsTr("Custom"));
+    for (var q = 0; q < LayoutTabs.MARGIN_PRESETS.length; q++) { W.preset.addItem(LayoutTabs.MARGIN_PRESETS[q].name); }
+    W.preset.setCurrentIndex(match + 1);
+    for (var c = 0; c < LayoutTabs.COLOR_MODES.length; c++) {
+        if (LayoutTabs.COLOR_MODES[c].id === color) { W.color.setCurrentIndex(c); }
+    }
+    entry.sheetBusy = false;
+};
+
+/** Applies a paper change to the layout that is showing (one undo step) and redraws. */
+LayoutTabs.sheetApply = function(entry, changes) {
+    if (entry.sheetBusy === true) { return; }
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    if (isNull(cur)) { return; }
+    Layouts.pageSetup(entry.di, cur.name, changes);
+    entry.sheetSig = undefined;
+    LayoutTabs.refresh(entry);
+    LayoutCanvas.restoreOrFit(entry);
+    LayoutTabs.refreshControls(entry);
+};
+
+LayoutTabs.sheetPaperPicked = function(entry, index) {
+    if (entry.sheetBusy === true) { return; }
+    var offset = entry.sheetCustomPaper === true ? 1 : 0;
+    if (index < offset) { return; }
+    LayoutTabs.sheetApply(entry, { paper: Layouts.PAPERS[index - offset].name });
+};
+
+LayoutTabs.sheetToMM = function(entry, value) {
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    var info = isNull(cur) ? undefined : Layouts.get(doc, cur.name);
+    return (!isNull(info) && info.units === Layouts.INCHES) ? value * 25.4 : value;
+};
+
+LayoutTabs.sheetCustomEdited = function(entry) {
+    var W = entry.sheetW;
+    if (entry.sheetBusy === true || isNull(W)) { return; }
+    var w = LayoutTabs.sheetToMM(entry, W.width.value);
+    var h = LayoutTabs.sheetToMM(entry, W.height.value);
+    if (w < 10 || h < 10) { return; }
+    LayoutTabs.sheetApply(entry, { paper: { w: w, h: h } });
+};
+
+LayoutTabs.sheetMarginsEdited = function(entry) {
+    var W = entry.sheetW;
+    if (entry.sheetBusy === true || isNull(W)) { return; }
+    LayoutTabs.sheetApply(entry, { margins: {
+        l: LayoutTabs.sheetToMM(entry, W.mLeft.value), b: LayoutTabs.sheetToMM(entry, W.mBottom.value),
+        r: LayoutTabs.sheetToMM(entry, W.mRight.value), t: LayoutTabs.sheetToMM(entry, W.mTop.value) } });
+};
+
+LayoutTabs.sheetPresetPicked = function(entry, index) {
+    if (entry.sheetBusy === true || index < 1) { return; }
+    LayoutTabs.sheetApply(entry, { margins: LayoutTabs.MARGIN_PRESETS[index - 1].mm });
+};
+
+LayoutTabs.sheetColorPicked = function(entry, index) {
+    if (entry.sheetBusy === true) { return; }
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    if (isNull(cur)) { return; }
+    Layouts.setColorMode(entry.di, cur.name, LayoutTabs.COLOR_MODES[index].id);
+    entry.sheetSig = undefined;
+    LayoutTabs.refreshControls(entry);
+};
+
 /** Starts the New Viewport tool on this layout. */
 LayoutTabs.newViewport = function(entry) {
     var action = RGuiAction.getByScriptFile("scripts/Layouts/NewViewport/NewViewport.js");
@@ -1021,6 +1279,12 @@ LayoutTabs.refreshControls = function(entry) {
     }
     catch (eRibbon) {
     }
+    try {
+        LayoutTabs.refreshSheet(entry);
+    }
+    catch (eSheet) {
+        qWarning("LayoutTabs.refreshSheet: " + eSheet);
+    }
     var vp = LayoutTabs.controlViewport(entry);
     if (isNull(vp) || isNull(entry.vpScale)) {
         return;
@@ -1579,6 +1843,16 @@ LayoutTabs.registerRibbon = function() {
     RibbonCommands.register();
     // the layout tab is there while a layout is showing
     Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
+    // the paper of the layout that is showing
+    Ribbon.registerTab({ id: "sheet", title: qsTr("Sheet settings"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
+    Ribbon.registerPanel("sheet", { id: "s-paper", title: qsTr("Paper"), order: 10, items: [
+        { type: "widget", id: "sheetPaper", make: function(entry, parent) { return LayoutTabs.makeSheetPaper(entry, parent); } } ] });
+    Ribbon.registerPanel("sheet", { id: "s-custom", title: qsTr("Custom size"), order: 20, items: [
+        { type: "widget", id: "sheetCustom", make: function(entry, parent) { return LayoutTabs.makeSheetCustom(entry, parent); } } ] });
+    Ribbon.registerPanel("sheet", { id: "s-margins", title: qsTr("Margins"), order: 30, items: [
+        { type: "widget", id: "sheetMargins", make: function(entry, parent) { return LayoutTabs.makeSheetMargins(entry, parent); } } ] });
+    Ribbon.registerPanel("sheet", { id: "s-print", title: qsTr("Printing"), order: 40, items: [
+        { type: "widget", id: "sheetPrint", make: function(entry, parent) { return LayoutTabs.makeSheetPrint(entry, parent); } } ] });
     Ribbon.registerTab({ id: "viewport", title: qsTr("Viewport"), accent: true, when: function(ctx) { return !isNull(ctx.viewport); } });
     // a command with option fields is running: its options, in the ribbon
     Ribbon.registerTab({ id: "tool", title: qsTr("Tool options"), accent: true,

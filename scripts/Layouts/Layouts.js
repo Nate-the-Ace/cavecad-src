@@ -456,6 +456,28 @@ Layouts.setPaper = function(di, name, changes) {
     }, qsTr("Page setup"));
 };
 
+/** How the sheet prints: "FullColor", "Grayscale" or "BlackWhite". */
+Layouts.getColorMode = function(doc, info) {
+    var block = doc.queryBlock(info.blockId);
+    var mode = isNull(block) ? "" : block.getCustomProperty("QCAD", "ColorSettings/ColorMode", "");
+    return mode === "" ? "FullColor" : String(mode);
+};
+
+Layouts.setColorMode = function(di, name, mode) {
+    var doc = di.getDocument();
+    var info = Layouts.get(doc, name);
+    if (isNull(info)) {
+        return false;
+    }
+    var block = doc.queryBlock(info.blockId);
+    block.setCustomProperty("QCAD", "ColorSettings/ColorMode", mode);
+    var op = new RModifyObjectsOperation();
+    op.setText(qsTr("Print colour"));
+    op.addObject(block, false);
+    di.applyOperation(op);
+    return true;
+};
+
 /** Page setup that also keeps the block's print settings in step. */
 Layouts.pageSetup = function(di, name, changes) {
     var info = Layouts.setPaper(di, name, changes);
@@ -988,6 +1010,11 @@ Layouts.applyPrintSettings = function(di, name, group) {
     }
     var block = doc.queryBlock(info.blockId);
     var settings = Layouts.printSettings(info);
+    // the colour mode is the person's choice (Sheet settings), not something page setup resets
+    var keepColor = block.getCustomProperty("QCAD", "ColorSettings/ColorMode", "");
+    if (keepColor !== "") {
+        settings["ColorSettings/ColorMode"] = keepColor;
+    }
     for (var key in settings) {
         if (settings.hasOwnProperty(key)) {
             block.setCustomProperty("QCAD", key, settings[key]);
