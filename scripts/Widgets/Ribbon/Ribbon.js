@@ -338,16 +338,18 @@ Ribbon.commandIndex = function() {
         var a = all[i];
         var menus = [];
         var sort = 0;
+        var group = 0;
         try {
             var names = a.getWidgetNames();
             for (var k = 0; k < names.length; k++) {
                 if (String(names[k]).match(/Menu$/)) { menus.push(String(names[k])); }
             }
             sort = a.getSortOrder();
+            group = a.getGroupSortOrder();
         }
         catch (e) {
         }
-        list.push({ action: a, file: String(a.getScriptFile()), menus: menus, sort: sort, text: String(a.text).replace("&", "") });
+        list.push({ action: a, file: String(a.getScriptFile()), menus: menus, sort: sort, group: group, text: String(a.text).replace("&", "") });
     }
     Ribbon.indexed = list;
     Ribbon.indexByFile = {};
@@ -384,7 +386,10 @@ Ribbon.actionsOf = function(menuName) {
     for (var i = 0; i < list.length; i++) {
         if (list[i].menus.indexOf(menuName) >= 0) { out.push(list[i]); }
     }
-    out.sort(function(x, y) { return x.sort !== y.sort ? x.sort - y.sort : (x.text < y.text ? -1 : (x.text > y.text ? 1 : 0)); });
+    out.sort(function(x, y) {
+        if (x.group !== y.group) { return x.group - y.group; }
+        return x.sort !== y.sort ? x.sort - y.sort : (x.text < y.text ? -1 : (x.text > y.text ? 1 : 0));
+    });
     Ribbon.menuCache[menuName] = out;
     return out;
 };
@@ -432,7 +437,8 @@ Ribbon.applyTheme = function(entry) {
         "QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } " +
         "QToolButton:disabled { color:" + c.dim + "; } " +
         // a split button's arrow sits at the right, clear of the label; a pure dropdown shows its own arrow in the text
-        "QToolButton[ribbonSplit=\"true\"] { padding-right:15px; } " +
+        "QToolButton#RibbonSplitArrow { color:" + c.dim2 + "; font-size:10px; border-radius:3px; } " +
+        "QToolButton#RibbonSplitArrow:hover { color:" + c.textStrong + "; background:" + c.hover + "; } " +
 
         "QCheckBox { color:" + c.text + "; } " +
         "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
@@ -441,6 +447,7 @@ Ribbon.applyTheme = function(entry) {
             "border:1px solid " + c.line + "; border-bottom:none; border-top-left-radius:5px; border-top-right-radius:5px; } " +
         "QTabBar::tab:selected { color:" + c.textStrong + "; background:" + c.bg + "; border-top:3px solid " + c.accent + "; font-weight:bold; margin-bottom:-1px; } " +
         "QTabBar::tab:hover:!selected { color:" + c.textStrong + "; background:" + c.hover + "; } " +
+        "QFrame#RibbonPopupSep { color:" + c.line + "; background:" + c.line + "; max-height:1px; } " +
         "QFrame#RibbonOverflow { background:" + c.bg + "; border:1px solid " + c.line + "; border-top:2px solid " + c.accent + "; } " +
         "QToolButton#RibbonOverflowButton { color:" + c.textStrong + "; font-size:12px; border:1px solid " + c.line + "; border-radius:3px; background:" + c.tab + "; } " +
         "QToolButton#RibbonOverflowButton:hover { background:" + c.hover + "; color:" + c.textStrong + "; } " +
@@ -500,7 +507,7 @@ Ribbon.makeButton = function(entry, item, parent) {
     btn.toolTip = !isNull(item.tooltip) ? item.tooltip : (!isNull(action) ? String(action.statusTip) : String(btn.text).replace("\n", " "));
 
     var trigger = function() {
-        if (!isNull(Ribbon.popupOpen)) { Ribbon.popupOpen.hide(); Ribbon.popupOpen = undefined; }
+        Ribbon.closePopup();
         if (!isNull(item.onClick)) {
             item.onClick(entry, Ribbon.contextOf(entry));
         }
@@ -509,43 +516,48 @@ Ribbon.makeButton = function(entry, item, parent) {
         }
     };
 
-    if (!isNull(item.menu)) {
-        // a menu of ribbon-defined entries
-        var menu = new QMenu(btn);
-        for (var m = 0; m < item.menu.length; m++) {
-            menu.addAction(item.menu[m].text).triggered.connect(
-                (function(def) { return function() { def.onClick(entry, Ribbon.contextOf(entry)); }; })(item.menu[m]));
-        }
-        btn.setMenu(menu);
-        btn.popupMode = QToolButton.InstantPopup;
+    // the variants behind the button: commands of a menu or list, or entries the ribbon defines.
+    // They open in a popup that opens on a click and stays until a choice is made, like a panel's arrow.
+    var variants = [];
+    for (var ve = 0; ve < entries.length; ve++) {
+        variants.push({ text: Ribbon.shortText(entries[ve].text), icon: entries[ve].action.icon, cmd: entries[ve].action, group: entries[ve].group });
     }
-    else if (entries.length > 0) {
-        // a menu of commands: the button runs the main command, the arrow lists the rest
-        var cmdMenu = new QMenu(btn);
-        var made = [];
-        for (var e = 0; e < entries.length; e++) {
-            var ca = entries[e].action;
-            var act = cmdMenu.addAction(Ribbon.shortText(entries[e].text));
-            if (!ca.icon.isNull()) { act.setIcon(ca.icon); }
-            act.triggered.connect((function(target) { return function() {
-                if (!isNull(Ribbon.popupOpen)) { Ribbon.popupOpen.hide(); Ribbon.popupOpen = undefined; }
-                target.slotTrigger();
-            }; })(ca));
-            made.push({ act: act, cmd: ca });
+    if (!isNull(item.menu)) {
+        for (var vm = 0; vm < item.menu.length; vm++) {
+            variants.push({ text: item.menu[vm].text, def: item.menu[vm] });
         }
-        cmdMenu.aboutToShow.connect(function() {
-            for (var q = 0; q < made.length; q++) { made[q].act.enabled = made[q].cmd.enabled; }
-        });
-        btn.setMenu(cmdMenu);
+    }
+
+    var result = btn;
+    if (variants.length > 0) {
+        var arrow;
         if (!isNull(action) || !isNull(item.onClick)) {
-            btn.popupMode = QToolButton.MenuButtonPopup;
-            btn.setProperty("ribbonSplit", true);   // the style sheet clears room for the arrow
+            // a split: the button runs the main command, a separate arrow opens the variants
             btn.clicked.connect(trigger);
+            var box = new QWidget(parent);
+            box.objectName = "RibbonSplit";
+            var hb = new QHBoxLayout();
+            hb.setContentsMargins(0, 0, 0, 0);
+            hb.setSpacing(0);
+            arrow = new QToolButton(box);
+            arrow.objectName = "RibbonSplitArrow";
+            arrow.text = "\u25be";
+            arrow.autoRaise = true;
+            arrow.toolTip = qsTr("More %1 commands").arg(String(btn.text).replace("\n", " "));
+            arrow.setFixedWidth(16);
+            arrow.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding);
+            btn.setParent(box);
+            hb.addWidget(btn, 0, 0);
+            hb.addWidget(arrow, 0, 0);
+            box.setLayout(hb);
+            result = box;
         }
         else {
-            btn.popupMode = QToolButton.InstantPopup;
+            // a pure dropdown: the button itself opens the variants
+            arrow = btn;
             if (large) { btn.text = btn.text + " \u25be"; }
         }
+        arrow.clicked.connect(function() { Ribbon.openVariants(entry, result, variants); });
     }
     else {
         btn.clicked.connect(trigger);
@@ -559,7 +571,74 @@ Ribbon.makeButton = function(entry, item, parent) {
         if (checkable) { btn.checkable = true; }
         entry.ribbonCmd.push({ btn: btn, action: action, checkable: checkable });
     }
-    return btn;
+    return result;
+};
+
+Ribbon.closePopup = function() {
+    var pop = Ribbon.popupOpen;
+    Ribbon.popupOpen = undefined;
+    if (!isNull(pop)) {
+        try {
+            pop.close();   // a click outside has already closed (and deleted) it: nothing to do then
+        }
+        catch (e) {
+        }
+    }
+};
+
+/** Opens a button's variants in a popup under the ribbon, at the button's left edge. */
+Ribbon.openVariants = function(entry, anchor, variants) {
+    Ribbon.closePopup();
+    var pop = new QFrame(anchor);
+    pop.objectName = "RibbonOverflow";
+    pop.setWindowFlags(Qt.Popup);
+    pop.setAttribute(Qt.WA_StyledBackground, true);
+    pop.setAttribute(Qt.WA_DeleteOnClose, true);
+    var grid = new QHBoxLayout();
+    grid.setContentsMargins(6, 6, 6, 6);
+    grid.setSpacing(8);
+    var perColumn = 10;
+    var col;
+    for (var i = 0; i < variants.length; i++) {
+        if (i % perColumn === 0) {
+            col = new QVBoxLayout();
+            col.setSpacing(0);
+            col.setContentsMargins(0, 0, 0, 0);
+            grid.addLayout(col, 0);
+        }
+        var v = variants[i];
+        // a thin line where the menu changes group
+        if (i > 0 && i % perColumn !== 0 && !isNull(v.group) && !isNull(variants[i - 1].group) && v.group !== variants[i - 1].group) {
+            var sepLine = new QFrame(pop);
+            sepLine.frameShape = QFrame.HLine;
+            sepLine.setObjectName("RibbonPopupSep");
+            sepLine.setFixedHeight(2);
+            col.addWidget(sepLine, 0, 0);
+        }
+        var b = new QToolButton(pop);
+        b.text = v.text;
+        if (!isNull(v.icon) && !v.icon.isNull()) { b.setIcon(v.icon); }
+        b.setIconSize(new QSize(18, 18));
+        b.toolButtonStyle = Qt.ToolButtonTextBesideIcon;
+        b.autoRaise = true;
+        b.setMinimumWidth(170);
+        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed);
+        if (!isNull(v.cmd)) { b.enabled = v.cmd.enabled; }
+        b.clicked.connect((function(variant) { return function() {
+            Ribbon.closePopup();
+            if (!isNull(variant.cmd)) { variant.cmd.slotTrigger(); }
+            else if (!isNull(variant.def)) { variant.def.onClick(entry, Ribbon.contextOf(entry)); }
+        }; })(v));
+        col.addWidget(b, 0, 0);
+        if (i === variants.length - 1 || (i + 1) % perColumn === 0) { col.addStretch(1); }
+    }
+    pop.setLayout(grid);
+    pop.adjustSize();
+    // directly under the button that opened it, at its left edge
+    var at = anchor.mapToGlobal(new QPoint(0, anchor.height));
+    pop.move(at.x(), at.y());
+    Ribbon.popupOpen = pop;
+    pop.show();
 };
 
 /** Builds the ribbon for a window into `parent`'s layout (`insertAt` 0 = top). Returns the ribbon state. */
@@ -756,6 +835,7 @@ Ribbon.makePanel = function(entry, def, parent) {
             pop.setMinimumWidth(pw.width);
             pop.adjustSize();
             pop.move(pw.mapToGlobal(new QPoint(0, pw.height)));
+            Ribbon.closePopup();
             Ribbon.popupOpen = pop;
             pop.show();
         });
