@@ -14,7 +14,6 @@
 include("scripts/library.js");
 include("scripts/Layouts/Layouts.js");
 include("scripts/Widgets/ViewportWidget/ViewportWidget.js");
-include("scripts/Annotate/Annotative.js");
 
 function LayoutTabs() {
 }
@@ -213,7 +212,6 @@ LayoutTabs.attach = function(root, di) {
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
     entryRef.entry = entry;
     entry.top = top;
-
     entry.modeLabel = modeLabel;
     entry.banner = banner;
     entry.done = done;
@@ -235,62 +233,10 @@ LayoutTabs.attach = function(root, di) {
 
     LayoutTabs.ensureLayout(entry);
     LayoutTabs.refresh(entry);
-    LayoutTabs.refreshAnno(entry);
     try {
         LayoutTabs.applyTheme(entry);
     }
     catch (eFirst) {
-    }
-};
-
-/** The annotation scale list and the all-scales button, from the document. */
-LayoutTabs.refreshAnno = function(entry) {
-    if (isNull(entry.annoCombo)) {
-        return;     // the annotation controls live in the Property Editor now
-    }
-    try {
-        var doc = entry.di.getDocument();
-        var scales = Layouts.scales(), cur = Annotative.currentScale(doc), at = -1;
-        entry.annoCombo.blockSignals(true);
-        entry.annoCombo.clear();
-        for (var i = 0; i < scales.length; i++) {
-            entry.annoCombo.addItem(scales[i].label);
-            if (Annotative.same(scales[i].feetPerInch, cur)) { at = i; }
-        }
-        entry.annoScales = scales;
-        if (at < 0) {
-            entry.annoCombo.insertItem(0, Annotative.label(cur) + "  (current)");
-            at = 0;
-            entry.annoOffset = 1;
-        }
-        else {
-            entry.annoOffset = 0;
-        }
-        entry.annoCombo.setCurrentIndex(at);
-        entry.annoCombo.blockSignals(false);
-        entry.annoGhost.checked = Annotative.visible(doc);
-    }
-    catch (e) {
-    }
-};
-
-LayoutTabs.refreshAnnoAll = function() {
-    for (var i = 0; i < LayoutTabs.entries.length; i++) {
-        try {
-            if (LayoutTabs.live(LayoutTabs.entries[i])) { LayoutTabs.refreshAnno(LayoutTabs.entries[i]); }
-        }
-        catch (e) {
-        }
-    }
-};
-
-LayoutTabs.annoPicked = function(entry, index) {
-    var i = index - (isNull(entry.annoOffset) ? 0 : entry.annoOffset);
-    if (i >= 0 && i < entry.annoScales.length) {
-        Annotative.setCurrentScale(entry.di, entry.annoScales[i].feetPerInch);
-    }
-    else if (i < 0) {
-        LayoutTabs.refreshAnno(entry);     // the "(current)" row: nothing to change
     }
 };
 
@@ -1650,7 +1596,6 @@ LayoutTabs.applyTheme = function(entry) {
     entry.top.setStyleSheet(
         "QWidget#LayoutControlStrip { background:" + c.stripBg + "; border-bottom:2px solid " + c.stripBorder + "; } " +
         "QLabel { color:" + c.text + "; background:transparent; } " +
-        "QPushButton:checked { background:#188cff; color:white; } " +
         "QCheckBox { color:" + c.text + "; } " +
         "QPushButton { color:" + c.text + "; background:" + c.btnBg + "; border:1px solid " + c.btnBorder + "; border-radius:4px; padding:2px 10px; } " +
         "QPushButton:hover { background:" + c.btnHover + "; } " +

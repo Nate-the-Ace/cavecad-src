@@ -20,7 +20,6 @@
 include("scripts/EAction.js");
 include("scripts/sprintf.js");
 include("scripts/WidgetFactory.js");
-include("scripts/Widgets/PropertyEditor/AnnotativeGroup.js");
 
 /**
  * Internal helper class. Notified when properties are changed.
@@ -429,7 +428,6 @@ PropertyEditorImpl.prototype.updateGui = function(onlyChanges) {
         handleEdit.text = "";
         protectedCombo.clear();
         generalGroup.enabled = false;
-        AnnotativeGroup.refresh(this);
         this.widget.updatesEnabled = true;
         return;
     }
@@ -860,7 +858,6 @@ PropertyEditorImpl.prototype.updateGui = function(onlyChanges) {
         }
     }
 
-    AnnotativeGroup.refresh(this);
     this.widget.updatesEnabled = true;
 };
 
