@@ -143,7 +143,7 @@ Ribbon.hookTools = function() {
 };
 
 Ribbon.pollTools = function() {
-    var tb = EAction.getOptionsToolBar();
+    var tb = Ribbon.optionsBar();
     if (isNull(tb)) {
         return;
     }
@@ -174,13 +174,22 @@ Ribbon.currentTool = function() {
     return Ribbon.tools.length === 0 ? undefined : Ribbon.tools[Ribbon.tools.length - 1];
 };
 
+/**
+ * The options toolbar, found without asking QCAD for it: EAction.getOptionsToolBar()
+ * shows the bar every time it is called, which would undo any attempt to keep it in the ribbon.
+ */
+Ribbon.optionsBar = function() {
+    var mw = RMainWindowQt.getMainWindow();
+    return isNull(mw) ? undefined : mw.findChild("Options");
+};
+
 /** Moves the options toolbar out of the main window and into this drawing's tool tab. */
 Ribbon.placeOptions = function(entry) {
     var host = isNull(entry.ribbonItems) ? undefined : entry.ribbonItems.optionsHost;
     if (isNull(host)) {
         return;
     }
-    var tb = EAction.getOptionsToolBar();
+    var tb = Ribbon.optionsBar();
     if (isNull(tb)) {
         return;
     }
@@ -205,7 +214,7 @@ Ribbon.placeOptions = function(entry) {
 Ribbon.show = function(entry) {
     try {
         Ribbon.host().setCurrentWidget(entry.ribbon.root);
-        if (!isNull(Ribbon.currentTool())) { Ribbon.placeOptions(entry); }
+        Ribbon.placeOptions(entry);
     }
     catch (e) {
         qWarning("Ribbon.show: " + e);
@@ -217,6 +226,14 @@ Ribbon.discard = function(entry) {
     try {
         if (entry.ribbonDiscarded === true) { return; }
         entry.ribbonDiscarded = true;
+        var tb = Ribbon.optionsBar();
+        if (!isNull(tb) && Ribbon.optionsHost === entry.id) {
+            // the options toolbar lives in this page: park it before the page goes
+            tb.setParent(RMainWindowQt.getMainWindow());
+            tb.hide();
+            tb.setProperty("RibbonHosted", false);
+            Ribbon.optionsHost = undefined;
+        }
         Ribbon.host().removeWidget(entry.ribbon.root);
         entry.ribbon.root.deleteLater();
     }

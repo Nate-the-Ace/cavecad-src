@@ -96,8 +96,8 @@ ToolBarClose.attach = function(tb) {
         }
         return;
     }
-    if (String(tb.objectName) === "RibbonToolBar") {
-        return;   // not floatable
+    if (String(tb.objectName) === "RibbonToolBar" || String(tb.objectName) === "Options") {
+        return;   // the ribbon is not floatable, and the options bar lives inside it
     }
     tb.setProperty("ToolBarCloseDone", true);
     var x = new QToolButton(tb);
