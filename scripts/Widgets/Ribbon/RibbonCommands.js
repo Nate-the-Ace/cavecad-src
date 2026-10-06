@@ -196,7 +196,58 @@ RibbonCommands.register = function() {
         C("File/PdfExport/PdfExport.js", { text: qsTr("PDF") }), C("File/BitmapExport/BitmapExport.js", { text: qsTr("Bitmap") }) ] });
 
     // ---------------------------------------------------------- Cave Survey
-    // every survey command for now, three to a column; grouped by workflow later
+    // grouped by the order a survey is worked: start, data, draw, check, style, publish.
+    // Any survey command not placed below lands in "More tools" so nothing is lost.
+    var cs = function(name) { return "CaveSurvey/" + name + "/" + name + ".js"; };
+    var csUsed = {};
+    var CS = function(name, o) { csUsed[name] = true; return C(cs(name), o); };
+    var cs_ = function(name, o) { csUsed[name] = true; return s(cs(name), o); };
     Ribbon.registerTab({ id: "cave", title: qsTr("Cave Survey") });
-    Ribbon.registerPanel("cave", { id: "c-tools", title: qsTr("Survey tools"), order: 10, items: RibbonCommands.columnsOf("CaveSurveyMenu") });
+    Ribbon.registerPanel("cave", { id: "c-start", title: qsTr("Get started"), order: 10, items: [
+        CS("StartHere", { text: qsTr("Start\nhere") }),
+        CS("CaveShelf", { text: qsTr("Caves") }),
+        K([ cs_("CaveTemplate", { text: qsTr("New cave map") }), cs_("TeachingCave", { text: qsTr("Teaching cave") }), cs_("Handbook") ]) ] });
+    Ribbon.registerPanel("cave", { id: "c-data", title: qsTr("Survey data"), order: 20, items: [
+        CS("SurveyNotebook", { text: qsTr("Survey\nnotebook") }),
+        CS("ImportCaveSurvey", { text: qsTr("Import\nsurvey") }),
+        K([ cs_("StationTable", { text: qsTr("Station table") }), cs_("SurveyStats", { text: qsTr("Statistics") }), cs_("EntranceLocation", { text: qsTr("Entrance") }) ]),
+        K([ cs_("SurfaceData", { text: qsTr("Surface data") }) ]) ] });
+    Ribbon.registerPanel("cave", { id: "c-draw", title: qsTr("Draw and trace"), order: 30, items: [
+        CS("DrawPanel", { text: qsTr("Draw") }),
+        CS("SketchScans", { text: qsTr("Sketch\nscans") }),
+        CS("CrossSection", { text: qsTr("Cross\nsection") }),
+        K([ cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]) ] });
+    Ribbon.registerPanel("cave", { id: "c-check", title: qsTr("Check and repair"), order: 40, items: [
+        CS("CheckMap", { text: qsTr("Check\nmap") }),
+        CS("LoopErrors", { text: qsTr("Loop\nerrors") }),
+        K([ cs_("AreaSync", { text: qsTr("Sync areas") }), cs_("RepairDrawing", { text: qsTr("Repair") }), cs_("ResetDrawing", { text: qsTr("Reset") }) ]) ] });
+    Ribbon.registerPanel("cave", { id: "c-style", title: qsTr("Style and annotate"), order: 50, items: [
+        C(cs("ShapedLines"), { text: qsTr("Decorate\nselection") }),
+        CS("Callout"),
+        K([ C("CaveSurvey/ShapedLines/WallEdging.js", { size: "small", text: qsTr("Wall edging") }), cs_("LinetypeMaker", { text: qsTr("Linetypes") }), cs_("BuildLegend", { text: qsTr("Legend") }) ]) ] });
+    csUsed["ShapedLines"] = true;
+    Ribbon.registerPanel("cave", { id: "c-publish", title: qsTr("Plan and publish"), order: 60, items: [
+        CS("SheetSetup", { text: qsTr("Sheet\nsetup") }),
+        K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }) ]),
+        CS("Cave3D", { text: qsTr("3D\nview") }),
+        CS("ExpeditionPlanner", { text: qsTr("Expedition\nplanner") }) ] });
+    // whatever the survey suite adds later still shows up
+    var leftovers = [];
+    var all = Ribbon.actionsOf("CaveSurveyMenu");
+    for (var li = 0; li < all.length; li++) {
+        var base = all[li].file.replace(/^.*\/CaveSurvey\//, "");
+        var key = base.split("/")[0];
+        if (csUsed[key] !== true && base.indexOf("WallEdging.js") < 0) { leftovers.push(all[li]); }
+    }
+    if (leftovers.length > 0) {
+        var more = [];
+        for (var mi = 0; mi < leftovers.length; mi += 3) {
+            var col = [];
+            for (var mj = mi; mj < Math.min(mi + 3, leftovers.length); mj++) {
+                col.push({ type: "button", action: leftovers[mj].file, size: "small" });
+            }
+            more.push({ type: "stack", items: col });
+        }
+        Ribbon.registerPanel("cave", { id: "c-more", title: qsTr("More tools"), order: 90, items: more });
+    }
 };

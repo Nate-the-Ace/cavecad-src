@@ -28,7 +28,7 @@ var Ribbon = {};
 
 Ribbon.tabs = [];
 Ribbon.panels = {};          // tab id -> [panel defs]
-Ribbon.BODY_HEIGHT = 78;
+Ribbon.BODY_HEIGHT = 86;
 Ribbon.TAB_HEIGHT = 26;
 Ribbon.includeBasePath = includeBasePath;
 Ribbon.contextOf = function(entry) { return {}; };   // set by the host
@@ -419,8 +419,8 @@ Ribbon.applyTheme = function(entry) {
     }
     var dark = Ribbon.iconColor() !== "#2b2b2b";
     var c = dark ?
-        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22" } :
-        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff" };
+        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22", tab: "#223140", dim2: "#a9b8c8", textStrong: "#ffffff" } :
+        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff", tab: "#d5dce6", dim2: "#4a5b6e", textStrong: "#0b1d33" };
     rb.root.setStyleSheet(
         "QWidget#RibbonRoot, QWidget#RibbonBody { background:" + c.bg + "; } " +
         "QWidget#RibbonHead { background:" + c.head + "; border-bottom:1px solid " + c.line + "; } " +
@@ -435,9 +435,13 @@ Ribbon.applyTheme = function(entry) {
 
         "QCheckBox { color:" + c.text + "; } " +
         "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
-        "QTabBar::tab { color:" + c.text + "; background:transparent; padding:3px 14px; margin-right:2px; border:1px solid transparent; border-top-left-radius:4px; border-top-right-radius:4px; } " +
-        "QTabBar::tab:selected { background:" + c.bg + "; border-color:" + c.line + "; font-weight:bold; } " +
-        "QTabBar::tab:hover:!selected { background:" + c.hover + "; }" +
+        // tabs: each its own raised tab, the open one joined to the ribbon below and marked with an accent bar
+        "QTabBar::tab { color:" + c.dim2 + "; background:" + c.tab + "; padding:4px 18px; margin-right:3px; min-width:52px; " +
+            "border:1px solid " + c.line + "; border-bottom:none; border-top-left-radius:5px; border-top-right-radius:5px; } " +
+        "QTabBar::tab:selected { color:" + c.textStrong + "; background:" + c.bg + "; border-top:3px solid " + c.accent + "; font-weight:bold; margin-bottom:-1px; } " +
+        "QTabBar::tab:hover:!selected { color:" + c.textStrong + "; background:" + c.hover + "; } " +
+        // a line between panels, so each group of commands reads as one
+        "QWidget[ribbonDivider=\"true\"] { border-right:1px solid " + c.line + "; } " +
         // the options toolbar a running command fills: flat, on the ribbon's own colours
         "QWidget#RibbonOptionsHost QToolBar { background:transparent; border:none; spacing:6px; padding:0px; } " +
         "QWidget#RibbonOptionsHost QToolBar::separator { background:" + c.line + "; width:1px; margin:8px 5px; } " +
