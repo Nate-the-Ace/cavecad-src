@@ -295,7 +295,20 @@ Ribbon.attach = function(entry, parent, layout) {
 };
 
 /** Keeps a built widget by id, and its enabled() rule, for refresh. */
-Ribbon.remember = function(entry, item, widget) {
+Ribbon.remember = function(entry, item, widget, panelId) {
+    // a button for an action the build does not have (a cave-suite tool, say) is hidden, and a
+    // panel left with nothing to show is hidden with it; `available(ctx, entry)` adds its own rule
+    if (isNull(item.action) && typeof item.available !== "function") {
+        if (isNull(entry.ribbonFixed)) { entry.ribbonFixed = {}; }
+        entry.ribbonFixed[panelId] = true;   // this panel always has something to show
+    }
+    else {
+        if (isNull(entry.ribbonAvail)) { entry.ribbonAvail = []; }
+        entry.ribbonAvail.push({ widget: widget, panel: panelId, fn: function(ctx) {
+            if (!isNull(item.action) && isNull(Ribbon.findAction(item.action))) { return false; }
+            return typeof item.available === "function" ? item.available(ctx, entry) === true : true;
+        } });
+    }
     if (!isNull(item.id)) {
         if (isNull(entry.ribbonItems)) { entry.ribbonItems = {}; }
         entry.ribbonItems[item.id] = widget;
@@ -333,7 +346,7 @@ Ribbon.makePanel = function(entry, def, parent) {
                 var sw = sub.type === "widget" ? sub.make(entry, w) : Ribbon.makeButton(entry, sub, w);
                 if (!isNull(sw)) {
                     col.addWidget(sw, 0, 0);
-                    Ribbon.remember(entry, sub, sw);
+                    Ribbon.remember(entry, sub, sw, def.id);
                 }
             }
             col.addStretch(1);
@@ -344,7 +357,7 @@ Ribbon.makePanel = function(entry, def, parent) {
         }
         if (!isNull(w)) {
             row.addWidget(w, 0, 0);
-            Ribbon.remember(entry, item, w);
+            Ribbon.remember(entry, item, w, def.id);
         }
     }
     v.addLayout(row, 0);
@@ -375,7 +388,8 @@ Ribbon.showPanels = function(entry) {
     for (var tid in rb.panelWidgets) {
         if (!rb.panelWidgets.hasOwnProperty(tid)) { continue; }
         for (var i = 0; i < rb.panelWidgets[tid].length; i++) {
-            rb.panelWidgets[tid][i].visible = (tid === rb.current);
+            var pid = Ribbon.panels[tid][i].id;
+            rb.panelWidgets[tid][i].visible = (tid === rb.current) && !(rb.panelEmpty && rb.panelEmpty[pid] === true);
         }
     }
 };
@@ -425,6 +439,18 @@ Ribbon.refresh = function(entry) {
         rb.bar.setCurrentIndex(rb.tabIndexOf[want]);
     }
     rb.building = false;
+    var av = isNull(entry.ribbonAvail) ? [] : entry.ribbonAvail;
+    var total = {}, shown = {};
+    for (var q = 0; q < av.length; q++) {
+        var ok = av[q].fn(ctx);
+        av[q].widget.visible = ok;
+        total[av[q].panel] = (total[av[q].panel] || 0) + 1;
+        shown[av[q].panel] = (shown[av[q].panel] || 0) + (ok ? 1 : 0);
+    }
+    rb.panelEmpty = {};
+    for (var pid in total) {
+        if (total.hasOwnProperty(pid) && !shown[pid] && !(entry.ribbonFixed && entry.ribbonFixed[pid])) { rb.panelEmpty[pid] = true; }
+    }
     Ribbon.showPanels(entry);
     rb.state.text = isNull(ctx.stateText) ? "" : ctx.stateText;
     var en = isNull(entry.ribbonEnable) ? [] : entry.ribbonEnable;

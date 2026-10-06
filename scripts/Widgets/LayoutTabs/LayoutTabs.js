@@ -1598,6 +1598,11 @@ LayoutTabs.registerRibbon = function() {
           tooltip: qsTr("Choose which layers this viewport hides"),
           onClick: function(entry) { LayoutTabs.viewportLayers(entry); } },
         { type: "button", id: "scalebar", text: qsTr("Scale\nbar"), icon: "scale", size: "large",
+          // offered only where the cave suite is loaded and the viewport has no bar yet
+          available: function(ctx, entry) {
+              return typeof Layouts.addScaleBarFor === "function" && !isNull(ctx.viewport) &&
+                  !Layouts.hasScaleBarOf(entry.di.getDocument(), ctx.viewport);
+          },
           tooltip: qsTr("Add a scale bar that follows this viewport's scale"),
           onClick: function(entry) { LayoutTabs.addScaleBar(entry); } } ] });
     Ribbon.registerPanel("viewport", { id: "vpshape", title: qsTr("Shape"), order: 30, items: [
