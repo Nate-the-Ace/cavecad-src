@@ -65,6 +65,11 @@ ToolBarClose.names = function(appWin) {
     for (var i = 0; i < base.length; i++) {
         add(base[i] + "ToolBar");
     }
+    // the ones that do not follow the "...ToolBar" pattern (the tool-options bar is one)
+    var odd = ["Options", "BlockOptions", "IsometricProjection", "ShapeToolBar"];
+    for (var j = 0; j < odd.length; j++) {
+        add(odd[j]);
+    }
     try {
         var acts = RGuiAction.getActions();
         for (var a = 0; a < acts.length; a++) {
