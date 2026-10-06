@@ -35,12 +35,10 @@ AnnotativeGroup.build = function(editor) {
     var check = new QCheckBox(qsTr("Annotative"), g);
     check.objectName = "AnnotativeCheck";
     check.toolTip = qsTr("Give the selected text a paper height and a list of scales: it then prints the same size at every viewport scale");
-    var scales = new QToolButton(g);
+    var scales = new QPushButton(g);
     scales.objectName = "AnnotativeScales";
     scales.text = qsTr("Scales");
     scales.toolTip = qsTr("The scales the selected annotative text supports (a tick = supported); pick one to add or remove it");
-    scales.popupMode = QToolButton.InstantPopup;
-    scales.toolButtonStyle = Qt.ToolButtonTextOnly;
     var menu = new QMenu(scales);
     scales.setMenu(menu);
     grid.addWidget(check, 0, 0, 1, 1);
@@ -113,8 +111,8 @@ AnnotativeGroup.refresh = function(editor) {
         st.check.blockSignals(true);
         st.check.enabled = sel.all.length > 0;
         st.check.setTristate(sel.annotative.length > 0 && sel.annotative.length < sel.all.length);
-        st.check.checkState = sel.annotative.length === 0 ? Qt.Unchecked :
-            (sel.annotative.length === sel.all.length ? Qt.Checked : Qt.PartiallyChecked);
+        st.check.setCheckState(sel.annotative.length === 0 ? Qt.Unchecked :
+            (sel.annotative.length === sel.all.length ? Qt.Checked : Qt.PartiallyChecked));
         st.check.blockSignals(false);
 
         // the Scales menu: every scale, ticked where ALL the selected annotative texts have it
