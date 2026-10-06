@@ -3114,51 +3114,10 @@ function autoIconPath(path, inverse) {
 }
 
 function applyTheme() {
-    var systemId = RS.getSystemId();
-    var theme = RSettings.getValue("Theme/ThemeName", undefined);
-
-    // CaveCAD: stylesheet themes work on macOS too. Upstream QCAD
-    // restricted macOS to the plugin-based "Modern" theme, which made
-    // Theme/ThemeName a silent no-op on Mac.
-    if (!isNull(theme)) {
-        var path = "themes/" + theme + "/";
-
-        qApp.styleSheet = "";
-
-        // load stylesheet.css, stylesheet_[win|macos|linux].css:
-        var found = false;
-        if (systemId==="osx") systemId = "macos";
-
-        var postfixes = ["", "_" + systemId];
-        for (var i=0; i<postfixes.length; i++) {
-            var postfix = postfixes[i];
-            var fn = path + "stylesheet" + postfix + ".css";
-            qDebug("trying to load theme stylesheet: ", fn);
-
-            if (new QFileInfo(fn).exists()) {
-                var css = readTextFile(fn);
-                if (css.contains("RequiresPlugin:true")) {
-                    // only load theme if plugin loaded:
-                    var pluginId = theme.toUpperCase() + "STYLE";
-                    if (!RPluginLoader.hasPlugin(pluginId)) {
-                        qWarning("Theme not loaded: ", theme);
-                        qWarning("Theme plugin not found:", pluginId);
-                        return;
-                    }
-                }
-
-                css = css.replace(/url\(/g, "url(" + path);
-                qApp.styleSheet = qApp.styleSheet + "\n" + css;
-                found = true;
-            }
-        }
-
-        if (!found) {
-            if (theme!=="Default") {
-                qWarning("Cannot open theme: ", theme);
-            }
-        }
-    }
+    // CaveCAD: the look of the whole application comes from Widgets/Theme (a colour and a mode,
+    // saved as Theme/Choice). QCAD's own theme folder and preferences page are gone.
+    include("scripts/Widgets/Theme/Theme.js");
+    Theme.activate();
 }
 
 function setUtf8Codec(ts) {

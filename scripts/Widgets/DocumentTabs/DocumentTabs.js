@@ -107,7 +107,7 @@ DocumentTabs.applyTheme = function() {
         "QMenu::item:selected { background:" + c.accent + "; color:white; } " +
         "QMenu::item:disabled { color:" + c.dim + "; } " +
         "QMenu::separator { height:1px; background:" + c.line + "; margin:3px 6px; } " +
-        "QToolButton#DocumentTabAdd { color:" + c.dim2 + "; font-size:15px; border-radius:3px; min-width:22px; } " +
+        "QToolButton#DocumentTabAdd { color:" + c.dim2 + "; font-size:15px; border-radius:3px; min-width:22px; padding:0px; } " +
         "QToolButton#DocumentTabAdd:hover { background:" + c.hover + "; color:" + c.textStrong + "; }");
 };
 

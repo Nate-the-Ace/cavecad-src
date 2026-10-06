@@ -603,9 +603,6 @@
     <file alias="scripts/Edit/AppPreferences/TextPreferences/PreferencesPage.ui">../../scripts/Edit/AppPreferences/TextPreferences/PreferencesPage.ui</file>
     <file alias="scripts/Edit/AppPreferences/TextPreferences/TextPreferences.js">../../scripts/Edit/AppPreferences/TextPreferences/TextPreferences.js</file>
     <file alias="scripts/Edit/AppPreferences/TextPreferences/TextPreferencesInit.js">../../scripts/Edit/AppPreferences/TextPreferences/TextPreferencesInit.js</file>
-    <file alias="scripts/Edit/AppPreferences/ThemePreferences/PreferencesPage.ui">../../scripts/Edit/AppPreferences/ThemePreferences/PreferencesPage.ui</file>
-    <file alias="scripts/Edit/AppPreferences/ThemePreferences/ThemePreferences.js">../../scripts/Edit/AppPreferences/ThemePreferences/ThemePreferences.js</file>
-    <file alias="scripts/Edit/AppPreferences/ThemePreferences/ThemePreferencesInit.js">../../scripts/Edit/AppPreferences/ThemePreferences/ThemePreferencesInit.js</file>
     <file alias="scripts/Edit/AppPreferences/ToolBarPreferences/PreferencesPage.ui">../../scripts/Edit/AppPreferences/ToolBarPreferences/PreferencesPage.ui</file>
     <file alias="scripts/Edit/AppPreferences/ToolBarPreferences/ToolBarPreferences.js">../../scripts/Edit/AppPreferences/ToolBarPreferences/ToolBarPreferences.js</file>
     <file alias="scripts/Edit/AppPreferences/ToolBarPreferences/ToolBarPreferencesInit.js">../../scripts/Edit/AppPreferences/ToolBarPreferences/ToolBarPreferencesInit.js</file>
@@ -1708,6 +1705,7 @@
     <file alias="scripts/Widgets/Ribbon/icons/trim.svg">../../scripts/Widgets/Ribbon/icons/trim.svg</file>
     <file alias="scripts/Widgets/Ribbon/icons/unlock.svg">../../scripts/Widgets/Ribbon/icons/unlock.svg</file>
     <file alias="scripts/Widgets/ToolBarClose/ToolBarClose.js">../../scripts/Widgets/ToolBarClose/ToolBarClose.js</file>
+    <file alias="scripts/Widgets/Theme/Theme.js">../../scripts/Widgets/Theme/Theme.js</file>
     <file alias="scripts/Widgets/DocumentTabs/DocumentTabs.js">../../scripts/Widgets/DocumentTabs/DocumentTabs.js</file>
     <file alias="scripts/Widgets/SelectionDisplay/SelectionDisplay.js">../../scripts/Widgets/SelectionDisplay/SelectionDisplay.js</file>
     <file alias="scripts/Widgets/SelectionDisplay/SelectionDisplay.ui">../../scripts/Widgets/SelectionDisplay/SelectionDisplay.ui</file>

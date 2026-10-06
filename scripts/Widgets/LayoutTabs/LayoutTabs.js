@@ -1474,31 +1474,22 @@ LayoutTabs.syncLayerManager = function() {
 
 /** True when the application's window colour is dark. */
 LayoutTabs.isDark = function() {
-    try {
-        return QApplication.palette().color(QPalette.Window).value() < 128;
-    }
-    catch (e) {
-        return true;
-    }
+    return Theme.isDark();
 };
 
 /** The colours for the current theme. */
 LayoutTabs.colors = function() {
-    if (LayoutTabs.isDark()) {
-        return { stripBg: "#1d3a5c", stripBorder: "#4aa3ff", text: "#eaf3ff", mode: "#ffffff",
-            btnBg: "#2f5a8c", btnBorder: "#6fb2ff", btnHover: "#3b6ea8", btnDisabled: "#8aa0b8",
-            bannerBg: "#5a4210", bannerText: "#ffe6a8", bannerBorder: "#d9a63c",
-            tabBarBg: "#1b2733", tabText: "#dbe7f3", tabBg: "#2a3a4a", tabBorder: "#4c6076" };
-    }
-    return { stripBg: "#e6f1ff", stripBorder: "#188cff", text: "#12345a", mode: "#0b3d75",
-        btnBg: "#ffffff", btnBorder: "#7aa9d8", btnHover: "#eef6ff", btnDisabled: "#8a9bb0",
-        bannerBg: "#fff1cf", bannerText: "#7a2e00", bannerBorder: "#e0a53a",
-        tabBarBg: "#e9edf2", tabText: "#243447", tabBg: "#f7f9fb", tabBorder: "#b7c3d0" };
+    var t = Theme.colors();
+    var dark = Theme.isDark();
+    return { stripBg: t.bg, stripBorder: t.accent, text: t.text, mode: t.textStrong, accent: t.accent,
+        btnBg: t.tab, btnBorder: t.line, btnHover: t.hover, btnDisabled: t.dim,
+        bannerBg: dark ? "#5a4210" : "#fff1cf", bannerText: dark ? "#ffe6a8" : "#7a2e00", bannerBorder: "#d9a63c",
+        tabBarBg: t.head, tabText: t.dim2, tabBg: t.tab, tabBorder: t.line };
 };
 
 LayoutTabs.applyTheme = function(entry) {
     var c = LayoutTabs.colors();
-    var key = LayoutTabs.isDark() ? "dark" : "light";
+    var key = String(Theme.applied);
     if (entry.themeKey === key) {
         return;
     }
@@ -1508,7 +1499,7 @@ LayoutTabs.applyTheme = function(entry) {
         "QWidget#LayoutTabStrip { background:" + c.tabBarBg + "; } " +
         "QTabBar { background:" + c.tabBarBg + "; } " +
         "QTabBar::tab { color:" + c.tabText + "; background:" + c.tabBg + "; border:1px solid " + c.tabBorder + "; padding:4px 14px; margin-right:2px; border-bottom-left-radius:4px; border-bottom-right-radius:4px; } " +
-        "QTabBar::tab:selected { background:#188cff; color:white; font-weight:bold; border-color:#0b5fb5; } " +
+        "QTabBar::tab:selected { background:" + c.accent + "; color:white; font-weight:bold; border-color:" + c.accent + "; } " +
         "QToolButton { color:" + c.tabText + "; }");
 };
 

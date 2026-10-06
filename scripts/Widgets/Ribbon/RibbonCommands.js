@@ -198,6 +198,10 @@ RibbonCommands.register = function() {
         C("Edit/DrawingPreferences/DrawingPreferences.js", { text: qsTr("Drawing\npreferences") }),
         C("Edit/AppPreferences/AppPreferences.js", { text: qsTr("Application\npreferences") }),
         C("Edit/ConvertUnit/ConvertUnit.js", { text: qsTr("Convert\nunit") }) ] });
+    Ribbon.registerPanel("manage", { id: "m-appearance", title: qsTr("Appearance"), order: 15, items: [
+        { type: "button", id: "theme", text: qsTr("Theme"), icon: "square", size: "large",
+          tooltip: qsTr("Choose the colours of the application, dark or light"),
+          onClick: function(entry) { Theme.openChooser(entry.ribbonItems.theme); } } ] });
     Ribbon.registerPanel("manage", { id: "m-select", title: qsTr("Selection"), order: 20, items: [
         C("Select/SelectAll/SelectAll.js"), C("Select/DeselectAll/DeselectAll.js"),
         K([ s("Select/InvertSelection/InvertSelection.js", { text: qsTr("Invert") }), s("Select/SelectContour/SelectContour.js"), s("Select/SelectRectangle/SelectRectangle.js") ]),

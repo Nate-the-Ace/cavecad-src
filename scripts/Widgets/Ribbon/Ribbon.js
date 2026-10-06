@@ -24,6 +24,8 @@
  * recoloured for the theme.
  */
 
+include("scripts/Widgets/Theme/Theme.js");
+
 var Ribbon = {};
 
 Ribbon.tabs = [];
@@ -377,6 +379,11 @@ Ribbon.pollTools = function() {
     }
     catch (eSync) {
     }
+    try {
+        if (!isNull(Ribbon.activeEntry) && Ribbon.activeEntry.dead !== true) { Ribbon.fit(Ribbon.activeEntry); }
+    }
+    catch (eFit) {
+    }
     var tb = Ribbon.optionsBar();
     if (isNull(tb)) {
         return;
@@ -490,12 +497,7 @@ Ribbon.discard = function(entry) {
 // ---------------------------------------------------------------------
 
 Ribbon.iconColor = function() {
-    try {
-        return QApplication.palette().color(QPalette.Window).value() < 128 ? "#e8eef5" : "#2b2b2b";
-    }
-    catch (e) {
-        return "#e8eef5";
-    }
+    return Theme.isDark() ? "#e8eef5" : "#2b2b2b";
 };
 
 /** A themed QIcon from one of this folder's SVGs, or undefined. */
@@ -674,10 +676,35 @@ Ribbon.wrap = function(text) {
 
 /** The ribbon's colours for the current light or dark theme (shared by what sits beside it). */
 Ribbon.colors = function() {
-    var dark = Ribbon.iconColor() !== "#2b2b2b";
-    return dark ?
-        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22", tab: "#223140", dim2: "#a9b8c8", textStrong: "#ffffff" } :
-        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff", tab: "#d5dce6", dim2: "#4a5b6e", textStrong: "#0b1d33" };
+    return Theme.colors();
+};
+
+/** A theme was chosen: everything the ribbon draws is dressed again. */
+Ribbon.themeChanged = function() {
+    Ribbon.iconCache = {};
+    if (typeof LayoutTabs !== "undefined") {
+        for (var i = 0; i < LayoutTabs.entries.length; i++) {
+            var e = LayoutTabs.entries[i];
+            if (e.dead === true || isNull(e.ribbon)) { continue; }
+            Ribbon.applyTheme(e);
+            var icons = isNull(e.ribbonIcons) ? [] : e.ribbonIcons;
+            for (var k = 0; k < icons.length; k++) {
+                var ic = Ribbon.icon(icons[k].name);
+                if (!isNull(ic)) { icons[k].btn.setIcon(ic); }
+            }
+        }
+    }
+    if (typeof DocumentTabs !== "undefined" && !isNull(DocumentTabs.strip)) {
+        DocumentTabs.applyTheme();
+    }
+    if (typeof LayoutTabs !== "undefined") {
+        for (var j = 0; j < LayoutTabs.entries.length; j++) {
+            var le = LayoutTabs.entries[j];
+            if (le.dead === true) { continue; }
+            le.themeKey = undefined;
+            try { LayoutTabs.applyTheme(le); } catch (eLt) { }
+        }
+    }
 };
 
 /** A small orange dot: what marks a contextual tab (one that appears with what you are doing). */
@@ -710,7 +737,7 @@ Ribbon.applyTheme = function(entry) {
         "QWidget#RibbonBody { border-bottom:2px solid " + c.line + "; } " +
         "QLabel { color:" + c.text + "; background:transparent; } " +
         "QLabel#RibbonPanelTitle { color:" + c.dim + "; font-size:11px; } " +
-        "QToolButton { color:" + c.text + "; background:transparent; border:1px solid transparent; border-radius:4px; } " +
+        "QToolButton { color:" + c.text + "; background:transparent; border:1px solid transparent; border-radius:4px; padding:0px; } " +
         "QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } " +
         "QToolButton:disabled { color:" + c.dim + "; } " +
         // a split button's arrow sits at the right, clear of the label; a pure dropdown shows its own arrow in the text
@@ -778,6 +805,10 @@ Ribbon.makeButton = function(entry, item, parent) {
     if (large) { text = Ribbon.wrap(text); }
     btn.text = text;
     var ic = isNull(item.icon) ? undefined : Ribbon.icon(item.icon);
+    if (!isNull(ic)) {
+        if (isNull(entry.ribbonIcons)) { entry.ribbonIcons = []; }
+        entry.ribbonIcons.push({ btn: btn, name: item.icon });   // dressed again when the theme changes
+    }
     if (isNull(ic) && !isNull(action)) {
         ic = action.icon;
     }
@@ -1019,15 +1050,6 @@ Ribbon.attach = function(entry, stack) {
 
     stack.addWidget(root);
     Ribbon.applyTheme(entry);
-    // a panel keeps the width its buttons need: in a narrow window the ribbon is clipped at the
-    // right edge instead of squeezing every label (the style sheet is on now, so sizes are real)
-    for (var tid2 in rb.panelWidgets) {
-        if (!rb.panelWidgets.hasOwnProperty(tid2)) { continue; }
-        for (var q = 0; q < rb.panelWidgets[tid2].length; q++) {
-            var pwq = rb.panelWidgets[tid2][q];
-            pwq.setMinimumWidth(pwq.sizeHint.width());
-        }
-    }
     return rb;
 };
 
@@ -1090,6 +1112,7 @@ Ribbon.makeColumn = function(entry, def, item, owner, row) {
         row.addWidget(w, 0, 0);
         Ribbon.remember(entry, item, w, def.id);
     }
+    return w;
 };
 
 Ribbon.makePanel = function(entry, def, parent) {
@@ -1103,13 +1126,15 @@ Ribbon.makePanel = function(entry, def, parent) {
     row.setSpacing(2);
     row.setContentsMargins(0, 0, 0, 0);
 
-    // the everyday tabs hold three columns a panel; contextual tabs (and ones that say so) show everything
+    // every column is built once; Ribbon.setColumns decides how many sit in the panel and how many
+    // wait in the popup behind its arrow (three on a wide window, down to one on a narrow one)
     var tabDef = Ribbon.tabById(def.tabId);
     var unlimited = !isNull(tabDef) && (tabDef.accent === true || tabDef.unlimited === true);
     var limit = !isNull(def.maxColumns) ? def.maxColumns : (unlimited ? 99 : Ribbon.MAX_COLUMNS);
-    var shown = Math.min(limit, def.items.length);
-    for (var i = 0; i < shown; i++) {
-        Ribbon.makeColumn(entry, def, def.items[i], pw, row);
+    var cols = [];
+    for (var i = 0; i < def.items.length; i++) {
+        var w = Ribbon.makeColumn(entry, def, def.items[i], pw, row);
+        if (!isNull(w)) { cols.push(w); }
     }
     v.addLayout(row, 0);
 
@@ -1121,39 +1146,117 @@ Ribbon.makePanel = function(entry, def, parent) {
     label.alignment = Qt.AlignHCenter;
     label.objectName = "RibbonPanelTitle";
     titleRow.addWidget(label, 1, 0);
-    if (def.items.length > shown) {
-        var pop = new QFrame(pw);
-        pop.objectName = "RibbonOverflow";
-        pop.setWindowFlags(Qt.Popup);
-        pop.setAttribute(Qt.WA_StyledBackground, true);
-        var popRow = new QHBoxLayout();
-        popRow.setContentsMargins(8, 4, 8, 4);
-        popRow.setSpacing(2);
-        pop.setLayout(popRow);
-        for (var o = shown; o < def.items.length; o++) {
-            Ribbon.makeColumn(entry, def, def.items[o], pop, popRow);
-        }
-        var more = new QToolButton(pw);
-        more.objectName = "RibbonOverflowButton";
-        more.text = "\u25be";
-        more.autoRaise = true;
-        more.toolTip = qsTr("More %1 commands").arg(def.title);
-        more.setFixedSize(24, 16);
-        more.clicked.connect(function() {
-            // directly under its own panel: the panel's left edge, the ribbon's bottom edge
-            pop.setMinimumWidth(pw.width);
-            pop.adjustSize();
-            pop.move(pw.mapToGlobal(new QPoint(0, pw.height)));
-            Ribbon.closePopup();
-            Ribbon.popupOpen = pop;
-            pop.show();
-        });
-        titleRow.addWidget(more, 0, 0);
-    }
+
+    var pop = new QFrame(pw);
+    pop.objectName = "RibbonOverflow";
+    pop.setWindowFlags(Qt.Popup);
+    pop.setAttribute(Qt.WA_StyledBackground, true);
+    var popRow = new QHBoxLayout();
+    popRow.setContentsMargins(8, 4, 8, 4);
+    popRow.setSpacing(2);
+    pop.setLayout(popRow);
+    var more = new QToolButton(pw);
+    more.objectName = "RibbonOverflowButton";
+    more.text = "\u25be";
+    more.autoRaise = true;
+    more.toolTip = qsTr("More %1 commands").arg(def.title);
+    more.setFixedSize(24, 16);
+    more.visible = false;
+    more.clicked.connect(function() {
+        // directly under its own panel: the panel's left edge, the ribbon's bottom edge
+        pop.setMinimumWidth(pw.width);
+        pop.adjustSize();
+        pop.move(pw.mapToGlobal(new QPoint(0, pw.height)));
+        Ribbon.closePopup();
+        Ribbon.popupOpen = pop;
+        pop.show();
+    });
+    titleRow.addWidget(more, 0, 0);
     v.addLayout(titleRow, 0);
     pw.setLayout(v);
     pw.setProperty("ribbonDivider", true);
+
+    if (isNull(entry.ribbonPanels)) { entry.ribbonPanels = {}; }
+    var rec = { pw: pw, def: def, cols: cols, row: row, popRow: popRow, pop: pop, more: more, limit: limit, shown: -1 };
+    entry.ribbonPanels[def.id] = rec;
+    Ribbon.setColumns(rec, Math.min(limit, cols.length));
     return pw;
+};
+
+/** Puts the first `n` columns of a panel in the panel and the rest in its popup. */
+Ribbon.setColumns = function(rec, n) {
+    n = Math.max(1, Math.min(n, rec.cols.length));
+    if (rec.shown === n) {
+        return;
+    }
+    Ribbon.closePopup();
+    var i;
+    for (i = 0; i < rec.cols.length; i++) {
+        rec.row.removeWidget(rec.cols[i]);
+        rec.popRow.removeWidget(rec.cols[i]);
+    }
+    for (i = 0; i < rec.cols.length; i++) {
+        var w = rec.cols[i];
+        if (i < n) {
+            w.setParent(rec.pw);
+            rec.row.addWidget(w, 0, 0);
+            w.visible = true;   // re-parenting hides a widget; availability (Ribbon.refresh) hides again what is not on offer
+        }
+        else {
+            w.setParent(rec.pop);
+            rec.popRow.addWidget(w, 0, 0);
+        }
+    }
+    rec.more.visible = n < rec.cols.length;
+    rec.shown = n;
+};
+
+/**
+ * Fits the showing tab to the window: all the columns a panel is allowed, then two, then one,
+ * until the panels fit across; what does not fit even then scrolls. Redone when the width or the tab changes.
+ */
+Ribbon.fit = function(entry) {
+    var rb = entry.ribbon;
+    if (isNull(rb) || rb.fitting === true || isNull(rb.current) || isNull(entry.ribbonPanels)) {
+        return;
+    }
+    var width = rb.body.width;
+    if (width < 100) { return; }   // not laid out yet
+    var key = width + "|" + rb.current + "|" + JSON.stringify(rb.panelEmpty);
+    if (rb.fitKey === key) {
+        return;
+    }
+    rb.fitting = true;
+    try {
+        var recs = [];
+        var list = Ribbon.panels[rb.current];
+        for (var i = 0; i < list.length; i++) {
+            var rec = entry.ribbonPanels[list[i].id];
+            if (!isNull(rec) && !(rb.panelEmpty && rb.panelEmpty[list[i].id] === true)) { recs.push(rec); }
+        }
+        var levels = [99, 3, 2, 1];
+        for (var lv = 0; lv < levels.length; lv++) {
+            var total = 12;
+            for (var r = 0; r < recs.length; r++) {
+                var rc = recs[r];
+                rc.pw.setMinimumWidth(0);
+                Ribbon.setColumns(rc, Math.min(rc.limit, levels[lv]));
+                rc.pw.layout().activate();
+                total += rc.pw.sizeHint.width() + 2;
+            }
+            if (total <= width || lv === levels.length - 1) { break; }
+        }
+        // what is showing keeps the width it needs (scroll if that is more than the window has)
+        for (var f = 0; f < recs.length; f++) { recs[f].pw.setMinimumWidth(recs[f].pw.sizeHint.width()); }
+        rb.fitKey = width + "|" + rb.current + "|" + JSON.stringify(rb.panelEmpty);
+    }
+    catch (e) {
+        qWarning("Ribbon.fit: " + e);
+        rb.fitKey = key;   // do not try again until something changes
+    }
+    rb.fitting = false;
+    // columns that moved came back visible: put availability back
+    Ribbon.refresh(entry);
 };
 
 Ribbon.showPanels = function(entry) {
@@ -1235,6 +1338,7 @@ Ribbon.refresh = function(entry) {
     if (!isNull(Ribbon.onRefresh)) {
         Ribbon.onRefresh(entry, ctx);
     }
+    if (rb.fitting !== true) { Ribbon.fit(entry); }
 };
 
 Ribbon.tabById = function(id) {
