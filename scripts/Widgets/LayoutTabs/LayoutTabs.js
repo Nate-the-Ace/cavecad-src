@@ -1689,4 +1689,5 @@ LayoutTabs.registerRibbon = function() {
             label.setMaximumWidth(520);
             return label;
         } } ] });
+    RibbonCommands.checkSweep();
 };

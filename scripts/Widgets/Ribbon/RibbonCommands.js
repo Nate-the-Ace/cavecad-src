@@ -18,6 +18,12 @@ function RibbonCommands() {
 
 RibbonCommands.registered = false;
 
+/** True for a menu name ("DrawLineMenu") or a list of them; a list of script files is the other kind. */
+RibbonCommands.isMenuName = function(from) {
+    if (typeof from === "string") { return true; }
+    return from instanceof Array && from.length > 0 && /Menu$/.test(String(from[0]));
+};
+
 /** A button for the command in `file`; `o` adds size, text, icon ... */
 RibbonCommands.cmd = function(file, o) {
     var item = { type: "button", action: file, size: "large" };
@@ -28,7 +34,7 @@ RibbonCommands.cmd = function(file, o) {
 /** A split button: `file` runs, the arrow lists `menuFrom` (a menu name) or `dropdown` (script files). */
 RibbonCommands.split = function(file, from, o) {
     var item = { type: "button", action: file, size: "large" };
-    if (typeof from === "string") { item.menuFrom = from; } else { item.dropdown = from; }
+    if (RibbonCommands.isMenuName(from)) { item.menuFrom = from; } else { item.dropdown = from; }
     for (var k in o) { if (o.hasOwnProperty(k)) { item[k] = o[k]; } }
     return item;
 };
@@ -36,7 +42,7 @@ RibbonCommands.split = function(file, from, o) {
 /** A dropdown with no main command of its own. */
 RibbonCommands.menu = function(from, o) {
     var item = { type: "button", size: "large" };
-    if (typeof from === "string") { item.menuFrom = from; } else { item.dropdown = from; }
+    if (RibbonCommands.isMenuName(from)) { item.menuFrom = from; } else { item.dropdown = from; }
     for (var k in o) { if (o.hasOwnProperty(k)) { item[k] = o[k]; } }
     return item;
 };
@@ -94,7 +100,8 @@ RibbonCommands.register = function() {
 
     // ---------------------------------------------------------------- Home
     Ribbon.registerPanel("home", { id: "h-file", title: qsTr("File"), order: 5, items: [
-        K([ s("File/NewFile/NewFile.js"), s("File/OpenFile/OpenFile.js"), s("File/Save/Save.js") ]) ] });
+        K([ s("File/NewFile/NewFile.js"), s("File/OpenFile/OpenFile.js"), s("File/Save/Save.js") ]),
+        K([ s("File/SaveAs/SaveAs.js"), s("File/CloseFile/CloseFile.js") ]) ] });
     Ribbon.registerPanel("home", { id: "h-draw", title: qsTr("Draw"), order: 10, items: [
         S("Draw/Line/Line2P/Line2P.js", "DrawLineMenu", { text: qsTr("Line") }),
         S("Draw/Circle/CircleCR/CircleCR.js", "DrawCircleMenu", { text: qsTr("Circle") }),
@@ -106,7 +113,8 @@ RibbonCommands.register = function() {
             s("Draw/Spline/SplineControlPoints/SplineControlPoints.js", { text: qsTr("Spline") }),
             s("Draw/Point/Point1P/Point1P.js", { text: qsTr("Point") }) ]),
         K([ s("Draw/Hatch/HatchFromSelection/HatchFromSelection.js", { text: qsTr("Hatch") }),
-            s("Draw/Text/Text.js", { text: qsTr("Text") }) ]) ] });
+            s("Draw/Text/Text.js", { text: qsTr("Text") }) ]),
+        M("MiscDrawMenu", { text: qsTr("More\ndraw"), icon: "rect-viewport" }) ] });
     Ribbon.registerPanel("home", { id: "h-modify", title: qsTr("Modify"), order: 20, items: [
         C("Modify/Translate/Translate.js", { text: qsTr("Move") }),
         K([ s("Modify/Rotate/Rotate.js"), s("Modify/Mirror/Mirror.js"), s("Modify/Scale/Scale.js") ]),
@@ -117,6 +125,7 @@ RibbonCommands.register = function() {
         K([ s("Modify/Stretch/Stretch.js"), s("Modify/Explode/Explode.js"),
             ss("Modify/BreakOut/BreakOut.js", [ "Modify/BreakOut/BreakOut.js", "Modify/BreakOutManual/BreakOutManual.js", "Modify/BreakOutGap/BreakOutGap.js", "Modify/Divide/Divide.js" ], { text: qsTr("Break") }) ]),
         K([ s("Modify/Lengthen/Lengthen.js", { text: qsTr("Lengthen") }), s("Modify/FlipHorizontal/FlipHorizontal.js"), s("Modify/FlipVertical/FlipVertical.js") ]),
+        K([ s("Modify/DrawOrder/ToFront/ToFront.js", { text: qsTr("Bring to front") }), s("Modify/DrawOrder/ToBack/ToBack.js", { text: qsTr("Send to back") }) ]),
         M("ModifyMenu", { text: qsTr("All\nmodify"), icon: "layers" }) ] });
     Ribbon.registerPanel("home", { id: "h-annotation", title: qsTr("Annotation"), order: 30, items: [
         S("Draw/Dimension/DimAligned/DimAligned.js", "DimensionMenu", { text: qsTr("Dimension") }),
@@ -124,17 +133,20 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("home", { id: "h-layers", title: qsTr("Layers"), order: 40, items: [
         C("Widgets/LayerManager/LayerManager.js", { text: qsTr("Layer\nmanager") }),
         K([ s("Layer/AddLayer/AddLayer.js"), s("Layer/EditLayer/EditLayer.js"), s("Layer/ToggleLayerVisibility/ToggleLayerVisibility.js", { text: qsTr("Visibility") }) ]),
-        K([ s("Layer/ShowAllLayers/ShowAllLayers.js", { text: qsTr("Show all") }), s("Layer/ShowActiveLayer/ShowActiveLayer.js", { text: qsTr("Only active") }), s("Layer/UnlockAllLayers/UnlockAllLayers.js", { text: qsTr("Unlock all") }) ]) ] });
+        K([ s("Layer/ShowAllLayers/ShowAllLayers.js", { text: qsTr("Show all") }), s("Layer/ShowActiveLayer/ShowActiveLayer.js", { text: qsTr("Only active") }), s("Layer/UnlockAllLayers/UnlockAllLayers.js", { text: qsTr("Unlock all") }) ]),
+        K([ s("Layer/HideAllLayers/HideAllLayers.js", { text: qsTr("Hide all") }), s("Layer/LockAllLayers/LockAllLayers.js", { text: qsTr("Lock all") }), s("Layer/ToggleLayerLock/ToggleLayerLock.js", { text: qsTr("Toggle lock") }) ]),
+        K([ s("Layer/SelectLayer/SelectLayer.js", { text: qsTr("Select entities") }), s("Layer/DeselectLayer/DeselectLayer.js", { text: qsTr("Deselect entities") }), s("Layer/RemoveLayer/RemoveLayer.js", { text: qsTr("Delete layer") }) ]) ] });
     Ribbon.registerPanel("home", { id: "h-precision", title: qsTr("Precision"), order: 60, items: [
         M("SnapMenu", { text: qsTr("Snaps"), icon: "square" }),
         S("Snap/RestrictOrthogonal/RestrictOrthogonal.js", [ "Snap/RestrictOff/RestrictOff.js", "Snap/RestrictOrthogonal/RestrictOrthogonal.js", "Snap/RestrictHorizontal/RestrictHorizontal.js",
             "Snap/RestrictVertical/RestrictVertical.js", "Snap/RestrictAngleLength/RestrictAngleLength.js" ], { text: qsTr("Restrict") }),
         K([ s("View/ToggleGrid/ToggleGrid.js", { text: qsTr("Grid") }),
-            ss("Information/InfoDistancePP/InfoDistancePP.js", "InformationMenu", { text: qsTr("Measure") }) ]) ] });
+            ss("Information/InfoDistancePP/InfoDistancePP.js", [ "InformationMenu", "MiscInformationMenu" ], { text: qsTr("Measure") }) ]) ] });
     Ribbon.registerPanel("home", { id: "h-clipboard", title: qsTr("Clipboard"), order: 80, items: [
         C("Edit/Paste/Paste.js"),
         K([ s("Edit/Cut/Cut.js"), s("Edit/Copy/Copy.js"), s("Edit/Duplicate/Duplicate.js") ]),
-        K([ s("Edit/Delete/Delete.js") ]) ] });
+        K([ s("Edit/Delete/Delete.js") ]),
+        K([ s("Edit/CopyWithReference/CopyWithReference.js", { text: qsTr("Copy with ref.") }), s("Edit/CutWithReference/CutWithReference.js", { text: qsTr("Cut with ref.") }) ]) ] });
 
     // -------------------------------------------------------------- Insert
     Ribbon.registerPanel("insert", { id: "i-block", title: qsTr("Block"), order: 10, items: [
@@ -142,7 +154,9 @@ RibbonCommands.register = function() {
         C("Block/CreateBlock/CreateBlock.js", { text: qsTr("Create\nblock") }),
         K([ s("Block/EditBlock/EditBlock.js"), s("Block/AddBlock/AddBlock.js", { text: qsTr("New block") }), s("Block/RenameBlock/RenameBlock.js", { text: qsTr("Rename") }) ]),
         K([ s("Block/RemoveBlock/RemoveBlock.js", { text: qsTr("Remove") }), s("Block/ShowAllBlocks/ShowAllBlocks.js"), s("Block/HideAllBlocks/HideAllBlocks.js") ]),
-        K([ s("Block/EditMainDrawing/EditMainDrawing.js") ]) ] });
+        K([ s("Block/EditMainDrawing/EditMainDrawing.js"), s("Block/EditFromReference/EditFromReference.js"), s("Block/ToggleBlockVisibility/ToggleBlockVisibility.js") ]),
+        K([ s("Block/SelectBlockReferences/SelectBlockReferences.js"), s("Block/DeselectBlockReferences/DeselectBlockReferences.js") ]),
+        M("MiscBlockMenu", { text: qsTr("Block\nlists"), icon: "sheet" }) ] });
     Ribbon.registerPanel("insert", { id: "i-reference", title: qsTr("Import"), order: 20, items: [
         C("Draw/Image/Image.js", { text: qsTr("Image") }),
         C("File/ImportFile/ImportFile.js", { text: qsTr("Import\ndrawing") }),
@@ -169,10 +183,13 @@ RibbonCommands.register = function() {
         C("View/DraftMode/DraftMode.js", { text: qsTr("Draft\nmode") }),
         K([ s("View/AntialiasingMode/AntialiasingMode.js", { text: qsTr("Anti-aliasing") }),
             ss("View/IsometricView/IsometricGridOff/IsometricGridOff.js", [ "View/IsometricView/IsometricGridOff/IsometricGridOff.js", "View/IsometricView/IsometricGridTop/IsometricGridTop.js",
-                "View/IsometricView/IsometricGridLeft/IsometricGridLeft.js", "View/IsometricView/IsometricGridRight/IsometricGridRight.js" ], { text: qsTr("Isometric") }) ]) ] });
+                "View/IsometricView/IsometricGridLeft/IsometricGridLeft.js", "View/IsometricView/IsometricGridRight/IsometricGridRight.js" ], { text: qsTr("Isometric") }) ]),
+        K([ s("View/LinetypeMode/LinetypeMode.js", { text: qsTr("Screen linetypes") }), s("View/DisplayDistanceAngle/DisplayDistanceAngle.js", { text: qsTr("Distance/angle") }),
+            s("Projection/IsometricProjection/IsoProject/IsoProject.js", { text: qsTr("Isometric projection") }) ]) ] });
     Ribbon.registerPanel("view", { id: "v-palettes", title: qsTr("Palettes"), order: 30, items: [
         C("Widgets/LayerManager/LayerManager.js", { text: qsTr("Layer\nmanager") }), C("Widgets/PropertyEditor/PropertyEditor.js", { text: qsTr("Properties") }),
-        K([ s("Widgets/BlockList/BlockList.js"), s("Widgets/LayerList/LayerList.js"), s("Widgets/CommandLine/CommandLine.js") ]) ] });
+        K([ s("Widgets/BlockList/BlockList.js"), s("Widgets/LayerList/LayerList.js"), s("Widgets/CommandLine/CommandLine.js") ]),
+        K([ s("Widgets/StatusBar/StatusBar.js") ]) ] });
     Ribbon.registerPanel("view", { id: "v-windows", title: qsTr("Windows"), order: 40, items: [
         K([ s("Window/NextWindow/NextWindow.js"), s("Window/PreviousWindow/PreviousWindow.js"), s("Window/CloseAll/CloseAll.js") ]) ] });
 
@@ -189,6 +206,10 @@ RibbonCommands.register = function() {
         C("Help/FAQ/FAQ.js"),
         K([ s("Help/BrowseUserManual/BrowseUserManual.js", { text: qsTr("User manual") }), s("Help/CheckForUpdates/CheckForUpdates.js", { text: qsTr("Updates") }), s("Help/SendFeedback/SendFeedback.js", { text: qsTr("Send feedback") }) ]),
         C("Help/About/About.js") ] });
+    Ribbon.registerPanel("manage", { id: "m-utilities", title: qsTr("Utilities"), order: 40, items: [
+        M("MiscIOMenu", { text: qsTr("Data\nimport"), icon: "pdf" }),
+        M("MiscModifyMenu", { text: qsTr("Drawing\nfix-ups"), icon: "layers" }),
+        M("MiscSelectMenu", { text: qsTr("Select\nby") , icon: "square" }) ] });
 
     // --------------------------------------------------------------- Output
     Ribbon.registerPanel("output", { id: "o-print", title: qsTr("Print"), order: 10, items: [
@@ -230,6 +251,7 @@ RibbonCommands.register = function() {
         CS("SheetSetup", { text: qsTr("Sheet\nsetup") }),
         CS("ExpeditionPlanner", { text: qsTr("Expedition\nplanner") }),
         K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }), cs_("Cave3D", { text: qsTr("3D view") }) ]) ] });
+    RibbonCommands.sweepOnce = true;
     // whatever the survey suite adds later still shows up
     var leftovers = [];
     var all = Ribbon.actionsOf("CaveSurveyMenu");
@@ -248,5 +270,66 @@ RibbonCommands.register = function() {
             more.push({ type: "stack", items: col });
         }
         Ribbon.registerPanel("cave", { id: "c-more", title: qsTr("More tools"), order: 90, items: more });
+    }
+};
+
+/**
+ * Commands that are deliberately NOT on a tab, and why. Everything else with a menu entry
+ * must be on one (a button, a dropdown, or behind a panel's arrow): sweep() names any that is not.
+ */
+RibbonCommands.EXCLUDED = [
+    { file: "Reset/Reset.js", why: "the idle tool; Escape and the Select tool do this" },
+    { file: "Edit/Esc/Esc.js", why: "the Escape key" },
+    { file: "View/CommandLineFocus/CommandLineFocus.js", why: "moves keyboard focus, no ribbon use" },
+    { file: "View/ToolMatrixFocus/ToolMatrixFocus.js", why: "moves keyboard focus, no ribbon use" },
+    { file: "scripts/Widgets/LayerManager/LayerManager.js", why: "second copy of the Layer Manager (the per-user folder's), same tool as the one on Home" }
+];
+
+/** Commands the ribbon offers by other means than a tab button. */
+RibbonCommands.ELSEWHERE = [
+    { file: "Edit/Undo/Undo.js", where: "undo arrow right of the tabs" },
+    { file: "Edit/Redo/Redo.js", where: "redo arrow right of the tabs" },
+    { file: "Layouts/NewViewport/NewViewport.js", where: "Layout tab, New viewport" }
+];
+
+/**
+ * Checks that every real command (one with a menu entry) has a home on the ribbon.
+ * Returns { orphans: [{file, text}], placed, excluded, elsewhere }.
+ */
+RibbonCommands.sweep = function() {
+    var placed = Ribbon.placedFiles();
+    var list = Ribbon.commandIndex();
+    var ends = function(file, suffix) { return file.length >= suffix.length && file.substring(file.length - suffix.length) === suffix; };
+    var out = { orphans: [], placed: 0, excluded: 0, elsewhere: 0 };
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        if (c.menus.length === 0 || seen[c.file] === true) { continue; }
+        seen[c.file] = true;
+        if (!isNull(placed[c.file])) { out.placed++; continue; }
+        var done = false;
+        for (var e = 0; e < RibbonCommands.EXCLUDED.length && !done; e++) {
+            if (ends(c.file, RibbonCommands.EXCLUDED[e].file)) { out.excluded++; done = true; }
+        }
+        for (var w = 0; w < RibbonCommands.ELSEWHERE.length && !done; w++) {
+            if (ends(c.file, RibbonCommands.ELSEWHERE[w].file)) { out.elsewhere++; done = true; }
+        }
+        if (!done) { out.orphans.push({ file: c.file, text: c.text }); }
+    }
+    return out;
+};
+
+/** Logs any command without a home; called once the ribbon has been registered. */
+RibbonCommands.checkSweep = function() {
+    try {
+        var r = RibbonCommands.sweep();
+        if (r.orphans.length > 0) {
+            var names = [];
+            for (var i = 0; i < r.orphans.length; i++) { names.push(r.orphans[i].text); }
+            qWarning("Ribbon: " + r.orphans.length + " command(s) are on no tab: " + names.join("; "));
+        }
+    }
+    catch (e) {
+        qWarning("Ribbon sweep: " + e);
     }
 };

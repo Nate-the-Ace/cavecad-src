@@ -621,16 +621,20 @@ Ribbon.placedFiles = function() {
 Ribbon.actionsOf = function(menuName) {
     var list = Ribbon.commandIndex();
     if (isNull(Ribbon.menuCache)) { Ribbon.menuCache = {}; }
-    if (!isNull(Ribbon.menuCache[menuName])) { return Ribbon.menuCache[menuName]; }
+    var key = String(menuName);   // one menu name, or several (an array), together as one list
+    if (!isNull(Ribbon.menuCache[key])) { return Ribbon.menuCache[key]; }
+    var menus = (menuName instanceof Array) ? menuName : [menuName];
     var out = [];
     for (var i = 0; i < list.length; i++) {
-        if (list[i].menus.indexOf(menuName) >= 0) { out.push(list[i]); }
+        for (var m = 0; m < menus.length; m++) {
+            if (list[i].menus.indexOf(menus[m]) >= 0) { out.push(list[i]); break; }
+        }
     }
     out.sort(function(x, y) {
         if (x.group !== y.group) { return x.group - y.group; }
         return x.sort !== y.sort ? x.sort - y.sort : (x.text < y.text ? -1 : (x.text > y.text ? 1 : 0));
     });
-    Ribbon.menuCache[menuName] = out;
+    Ribbon.menuCache[key] = out;
     return out;
 };
 
