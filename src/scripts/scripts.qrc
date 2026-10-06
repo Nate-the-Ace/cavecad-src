@@ -2618,6 +2618,7 @@
     <file alias="scripts/Widgets/Ribbon/icons/trim.svg">../../scripts/Widgets/Ribbon/icons/trim.svg</file>
     <file alias="scripts/Widgets/Ribbon/icons/unlock.svg">../../scripts/Widgets/Ribbon/icons/unlock.svg</file>
     <file alias="scripts/Widgets/ToolBarClose/ToolBarClose.js">../../scripts/Widgets/ToolBarClose/ToolBarClose.js</file>
+    <file alias="scripts/Widgets/DocumentTabs/DocumentTabs.js">../../scripts/Widgets/DocumentTabs/DocumentTabs.js</file>
     <file alias="scripts/Widgets/SelectionDisplay/SelectionDisplay.js">../../scripts/Widgets/SelectionDisplay/SelectionDisplay.js</file>
     <file alias="scripts/Widgets/SelectionDisplay/SelectionDisplay.ui">../../scripts/Widgets/SelectionDisplay/SelectionDisplay.ui</file>
     <file alias="scripts/Widgets/StatusBar/PreferencesPage.ui">../../scripts/Widgets/StatusBar/PreferencesPage.ui</file>

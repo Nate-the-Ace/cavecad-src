@@ -661,16 +661,21 @@ Ribbon.wrap = function(text) {
 // Building
 // ---------------------------------------------------------------------
 
+/** The ribbon's colours for the current light or dark theme (shared by what sits beside it). */
+Ribbon.colors = function() {
+    var dark = Ribbon.iconColor() !== "#2b2b2b";
+    return dark ?
+        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22", tab: "#223140", dim2: "#a9b8c8", textStrong: "#ffffff" } :
+        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff", tab: "#d5dce6", dim2: "#4a5b6e", textStrong: "#0b1d33" };
+};
+
 /** Dresses the ribbon for the current light or dark theme. */
 Ribbon.applyTheme = function(entry) {
     var rb = entry.ribbon;
     if (isNull(rb)) {
         return;
     }
-    var dark = Ribbon.iconColor() !== "#2b2b2b";
-    var c = dark ?
-        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22", tab: "#223140", dim2: "#a9b8c8", textStrong: "#ffffff" } :
-        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff", tab: "#d5dce6", dim2: "#4a5b6e", textStrong: "#0b1d33" };
+    var c = Ribbon.colors();
     rb.root.setStyleSheet(
         "QWidget#RibbonRoot, QWidget#RibbonBody { background:" + c.bg + "; } " +
         "QWidget#RibbonHead { background:" + c.head + "; border-bottom:1px solid " + c.line + "; } " +
