@@ -65,7 +65,8 @@ NewViewport.fitScale = function(doc, widthPaper, heightPaper, extents) {
     // paper units per model unit that just fits, a little room round it
     var s = Math.min(widthPaper / w, heightPaper / h) * 0.95;
     var fpi = (Layouts.paperInch(doc) / s) / Layouts.groundFoot(doc);
-    var all = Layouts.scales();
+    // the list is imperial then metric; the fit is the smallest scale, of either kind, that is coarse enough
+    var all = Layouts.scales().sort(function(a, b) { return a.feetPerInch - b.feetPerInch; });
     for (var i = 0; i < all.length; i++) {
         if (all[i].feetPerInch >= fpi * (1 - 1e-9)) {
             return all[i].feetPerInch;

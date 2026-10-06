@@ -638,6 +638,10 @@ Layouts.viewportAt = function(doc, info, x, y) {
 
 /** Standard scales, feet of cave per inch of paper. Metric ratios 1:N are N/12 ft per inch. */
 Layouts.STANDARD_SCALES = [
+    // imperial: feet of ground per inch of paper
+    { label: "1\" = 1 ft", feetPerInch: 1 }, { label: "1\" = 2 ft", feetPerInch: 2 },
+    { label: "1\" = 4 ft", feetPerInch: 4 }, { label: "1\" = 5 ft", feetPerInch: 5 },
+    { label: "1\" = 8 ft", feetPerInch: 8 },
     { label: "1\" = 10 ft", feetPerInch: 10 }, { label: "1\" = 20 ft", feetPerInch: 20 },
     { label: "1\" = 25 ft", feetPerInch: 25 }, { label: "1\" = 30 ft", feetPerInch: 30 },
     { label: "1\" = 40 ft", feetPerInch: 40 }, { label: "1\" = 50 ft", feetPerInch: 50 },
@@ -645,9 +649,12 @@ Layouts.STANDARD_SCALES = [
     { label: "1\" = 100 ft", feetPerInch: 100 }, { label: "1\" = 150 ft", feetPerInch: 150 },
     { label: "1\" = 200 ft", feetPerInch: 200 }, { label: "1\" = 300 ft", feetPerInch: 300 },
     { label: "1\" = 400 ft", feetPerInch: 400 }, { label: "1\" = 500 ft", feetPerInch: 500 },
-    { label: "1:100", feetPerInch: 100 / 12 }, { label: "1:200", feetPerInch: 200 / 12 },
-    { label: "1:250", feetPerInch: 250 / 12 }, { label: "1:500", feetPerInch: 500 / 12 },
-    { label: "1:1000", feetPerInch: 1000 / 12 }, { label: "1:2000", feetPerInch: 2000 / 12 }
+    // metric ratios (after all the imperial ones, in every list)
+    { label: "1:10", feetPerInch: 10 / 12, metric: true }, { label: "1:20", feetPerInch: 20 / 12, metric: true },
+    { label: "1:50", feetPerInch: 50 / 12, metric: true },
+    { label: "1:100", feetPerInch: 100 / 12, metric: true }, { label: "1:200", feetPerInch: 200 / 12, metric: true },
+    { label: "1:250", feetPerInch: 250 / 12, metric: true }, { label: "1:500", feetPerInch: 500 / 12, metric: true },
+    { label: "1:1000", feetPerInch: 1000 / 12, metric: true }, { label: "1:2000", feetPerInch: 2000 / 12, metric: true }
 ];
 
 Layouts.CUSTOM_SCALES_KEY = "Layouts/CustomScales";
@@ -692,7 +699,8 @@ Layouts.scales = function() {
     var i;
     for (i = 0; i < Layouts.STANDARD_SCALES.length; i++) {
         list.push({ label: Layouts.STANDARD_SCALES[i].label,
-            feetPerInch: Layouts.STANDARD_SCALES[i].feetPerInch, custom: false });
+            feetPerInch: Layouts.STANDARD_SCALES[i].feetPerInch, custom: false,
+            metric: Layouts.STANDARD_SCALES[i].metric === true });
     }
     var mine = Layouts.customScales();
     for (i = 0; i < mine.length; i++) {
@@ -703,10 +711,14 @@ Layouts.scales = function() {
             }
         }
         if (!present) {
-            list.push({ label: Layouts.scaleLabel(mine[i]), feetPerInch: mine[i], custom: true });
+            list.push({ label: Layouts.scaleLabel(mine[i]), feetPerInch: mine[i], custom: true, metric: false });
         }
     }
-    list.sort(function(a, b) { return a.feetPerInch - b.feetPerInch; });
+    // ALL THE IMPERIAL SCALES FIRST (smallest ground distance per inch first), then the metric ratios
+    list.sort(function(a, b) {
+        if (a.metric !== b.metric) { return a.metric ? 1 : -1; }
+        return a.feetPerInch - b.feetPerInch;
+    });
     return list;
 };
 

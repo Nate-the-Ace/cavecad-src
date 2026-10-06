@@ -3,9 +3,9 @@
  *
  * Started by clicking one of the small square grips on a selected polygon
  * viewport's corners (see Widgets/LayoutTabs). The corner follows the mouse
- * (with the usual snaps); click puts it down as one undo step; Esc or the
- * right button puts it back. Like Rotate Viewport, the live movement is a real
- * edit with no undo step of its own, and the commit records one.
+ * (with the usual snaps) as an OUTLINE only -- nothing in the drawing changes
+ * while it moves, so there is nothing to regenerate and it stays light on a big
+ * cave. Click puts it down as one undo step; Esc or the right button drops it.
  */
 include("scripts/EAction.js");
 include("scripts/Layouts/Layouts.js");
@@ -69,25 +69,39 @@ MoveVertex.prototype.loopsWith = function(x, y) {
     return out;
 };
 
-/** Writes loops into the viewport for real; undoable only for the commit. */
-MoveVertex.prototype.apply = function(loops, undoable) {
+/** Writes loops into the viewport (one undo step). */
+MoveVertex.prototype.apply = function(loops) {
     var di = this.getDocumentInterface();
     var fresh = this.getDocument().queryEntity(this.vpId);
     if (isNull(fresh)) {
         return;
     }
     Layouts._writeClip(fresh, loops);
-    var op = new RModifyObjectOperation(fresh, undoable);
-    if (undoable) {
-        op.setText(this.getToolTitle());
-    }
+    var op = new RModifyObjectOperation(fresh);
+    op.setText(this.getToolTitle());
     di.applyOperation(op);
+};
+
+/** The outline of the shape with the corner at (x, y), drawn as preview shapes: no edit, no regeneration. */
+MoveVertex.prototype.showOutline = function(x, y) {
+    var di = this.getDocumentInterface();
+    di.clearPreview();
+    var loops = this.loopsWith(x, y);
+    for (var l = 0; l < loops.length; l++) {
+        var pl = new RPolyline();
+        for (var v = 0; v < loops[l].length; v++) {
+            pl.appendVertex(new RVector(loops[l][v].x, loops[l][v].y));
+        }
+        pl.setClosed(true);
+        di.addAuxShapeToPreview(pl);
+    }
+    di.repaintViews();
 };
 
 MoveVertex.prototype.coordinateEventPreview = function(event) {
     var p = event.getModelPosition();
     this.current = { x: p.x, y: p.y };
-    this.apply(this.loopsWith(p.x, p.y), false);
+    this.showOutline(p.x, p.y);
 };
 
 MoveVertex.prototype.coordinateEvent = function(event) {
@@ -98,7 +112,7 @@ MoveVertex.prototype.coordinateEvent = function(event) {
 MoveVertex.prototype.mouseMoveEvent = function(event) {
     var p = event.getModelPosition();
     this.current = { x: p.x, y: p.y };
-    this.apply(this.loopsWith(p.x, p.y), false);
+    this.showOutline(p.x, p.y);
 };
 
 MoveVertex.prototype.mouseReleaseEvent = function(event) {
@@ -113,13 +127,13 @@ MoveVertex.prototype.mouseReleaseEvent = function(event) {
 };
 
 MoveVertex.prototype.commit = function(x, y) {
-    // history records original -> final as one step
-    this.apply(this.original, false);
-    this.apply(this.loopsWith(x, y), true);
+    this.getDocumentInterface().clearPreview();
+    this.apply(this.loopsWith(x, y));
     this.terminate();
 };
 
 MoveVertex.prototype.escapeEvent = function() {
-    this.apply(this.original, false);
+    this.getDocumentInterface().clearPreview();
+    this.getDocumentInterface().repaintViews();
     this.terminate();
 };
