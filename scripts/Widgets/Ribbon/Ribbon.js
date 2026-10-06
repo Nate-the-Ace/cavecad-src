@@ -159,6 +159,9 @@ Ribbon.makeQuickAccess = function(entry, parent) {
  * Worked out again only when the transaction log has moved.
  */
 Ribbon.hasHistory = function(entry) {
+    if (entry.dead === true) {
+        return { undo: false, redo: false };
+    }
     var st = entry.di.getDocument().getStorage();
     var last = st.getLastTransactionId();
     var max = st.getMaxTransactionId();
@@ -340,6 +343,11 @@ Ribbon.hookTools = function() {
 /** Brings the showing ribbon's command buttons in line with their commands (enabled, checked). */
 Ribbon.syncCommands = function() {
     var entry = Ribbon.activeEntry;
+    // a drawing that has been closed: its document is freed, and asking it anything is a crash
+    if (!isNull(entry) && entry.dead === true) {
+        Ribbon.activeEntry = undefined;
+        return;
+    }
     if (!isNull(entry) && !isNull(entry.ribbonQa)) {
         var have = Ribbon.hasHistory(entry);
         var canUndo = have.undo;
@@ -458,6 +466,8 @@ Ribbon.discard = function(entry) {
     try {
         if (entry.ribbonDiscarded === true) { return; }
         entry.ribbonDiscarded = true;
+        entry.dead = true;
+        if (Ribbon.activeEntry === entry) { Ribbon.activeEntry = undefined; }
         var tb = Ribbon.optionsBar();
         if (!isNull(tb) && Ribbon.optionsHost === entry.id) {
             // the options toolbar lives in this page: park it before the page goes
