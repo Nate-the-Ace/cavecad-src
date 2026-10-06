@@ -143,7 +143,30 @@ Ribbon.hookTools = function() {
     Ribbon.toolTimer = timer;
 };
 
+/** Brings the showing ribbon's command buttons in line with their commands (enabled, checked). */
+Ribbon.syncCommands = function() {
+    var entry = Ribbon.activeEntry;
+    if (isNull(entry) || isNull(entry.ribbonCmd)) {
+        return;
+    }
+    for (var i = 0; i < entry.ribbonCmd.length; i++) {
+        var rec = entry.ribbonCmd[i];
+        if (!rec.btn.visible) { continue; }
+        var on = rec.action.enabled;
+        if (rec.btn.enabled !== on) { rec.btn.enabled = on; }
+        if (rec.checkable) {
+            var ck = rec.action.checked;
+            if (rec.btn.checked !== ck) { rec.btn.checked = ck; }
+        }
+    }
+};
+
 Ribbon.pollTools = function() {
+    try {
+        Ribbon.syncCommands();
+    }
+    catch (eSync) {
+    }
     var tb = Ribbon.optionsBar();
     if (isNull(tb)) {
         return;
@@ -201,7 +224,6 @@ Ribbon.placeOptions = function(entry) {
         return;
     }
     if (Ribbon.optionsHost !== entry.id || tb.property("RibbonHosted") !== true) {
-        RMainWindowQt.getMainWindow().removeToolBar(tb);
         tb.movable = false;
         tb.floatable = false;
         // fill the ribbon's height (above the panel title) rather than sit at toolbar size
@@ -221,6 +243,7 @@ Ribbon.placeOptions = function(entry) {
 Ribbon.show = function(entry) {
     try {
         Ribbon.host().setCurrentWidget(entry.ribbon.root);
+        Ribbon.activeEntry = entry;
         Ribbon.placeOptions(entry);
     }
     catch (e) {
@@ -302,16 +325,86 @@ Ribbon.icon = function(name) {
     return icon;
 };
 
+/** Every command the app has, indexed once: [{action, file, menus, sort, text}]. */
+Ribbon.commandIndex = function() {
+    // built once: listing every action is far too heavy to repeat on each refresh
+    if (!isNull(Ribbon.indexed)) {
+        return Ribbon.indexed;
+    }
+    var all = RGuiAction.getActions();
+    var list = [];
+    for (var i = 0; i < all.length; i++) {
+        var a = all[i];
+        var menus = [];
+        var sort = 0;
+        try {
+            var names = a.getWidgetNames();
+            for (var k = 0; k < names.length; k++) {
+                if (String(names[k]).match(/Menu$/)) { menus.push(String(names[k])); }
+            }
+            sort = a.getSortOrder();
+        }
+        catch (e) {
+        }
+        list.push({ action: a, file: String(a.getScriptFile()), menus: menus, sort: sort, text: String(a.text).replace("&", "") });
+    }
+    Ribbon.indexed = list;
+    Ribbon.indexByFile = {};
+    Ribbon.indexMissing = {};
+    return list;
+};
+
 /** An existing menu action whose script file ends with `suffix`, or undefined. */
 Ribbon.findAction = function(suffix) {
-    var all = RGuiAction.getActions();
-    for (var i = 0; i < all.length; i++) {
-        var sf = String(all[i].getScriptFile());
+    var list = Ribbon.commandIndex();
+    if (!isNull(Ribbon.indexByFile[suffix])) {
+        return Ribbon.indexByFile[suffix];
+    }
+    if (Ribbon.indexMissing[suffix] === true) {
+        return undefined;
+    }
+    for (var i = 0; i < list.length; i++) {
+        var sf = list[i].file;
         if (sf.length >= suffix.length && sf.substring(sf.length - suffix.length) === suffix) {
-            return all[i];
+            Ribbon.indexByFile[suffix] = list[i].action;
+            return list[i].action;
         }
     }
+    Ribbon.indexMissing[suffix] = true;
     return undefined;
+};
+
+/** The commands of a menu ("DrawLineMenu"), in the menu's own order. */
+Ribbon.actionsOf = function(menuName) {
+    var list = Ribbon.commandIndex();
+    if (isNull(Ribbon.menuCache)) { Ribbon.menuCache = {}; }
+    if (!isNull(Ribbon.menuCache[menuName])) { return Ribbon.menuCache[menuName]; }
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].menus.indexOf(menuName) >= 0) { out.push(list[i]); }
+    }
+    out.sort(function(x, y) { return x.sort !== y.sort ? x.sort - y.sort : (x.text < y.text ? -1 : (x.text > y.text ? 1 : 0)); });
+    Ribbon.menuCache[menuName] = out;
+    return out;
+};
+
+/** A command's name as a button label: no shortcut "(OF)", no ellipsis, no "[-]". */
+Ribbon.shortText = function(text) {
+    return String(text).replace("&", "").replace(/\s*\([A-Z0-9\/]{1,4}\)\s*$/, "").replace(/\s*\[-\]\s*$/, "")
+        .replace(/(\u2026|\.\.\.)\s*$/, "").replace(/^\s+|\s+$/g, "");
+};
+
+/** Breaks a long label over two lines at the space nearest its middle. */
+Ribbon.wrap = function(text) {
+    if (text.indexOf("\n") >= 0 || text.length <= 9 || text.indexOf(" ") < 0) {
+        return text;
+    }
+    var mid = text.length / 2;
+    var best = -1;
+    for (var i = 0; i < text.length; i++) {
+        if (text.charAt(i) === " " && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) { best = i; }
+    }
+    return text.substring(0, best) + "\n" + text.substring(best + 1);
 };
 
 // ---------------------------------------------------------------------
@@ -337,6 +430,9 @@ Ribbon.applyTheme = function(entry) {
         "QToolButton { color:" + c.text + "; background:transparent; border:1px solid transparent; border-radius:4px; } " +
         "QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } " +
         "QToolButton:disabled { color:" + c.dim + "; } " +
+        // a split button's arrow sits at the right, clear of the label; a pure dropdown shows its own arrow in the text
+        "QToolButton[popupMode=\"1\"] { padding-right:14px; } " +
+
         "QCheckBox { color:" + c.text + "; } " +
         "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
         "QTabBar::tab { color:" + c.text + "; background:transparent; padding:3px 14px; margin-right:2px; border:1px solid transparent; border-top-left-radius:4px; border-top-right-radius:4px; } " +
@@ -359,12 +455,29 @@ Ribbon.makeButton = function(entry, item, parent) {
     var btn = new QToolButton(parent);
     btn.objectName = "RibbonButton-" + (isNull(item.id) ? "x" : item.id);
     var action = isNull(item.action) ? undefined : Ribbon.findAction(item.action);
-    var text = !isNull(item.text) ? item.text : (!isNull(action) ? String(action.text).replace("&", "") : "");
-    btn.text = text;
     var large = item.size !== "small";
+
+    // a dropdown: commands of a menu ("menuFrom"), or a list of script files ("dropdown")
+    var entries = [];
+    if (!isNull(item.menuFrom)) {
+        entries = Ribbon.actionsOf(item.menuFrom);
+    }
+    else if (!isNull(item.dropdown)) {
+        for (var d = 0; d < item.dropdown.length; d++) {
+            var da = Ribbon.findAction(item.dropdown[d]);
+            if (!isNull(da)) { entries.push({ action: da, text: String(da.text).replace("&", "") }); }
+        }
+    }
+
+    var text = !isNull(item.text) ? item.text : (!isNull(action) ? Ribbon.shortText(action.text) : "");
+    if (large) { text = Ribbon.wrap(text); }
+    btn.text = text;
     var ic = isNull(item.icon) ? undefined : Ribbon.icon(item.icon);
     if (isNull(ic) && !isNull(action)) {
         ic = action.icon;
+    }
+    if (isNull(ic) && entries.length > 0) {
+        ic = entries[0].action.icon;
     }
     if (!isNull(ic)) {
         btn.setIcon(ic);
@@ -376,8 +489,19 @@ Ribbon.makeButton = function(entry, item, parent) {
         btn.setMinimumWidth(58);
         btn.setFixedHeight(Ribbon.BODY_HEIGHT - 20);
     }
-    btn.toolTip = !isNull(item.tooltip) ? item.tooltip : (!isNull(action) ? String(action.statusTip) : text);
+    btn.toolTip = !isNull(item.tooltip) ? item.tooltip : (!isNull(action) ? String(action.statusTip) : String(btn.text).replace("\n", " "));
+
+    var trigger = function() {
+        if (!isNull(item.onClick)) {
+            item.onClick(entry, Ribbon.contextOf(entry));
+        }
+        else if (!isNull(action)) {
+            action.slotTrigger();
+        }
+    };
+
     if (!isNull(item.menu)) {
+        // a menu of ribbon-defined entries
         var menu = new QMenu(btn);
         for (var m = 0; m < item.menu.length; m++) {
             menu.addAction(item.menu[m].text).triggered.connect(
@@ -386,18 +510,41 @@ Ribbon.makeButton = function(entry, item, parent) {
         btn.setMenu(menu);
         btn.popupMode = QToolButton.InstantPopup;
     }
-    else {
-        btn.clicked.connect(function() {
-            if (!isNull(item.onClick)) {
-                item.onClick(entry, Ribbon.contextOf(entry));
-            }
-            else {
-                var a = Ribbon.findAction(item.action);
-                if (!isNull(a)) {
-                    a.slotTrigger();
-                }
-            }
+    else if (entries.length > 0) {
+        // a menu of commands: the button runs the main command, the arrow lists the rest
+        var cmdMenu = new QMenu(btn);
+        var made = [];
+        for (var e = 0; e < entries.length; e++) {
+            var ca = entries[e].action;
+            var act = cmdMenu.addAction(Ribbon.shortText(entries[e].text));
+            if (!ca.icon.isNull()) { act.setIcon(ca.icon); }
+            act.triggered.connect((function(target) { return function() { target.slotTrigger(); }; })(ca));
+            made.push({ act: act, cmd: ca });
+        }
+        cmdMenu.aboutToShow.connect(function() {
+            for (var q = 0; q < made.length; q++) { made[q].act.enabled = made[q].cmd.enabled; }
         });
+        btn.setMenu(cmdMenu);
+        if (!isNull(action) || !isNull(item.onClick)) {
+            btn.popupMode = QToolButton.MenuButtonPopup;
+            btn.clicked.connect(trigger);
+        }
+        else {
+            btn.popupMode = QToolButton.InstantPopup;
+            if (large) { btn.text = btn.text + " \u25be"; }
+        }
+    }
+    else {
+        btn.clicked.connect(trigger);
+    }
+
+    // follow the command's own enabled and checked state (undo has nothing to undo, a toggle is on)
+    if (!isNull(action) && typeof item.enabled !== "function") {
+        if (isNull(entry.ribbonCmd)) { entry.ribbonCmd = []; }
+        var checkable = false;
+        try { checkable = action.checkable === true; } catch (eC) { }
+        if (checkable) { btn.checkable = true; }
+        entry.ribbonCmd.push({ btn: btn, action: action, checkable: checkable });
     }
     return btn;
 };
@@ -439,8 +586,10 @@ Ribbon.attach = function(entry, stack) {
     var bodyRow = new QHBoxLayout();
     bodyRow.setContentsMargins(6, 2, 6, 2);
     bodyRow.setSpacing(2);
+    bodyRow.setSizeConstraint(1);   // QLayout.SetNoConstraint: panels that do not fit are clipped, they never widen the window
     body.setLayout(bodyRow);
     body.setFixedHeight(Ribbon.BODY_HEIGHT);
+    body.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed);
     col.addWidget(body, 0, 0);
     root.setLayout(col);
 
@@ -485,7 +634,7 @@ Ribbon.attach = function(entry, stack) {
 Ribbon.remember = function(entry, item, widget, panelId) {
     // a button for an action the build does not have (a cave-suite tool, say) is hidden, and a
     // panel left with nothing to show is hidden with it; `available(ctx, entry)` adds its own rule
-    if (isNull(item.action) && typeof item.available !== "function") {
+    if (isNull(item.action) && isNull(item.menuFrom) && typeof item.available !== "function") {
         if (isNull(entry.ribbonFixed)) { entry.ribbonFixed = {}; }
         entry.ribbonFixed[panelId] = true;   // this panel always has something to show
     }
@@ -493,6 +642,7 @@ Ribbon.remember = function(entry, item, widget, panelId) {
         if (isNull(entry.ribbonAvail)) { entry.ribbonAvail = []; }
         entry.ribbonAvail.push({ widget: widget, panel: panelId, fn: function(ctx) {
             if (!isNull(item.action) && isNull(Ribbon.findAction(item.action))) { return false; }
+            if (!isNull(item.menuFrom) && isNull(item.action) && Ribbon.actionsOf(item.menuFrom).length === 0) { return false; }
             return typeof item.available === "function" ? item.available(ctx, entry) === true : true;
         } });
     }

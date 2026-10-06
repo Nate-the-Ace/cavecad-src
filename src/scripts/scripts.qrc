@@ -2853,6 +2853,7 @@
     <file alias="scripts/Widgets/PropertyEditor/RemoveCustomProperty-inverse.svg">../../scripts/Widgets/PropertyEditor/RemoveCustomProperty-inverse.svg</file>
     <file alias="scripts/Widgets/PropertyEditor/RemoveCustomProperty.svg">../../scripts/Widgets/PropertyEditor/RemoveCustomProperty.svg</file>
     <file alias="scripts/Widgets/Ribbon/Ribbon.js">../../scripts/Widgets/Ribbon/Ribbon.js</file>
+    <file alias="scripts/Widgets/Ribbon/RibbonCommands.js">../../scripts/Widgets/Ribbon/RibbonCommands.js</file>
     <file alias="scripts/Widgets/Ribbon/icons/back.svg">../../scripts/Widgets/Ribbon/icons/back.svg</file>
     <file alias="scripts/Widgets/Ribbon/icons/circle-viewport.svg">../../scripts/Widgets/Ribbon/icons/circle-viewport.svg</file>
     <file alias="scripts/Widgets/Ribbon/icons/delete.svg">../../scripts/Widgets/Ribbon/icons/delete.svg</file>

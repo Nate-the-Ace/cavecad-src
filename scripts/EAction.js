@@ -1156,20 +1156,23 @@ EAction.getToolMatrixPanel = function(title, objectName, order) {
  * current tool).
  */
 EAction.getOptionsToolBar = function() {
+    // CaveCAD: the options toolbar is never a toolbar of the main window. It is made hidden,
+    // the ribbon takes it into its tool-options tab (Ribbon.placeOptions), and the ribbon alone
+    // decides when it shows: while a command with options runs. Nothing here shows it.
     var appWin = EAction.getMainWindow();
-    if (isNull(EAction.optionsToolBar)) {
-        if (!isNull(appWin)) {
-            appWin.addToolBarBreak();
+    if (isNull(EAction.optionsToolBar) && !isNull(appWin)) {
+        var tb = appWin.findChild("Options");
+        if (isNull(tb)) {
+            tb = new QToolBar(qsTr("Options"), appWin);
+            tb.objectName = "Options";
+            tb.movable = false;
+            tb.floatable = false;
+            var s = RSettings.getIntValue("ToolBar/IconSize", tb.iconSize.width());
+            tb.iconSize = new QSize(s, s);
+            tb.visible = false;
         }
-        EAction.optionsToolBar = EAction.getToolBar(qsTr("Options"), "Options");
+        EAction.optionsToolBar = tb;
     }
-
-    if (!isNull(EAction.optionsToolBar)) {
-        if (!RSettings.getOriginalArguments().contains("-no-show")) {
-            EAction.optionsToolBar.visible = true;
-        }
-    }
-
     return EAction.optionsToolBar;
 };
 
