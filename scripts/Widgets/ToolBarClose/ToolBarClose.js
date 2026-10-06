@@ -60,7 +60,7 @@ ToolBarClose.names = function(appWin) {
     var base = ["Edit", "File", "Reset", "Select", "Snap", "View", "Widgets", "Options", "Pen", "Cad", "Window",
         "Line", "Arc", "Circle", "Ellipse", "Polyline", "Spline", "Point", "Hatch", "Text", "Dimension", "Block",
         "Modify", "Draw", "Layer", "Information", "Projection", "IsometricView", "Help", "DrawOrder",
-        "MiscDraw", "MiscModify", "MiscSelect", "MiscBlock", "MiscInformation", "MiscIO", "MiscDevelopment",
+        "MiscDraw", "MiscModify", "MiscSelect", "MiscBlock", "MiscInformation", "MiscIO",
         "MyScripts", "My", "CaveSurvey"];
     for (var i = 0; i < base.length; i++) {
         add(base[i] + "ToolBar");

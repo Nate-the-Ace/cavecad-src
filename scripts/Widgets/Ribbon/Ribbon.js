@@ -578,6 +578,45 @@ Ribbon.findAction = function(suffix) {
     return undefined;
 };
 
+/**
+ * Every command the ribbon offers, with where: { scriptFile: "tab/panel" }.
+ * Walks what is registered: buttons, the variants behind them (a menu or a list), and the
+ * columns that wait behind a panel's arrow.
+ */
+Ribbon.placedFiles = function() {
+    var placed = {};
+    var put = function(file, where) { if (isNull(placed[file])) { placed[file] = where; } };
+    var visit = function(item, where) {
+        if (isNull(item)) { return; }
+        if (item.type === "stack") {
+            for (var i = 0; i < item.items.length; i++) { visit(item.items[i], where); }
+            return;
+        }
+        if (!isNull(item.action)) {
+            var a = Ribbon.findAction(item.action);
+            if (!isNull(a)) { put(String(a.getScriptFile()), where); }
+        }
+        if (!isNull(item.dropdown)) {
+            for (var d = 0; d < item.dropdown.length; d++) {
+                var da = Ribbon.findAction(item.dropdown[d]);
+                if (!isNull(da)) { put(String(da.getScriptFile()), where); }
+            }
+        }
+        if (!isNull(item.menuFrom)) {
+            var list = Ribbon.actionsOf(item.menuFrom);
+            for (var m = 0; m < list.length; m++) { put(list[m].file, where); }
+        }
+    };
+    for (var tid in Ribbon.panels) {
+        if (!Ribbon.panels.hasOwnProperty(tid)) { continue; }
+        for (var p = 0; p < Ribbon.panels[tid].length; p++) {
+            var def = Ribbon.panels[tid][p];
+            for (var i = 0; i < def.items.length; i++) { visit(def.items[i], tid + "/" + def.id); }
+        }
+    }
+    return placed;
+};
+
 /** The commands of a menu ("DrawLineMenu"), in the menu's own order. */
 Ribbon.actionsOf = function(menuName) {
     var list = Ribbon.commandIndex();
