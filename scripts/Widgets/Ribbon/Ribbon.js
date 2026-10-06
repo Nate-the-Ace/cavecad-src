@@ -190,6 +190,9 @@ Ribbon.placeOptions = function(entry) {
         tb.floatable = false;
         host.layout().addWidget(tb);
         tb.setProperty("RibbonHosted", true);
+        // the active-tool icon styles itself (OptionsToolBar.initStyle), which outranks the ribbon's sheet
+        var icon = tb.findChild("Icon");
+        if (!isNull(icon)) { icon.setStyleSheet(""); }
         Ribbon.optionsHost = entry.id;
     }
     tb.visible = true;
@@ -296,8 +299,8 @@ Ribbon.applyTheme = function(entry) {
     }
     var dark = Ribbon.iconColor() !== "#2b2b2b";
     var c = dark ?
-        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff" } :
-        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff" };
+        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff", field: "#121a22" } :
+        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff" };
     rb.root.setStyleSheet(
         "QWidget#RibbonRoot, QWidget#RibbonBody { background:" + c.bg + "; } " +
         "QWidget#RibbonHead { background:" + c.head + "; border-bottom:1px solid " + c.line + "; } " +
@@ -311,7 +314,18 @@ Ribbon.applyTheme = function(entry) {
         "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
         "QTabBar::tab { color:" + c.text + "; background:transparent; padding:3px 14px; margin-right:2px; border:1px solid transparent; border-top-left-radius:4px; border-top-right-radius:4px; } " +
         "QTabBar::tab:selected { background:" + c.bg + "; border-color:" + c.line + "; font-weight:bold; } " +
-        "QTabBar::tab:hover:!selected { background:" + c.hover + "; }");
+        "QTabBar::tab:hover:!selected { background:" + c.hover + "; }" +
+        // the options toolbar a running command fills: flat, on the ribbon's own colours
+        "QWidget#RibbonOptionsHost QToolBar { background:transparent; border:none; spacing:6px; padding:0px; } " +
+        "QWidget#RibbonOptionsHost QToolBar::separator { background:" + c.line + "; width:1px; margin:8px 5px; } " +
+        "QWidget#RibbonOptionsHost QLineEdit, QWidget#RibbonOptionsHost QAbstractSpinBox, QWidget#RibbonOptionsHost QComboBox { " +
+            "color:" + c.text + "; background:" + c.field + "; border:1px solid " + c.line + "; border-radius:3px; " +
+            "padding:2px 6px; min-height:22px; selection-background-color:" + c.accent + "; } " +
+        "QWidget#RibbonOptionsHost QLineEdit:focus, QWidget#RibbonOptionsHost QAbstractSpinBox:focus, QWidget#RibbonOptionsHost QComboBox:focus { border-color:" + c.accent + "; } " +
+        "QWidget#RibbonOptionsHost QComboBox QAbstractItemView { color:" + c.text + "; background:" + c.field + "; selection-background-color:" + c.accent + "; } " +
+        "QWidget#RibbonOptionsHost QRadioButton, QWidget#RibbonOptionsHost QCheckBox { color:" + c.text + "; spacing:5px; } " +
+        "QWidget#RibbonOptionsHost QToolButton:checked { background:" + c.hover + "; border-color:" + c.accent + "; } " +
+        "QWidget#RibbonOptionsHost QLabel#Icon { background:" + c.hover + "; border:1px solid " + c.line + "; border-radius:4px; margin:2px 4px 2px 2px; } ");
 };
 
 Ribbon.makeButton = function(entry, item, parent) {
