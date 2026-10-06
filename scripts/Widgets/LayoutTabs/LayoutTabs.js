@@ -583,7 +583,7 @@ LayoutTabs.sheetOpenFor = function(entry, name) {
         LayoutTabs.refresh(entry);
     }
     LayoutTabs.refreshControls(entry);
-    Ribbon.selectTab(entry, "sheet");
+    Ribbon.selectTab(entry, "layout");
 };
 
 /** True when `changes` would actually alter the sheet. */
@@ -1879,15 +1879,11 @@ LayoutTabs.registerRibbon = function() {
     RibbonCommands.register();
     // the layout tab is there while a layout is showing
     Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
-    // the paper of the layout that is showing
-    Ribbon.registerTab({ id: "sheet", title: qsTr("Sheet settings"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
-    Ribbon.registerPanel("sheet", { id: "s-paper", title: qsTr("Paper"), order: 10, items: [
-        { type: "widget", id: "sheetPaper", make: function(entry, parent) { return LayoutTabs.makeSheetPaper(entry, parent); } } ] });
-    Ribbon.registerPanel("sheet", { id: "s-custom", title: qsTr("Custom size"), order: 20, items: [
-        { type: "widget", id: "sheetCustom", make: function(entry, parent) { return LayoutTabs.makeSheetCustom(entry, parent); } } ] });
-    Ribbon.registerPanel("sheet", { id: "s-margins", title: qsTr("Margins"), order: 30, items: [
-        { type: "widget", id: "sheetMargins", make: function(entry, parent) { return LayoutTabs.makeSheetMargins(entry, parent); } } ] });
-    Ribbon.registerPanel("sheet", { id: "s-print", title: qsTr("Printing"), order: 40, items: [
+    // the paper of the layout that is showing: always in the Layout tab, editable in place
+    Ribbon.registerPanel("layout", { id: "sheetsettings", title: qsTr("Sheet settings"), order: 15, items: [
+        { type: "widget", id: "sheetPaper", make: function(entry, parent) { return LayoutTabs.makeSheetPaper(entry, parent); } },
+        { type: "widget", id: "sheetCustom", make: function(entry, parent) { return LayoutTabs.makeSheetCustom(entry, parent); } },
+        { type: "widget", id: "sheetMargins", make: function(entry, parent) { return LayoutTabs.makeSheetMargins(entry, parent); } },
         { type: "widget", id: "sheetPrint", make: function(entry, parent) { return LayoutTabs.makeSheetPrint(entry, parent); } } ] });
     Ribbon.registerTab({ id: "viewport", title: qsTr("Viewport"), accent: true, when: function(ctx) { return !isNull(ctx.viewport); } });
     // a command with option fields is running: its options, in the ribbon
@@ -1911,9 +1907,6 @@ LayoutTabs.registerRibbon = function() {
         { type: "button", id: "newlayout", action: "LayoutNew.js", text: qsTr("New from\ntemplate"), icon: "sheet", size: "large" },
         { type: "button", id: "savetemplate", action: "LayoutSaveTemplate.js", text: qsTr("Save as\ntemplate"), icon: "page", size: "large", enabled: onLayout },
         { type: "stack", items: [
-            { type: "button", id: "pagesetup", text: qsTr("Page setup"), icon: "page", size: "small", enabled: onLayout,
-              tooltip: qsTr("Edit this sheet's paper, margins and printing in the Sheet settings tab"),
-              onClick: function(entry) { Ribbon.selectTab(entry, "sheet"); } },
             { type: "button", id: "rename", text: qsTr("Rename"), icon: "rename", size: "small", enabled: onLayout,
               onClick: function(entry) { var i = LayoutTabs.currentIndex(entry); if (i > 0) { LayoutTabs.rename(entry, i); } } },
             { type: "button", id: "duplicate", text: qsTr("Duplicate"), icon: "duplicate", size: "small", enabled: onLayout,
