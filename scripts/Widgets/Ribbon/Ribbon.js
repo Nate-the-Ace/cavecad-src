@@ -752,8 +752,10 @@ Ribbon.makePanel = function(entry, def, parent) {
         more.toolTip = qsTr("More %1 commands").arg(def.title);
         more.setFixedSize(24, 16);
         more.clicked.connect(function() {
+            // directly under its own panel: the panel's left edge, the ribbon's bottom edge
+            pop.setMinimumWidth(pw.width);
             pop.adjustSize();
-            pop.move(more.mapToGlobal(new QPoint(0, more.height)));
+            pop.move(pw.mapToGlobal(new QPoint(0, pw.height)));
             Ribbon.popupOpen = pop;
             pop.show();
         });
