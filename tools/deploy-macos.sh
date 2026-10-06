@@ -58,7 +58,7 @@ else
     echo "warning: Qt image format plugins not found; JPEG will not load" >&2
 fi
 
-for d in scripts patterns linetypes fonts ts themes libraries defaults; do
+for d in scripts patterns linetypes fonts ts libraries defaults; do
     ditto "$SRC/$d" "$STAGE/Contents/Resources/$d"
 done
 

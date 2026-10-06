@@ -128,7 +128,7 @@ jobs:
         shell: pwsh
         run: |
           $qt = "$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\$env:QT_DIR"
-          foreach ($d in 'scripts','libraries','patterns','linetypes','fonts','themes','ts','plugins','defaults') {
+          foreach ($d in 'scripts','libraries','patterns','linetypes','fonts','ts','plugins','defaults') {
             if (Test-Path $d) { Copy-Item -Recurse -Force $d release\ }
           }
           # CaveCAD embeds QJSEngine, not Qt Quick, so skip the QML import scan:

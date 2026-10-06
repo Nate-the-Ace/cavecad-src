@@ -120,7 +120,7 @@ jobs:
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp -a release/. AppDir/usr/bin/
           cp -a plugins AppDir/usr/bin/
-          for d in scripts libraries patterns linetypes fonts themes ts defaults; do
+          for d in scripts libraries patterns linetypes fonts ts defaults; do
             [ -d "$d" ] && cp -a "$d" AppDir/usr/bin/
           done
           tools/strip-runtime.sh AppDir/usr/bin

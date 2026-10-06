@@ -34,7 +34,7 @@ cp "$SRC"/plugins/libcavecad*.dylib "$APP/Contents/PlugIns/"
 cp "$SRC"/plugins/designer/libcavecadcustomwidgets.dylib \
    "$APP/Contents/PlugIns/designer/"
 
-for d in scripts patterns linetypes fonts ts themes libraries defaults; do
+for d in scripts patterns linetypes fonts ts libraries defaults; do
     ditto "$SRC/$d" "$APP/Contents/Resources/$d"
 done
 "$SRC/tools/strip-runtime.sh" "$APP/Contents/Resources"
