@@ -253,6 +253,11 @@ WidgetFactory.saveState = function(widget, group, document, map) {
     for (var i = 0; i < children.length; ++i) {
         var c = children[i];
 
+        // option fields stacked into a cell (see moveChildren) belong to the toolbar all the same
+        if (c && !isDeleted(c) && c.objectName==="RibbonCell") {
+            WidgetFactory.saveState(c, group, document, map);
+            continue;
+        }
 
         if (!c || isDeleted(c) || c.toString().startsWith("QVariantAnimation") ||
                 c.toString().startsWith("QWidgetAction") || c.objectName==="" ||
@@ -477,6 +482,12 @@ WidgetFactory.restoreState = function(widget, group, signalReceiver, reset, docu
         var c = children[i];
         
         if (!c || isDeleted(c)) {
+            continue;
+        }
+
+        // option fields stacked into a cell (see moveChildren) belong to the toolbar all the same
+        if (c.objectName==="RibbonCell") {
+            WidgetFactory.restoreState(c, group, signalReceiver, reset, document, map);
             continue;
         }
 
@@ -1103,6 +1114,62 @@ WidgetFactory.connectSignal = function(sig, signalReceiver, objectName, isValue)
  *
  * \return Array of actions that were added to targetWidget.
  */
+/** True for the widgets a person types or picks a value in. */
+WidgetFactory.isInputField = function(w) {
+    return isOfType(w, QLineEdit) || isOfType(w, RMathLineEdit) || isOfType(w, RMathComboBox) ||
+        isOfType(w, QComboBox) || isOfType(w, QSpinBox) || isOfType(w, QDoubleSpinBox);
+};
+
+/**
+ * The parts of an option cell starting at children[i]: an optional check box, an
+ * optional label, then an input field ("Length: [ 1 ]"). Undefined when there is none.
+ */
+WidgetFactory.cellAt = function(children, i) {
+    var parts = [];
+    var j = i;
+    var isWidget = function(c) { return !isNull(c) && isFunction(c.show) && !isSeparator(c); };
+    if (isWidget(children[j]) && isOfType(children[j], QCheckBox)) {
+        parts.push(children[j]);
+        j++;
+    }
+    if (isWidget(children[j]) && isOfType(children[j], QLabel) && children[j].objectName!=="Icon") {
+        parts.push(children[j]);
+        j++;
+    }
+    if (parts.length>0 && isWidget(children[j]) && WidgetFactory.isInputField(children[j])) {
+        parts.push(children[j]);
+        return parts;
+    }
+    return undefined;
+};
+
+/** The tweaks every option widget gets before it goes into the options toolbar. */
+WidgetFactory.prepareOptionWidget = function(w, targetWidget) {
+    if (isOfType(w, QLabel) || isOfType(w, QCheckBox)) {
+        // prevent styles from overriding fixed size (e.g. for icon labels):
+        if (w.sizePolicy.horizontalPolicy()!==QSizePolicy.Fixed) {
+            w.styleSheet = "margin-left: 5px;  margin-right: 5px;" + w.styleSheet;
+        }
+    }
+    // add line edit or math edit with maximum width:
+    if (isOfType(w, QLineEdit) || isOfType(w, RMathLineEdit) || isOfType(w, RMathComboBox)) {
+        if (w.maximumWidth>=1024) {
+            w.maximumWidth = 75;
+        }
+    }
+
+    // fix too small spin boxes, Qt 6, macOS:
+    if (RS.getSystemId()==="osx" && RSettings.getQtVersion() >= 0x060000) {
+        if (isOfType(w, QSpinBox) && isOfType(targetWidget, QToolBar)) {
+            w.minimumHeight = targetWidget.height-16;
+        }
+    }
+
+    if (isOfType(w, RMathLineEdit) || isOfType(w, RMathComboBox)) {
+        WidgetFactory.initLineEditInfoTools(w);
+    }
+};
+
 WidgetFactory.moveChildren = function(sourceWidget, targetWidget, settingsGroup) {
     var ret = [];
 
@@ -1112,9 +1179,85 @@ WidgetFactory.moveChildren = function(sourceWidget, targetWidget, settingsGroup)
     // options toolbar. rendering of tool buttons greatly depends
     // on this (especially on macOS):
     var children = sourceWidget.children();
+
+    // Runs of two or more label + field cells ("Length: [1]", "Angle: [0]") are stacked two
+    // to a column, so they fill the height of the ribbon the toolbar now lives in.
+    // cellOf[i] = the parts of the cell starting at child i; cellEnd[i] = child after it.
+    var cellOf = {};
+    var dropped = {};
+    var stacked = isOfType(targetWidget, QToolBar);
+    if (stacked) {
+        var run = [];
+        var flush = function() {
+            if (run.length>=2) {
+                for (var r=0; r<run.length; r++) {
+                    cellOf[run[r].start] = { parts: run[r].parts, group: Math.floor(r/2), last: run[r].end };
+                }
+            }
+            run = [];
+        };
+        var k = 0;
+        while (k<children.length) {
+            var parts = WidgetFactory.cellAt(children, k);
+            if (!isNull(parts)) {
+                run.push({ start: k, parts: parts, end: k+parts.length });
+                k += parts.length;
+            }
+            else if (run.length>0 && isSeparator(children[k]) && !isNull(WidgetFactory.cellAt(children, k+1))) {
+                // a divider between two cells: they stack together, the divider goes
+                dropped[k] = true;
+                k++;
+            }
+            else {
+                flush();
+                k++;
+            }
+        }
+        flush();
+    }
+
+    var cellBox;
+    var cellBoxGroup = -1;
+    var cellRows = 0;
+    var cellCount = 0;
+    var skipUntil = -1;
     for(var i=0;i<children.length;++i) {
+        if (i<skipUntil) {
+            continue;
+        }
         var w = children[i];
-        if (isNull(w)) {
+        if (isNull(w) || dropped[i]===true) {
+            continue;
+        }
+
+        // a cell of the stacked kind: its widgets go into a two-row box, which is one toolbar item
+        if (!isNull(cellOf[i])) {
+            var cell = cellOf[i];
+            if (isNull(cellBox) || cellBoxGroup!==cell.group) {
+                cellBox = new QWidget();
+                cellBox.objectName = "RibbonCell";
+                cellRows = 0;
+                var grid = new QGridLayout();
+                grid.setContentsMargins(0, 0, 0, 0);
+                grid.setHorizontalSpacing(4);
+                grid.setVerticalSpacing(2);
+                cellBox.setLayout(grid);
+                cellBoxGroup = cell.group;
+                a = targetWidget.addWidget(cellBox);
+                a.objectName = "RibbonCell" + (cellCount++) + "Action";
+                ret.push(a);
+            }
+            var row = cellRows;
+            cellRows++;
+            // columns line up from the right: the field is last, its label before it, a check box first
+            var col0 = 3 - cell.parts.length;
+            for (var p=0; p<cell.parts.length; p++) {
+                var pw = cell.parts[p];
+                pw.setProperty("SettingsGroup", settingsGroup);
+                WidgetFactory.prepareOptionWidget(pw, targetWidget);
+                cellBox.layout().addWidget(pw, row, col0 + p);
+            }
+            skipUntil = cell.last;
             continue;
         }
 
@@ -1145,29 +1288,7 @@ WidgetFactory.moveChildren = function(sourceWidget, targetWidget, settingsGroup)
 
         // add widgets:
         else {
-            if (isOfType(w, QLabel) || isOfType(w, QCheckBox)) {
-                // prevent styles from overriding fixed size (e.g. for icon labels):
-                if (w.sizePolicy.horizontalPolicy()!==QSizePolicy.Fixed) {
-                    w.styleSheet = "margin-left: 5px;  margin-right: 5px;" + w.styleSheet;
-                }
-            }
-            // add line edit or math edit with maximum width:
-            if (isOfType(w, QLineEdit) || isOfType(w, RMathLineEdit) || isOfType(w, RMathComboBox)) {
-                if (w.maximumWidth>=1024) {
-                    w.maximumWidth = 75;
-                }
-            }
-
-            // fix too small spin boxes, Qt 6, macOS:
-            if (RS.getSystemId()==="osx" && RSettings.getQtVersion() >= 0x060000) {
-                if (isOfType(w, QSpinBox) && isOfType(targetWidget, QToolBar)) {
-                    w.minimumHeight = targetWidget.height-16;
-                }
-            }
-
-            if (isOfType(w, RMathLineEdit) || isOfType(w, RMathComboBox)) {
-                WidgetFactory.initLineEditInfoTools(w);
-            }
+            WidgetFactory.prepareOptionWidget(w, targetWidget);
 
             a = targetWidget.addWidget(w);
             a.objectName = w.objectName + "Action";

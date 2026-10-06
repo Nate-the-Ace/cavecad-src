@@ -188,6 +188,9 @@ Ribbon.placeOptions = function(entry) {
         RMainWindowQt.getMainWindow().removeToolBar(tb);
         tb.movable = false;
         tb.floatable = false;
+        // fill the ribbon's height (above the panel title) rather than sit at toolbar size
+        tb.setFixedHeight(Ribbon.BODY_HEIGHT - 16);
+        tb.iconSize = new QSize(32, 32);
         host.layout().addWidget(tb);
         tb.setProperty("RibbonHosted", true);
         // the active-tool icon styles itself (OptionsToolBar.initStyle), which outranks the ribbon's sheet
@@ -323,7 +326,7 @@ Ribbon.applyTheme = function(entry) {
             "padding:2px 6px; min-height:22px; selection-background-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QLineEdit:focus, QWidget#RibbonOptionsHost QAbstractSpinBox:focus, QWidget#RibbonOptionsHost QComboBox:focus { border-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QComboBox QAbstractItemView { color:" + c.text + "; background:" + c.field + "; selection-background-color:" + c.accent + "; } " +
-        "QWidget#RibbonOptionsHost QRadioButton, QWidget#RibbonOptionsHost QCheckBox { color:" + c.text + "; spacing:5px; } " +
+        "QWidget#RibbonOptionsHost QRadioButton, QWidget#RibbonOptionsHost QCheckBox, QWidget#RibbonOptionsHost QLabel { color:" + c.text + "; spacing:6px; } " +
         "QWidget#RibbonOptionsHost QToolButton:checked { background:" + c.hover + "; border-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QLabel#Icon { background:" + c.hover + "; border:1px solid " + c.line + "; border-radius:4px; margin:2px 4px 2px 2px; } ");
 };

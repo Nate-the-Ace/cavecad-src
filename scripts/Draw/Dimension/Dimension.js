@@ -96,6 +96,10 @@ Dimension.prototype.initUiOptions = function(resume, optionsToolBar, forDialog) 
         var block = doc.queryCurrentBlock();
         if (!isNull(block) && block.hasLayout() && block.isModelSpace()) {
             var cbAutoAction = optionsToolBar.findChild("AutoScaleAction");
+            if (isNull(cbAutoAction)) {
+                // stacked into a cell (WidgetFactory.moveChildren): no action of its own, hide the box itself
+                cbAutoAction = optionsToolBar.findChild("AutoScale");
+            }
             if (!isNull(cbAutoAction)) {
                 cbAutoAction.visible = false;
                 var cbAuto = optionsToolBar.findChild("AutoScale");
