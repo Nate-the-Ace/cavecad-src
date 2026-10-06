@@ -153,6 +153,36 @@ Ribbon.makeQuickAccess = function(entry, parent) {
     return box;
 };
 
+/**
+ * Whether there is anything to undo or redo that a person would recognise: a named command.
+ * (A new drawing carries unnamed setup steps that QCAD counts as undoable; they are not offered.)
+ * Worked out again only when the transaction log has moved.
+ */
+Ribbon.hasHistory = function(entry) {
+    var st = entry.di.getDocument().getStorage();
+    var last = st.getLastTransactionId();
+    var max = st.getMaxTransactionId();
+    var key = last + "|" + max;
+    if (entry.ribbonHistKey === key && !isNull(entry.ribbonHist)) {
+        return entry.ribbonHist;
+    }
+    var named = function(id) {
+        var t = st.getTransaction(id);
+        if (isNull(t)) { return false; }
+        try { return String(t.getText()) !== ""; } catch (e) { return false; }
+    };
+    var have = { undo: false, redo: false };
+    for (var id = last; id >= 1; id--) {
+        if (named(id)) { have.undo = true; break; }
+    }
+    for (var rid = last + 1; rid <= max; rid++) {
+        if (named(rid)) { have.redo = true; break; }
+    }
+    entry.ribbonHistKey = key;
+    entry.ribbonHist = have;
+    return have;
+};
+
 /** The undo (or redo) steps, newest first: [{text, id}], id being the transaction to go back to. */
 Ribbon.historyOf = function(entry, kind) {
     var doc = entry.di.getDocument();
@@ -311,9 +341,9 @@ Ribbon.hookTools = function() {
 Ribbon.syncCommands = function() {
     var entry = Ribbon.activeEntry;
     if (!isNull(entry) && !isNull(entry.ribbonQa)) {
-        var doc = entry.di.getDocument();
-        var canUndo = doc.isUndoAvailable();
-        var canRedo = doc.isRedoAvailable();
+        var have = Ribbon.hasHistory(entry);
+        var canUndo = have.undo;
+        var canRedo = have.redo;
         var qa = entry.ribbonQa;
         if (qa.undo.enabled !== canUndo) { qa.undo.enabled = canUndo; qa.undoArrow.enabled = canUndo; }
         if (qa.redo.enabled !== canRedo) { qa.redo.enabled = canRedo; qa.redoArrow.enabled = canRedo; }
