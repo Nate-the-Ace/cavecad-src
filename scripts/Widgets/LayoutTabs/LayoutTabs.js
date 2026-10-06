@@ -54,6 +54,41 @@ LayoutTabs.init = function(basePath) {
     LayoutTabs.txAdapter = tx;
 };
 
+/** The ribbon follows whichever drawing window is active. */
+LayoutTabs.hookMdi = function() {
+    if (LayoutTabs.mdiHooked === true) {
+        return;
+    }
+    var mdi = EAction.getMdiArea();
+    if (isNull(mdi)) {
+        return;
+    }
+    LayoutTabs.mdiHooked = true;
+    mdi.subWindowActivated.connect(function() { LayoutTabs.showActiveRibbon(); });
+};
+
+LayoutTabs.showActiveRibbon = function() {
+    try {
+        var sub = EAction.getMdiArea().activeSubWindow();
+        if (isNull(sub) || isNull(sub.widget())) {
+            return;
+        }
+        var strip = sub.widget().findChild("LayoutTabStrip");
+        if (isNull(strip)) {
+            return;
+        }
+        var id = strip.property("ltId");
+        for (var i = 0; i < LayoutTabs.entries.length; i++) {
+            if (LayoutTabs.entries[i].id === id) {
+                Ribbon.show(LayoutTabs.entries[i]);
+                return;
+            }
+        }
+    }
+    catch (e) {
+    }
+};
+
 /** Called for every new drawing window with its root widget. */
 LayoutTabs.attach = function(root, di) {
     var layout = root.layout();
@@ -96,7 +131,7 @@ LayoutTabs.attach = function(root, di) {
     // listeners below would ask that dead document for its current block --
     // a crash, not an exception, so no try/catch can save it.
     try {
-        strip.destroyed.connect(function() { entry.dead = true; LayoutTabs.prune(); });
+        strip.destroyed.connect(function() { entry.dead = true; Ribbon.discard(entry); LayoutTabs.prune(); });
     }
     catch (eDestroyed) {
     }
@@ -107,7 +142,7 @@ LayoutTabs.attach = function(root, di) {
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
     // THE RIBBON: contextual tabs of panels across the top of the drawing (see Widgets/Ribbon).
     LayoutTabs.registerRibbon();
-    var rb = Ribbon.attach(entry, root, layout);
+    var rb = Ribbon.attach(entry, Ribbon.host());
     entry.top = rb.root;
     entry.modeLabel = rb.state;
     entry.vpShown = undefined;
@@ -127,6 +162,8 @@ LayoutTabs.attach = function(root, di) {
     LayoutTabs.ensureLayout(entry);
     LayoutTabs.refresh(entry);
     Ribbon.refresh(entry);
+    Ribbon.show(entry);
+    LayoutTabs.hookMdi();
     try {
         LayoutTabs.applyTheme(entry);
     }
@@ -162,6 +199,7 @@ LayoutTabs.ensureLayout = function(entry) {
 LayoutTabs.prune = function() {
     for (var i = LayoutTabs.entries.length - 1; i >= 0; i--) {
         if (!LayoutTabs.live(LayoutTabs.entries[i])) {
+            Ribbon.discard(LayoutTabs.entries[i]);
             LayoutTabs.entries.splice(i, 1);
         }
     }

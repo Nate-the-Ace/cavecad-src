@@ -62,6 +62,70 @@ Ribbon.registerPanel = function(tabId, def) {
 };
 
 // ---------------------------------------------------------------------
+// The host: one toolbar across the whole top of the window
+// ---------------------------------------------------------------------
+
+/**
+ * The ribbon lives in a toolbar of its own, on the first row of the main window
+ * (so it spans the full width, above every dock), holding a stack with one page
+ * per drawing; the page of the active drawing is the one showing.
+ */
+Ribbon.host = function() {
+    var mw = RMainWindowQt.getMainWindow();
+    var tb = mw.findChild("RibbonToolBar");
+    if (!isNull(tb)) {
+        return tb.findChild("RibbonStack");
+    }
+    tb = new QToolBar(qsTr("Ribbon"), mw);
+    tb.objectName = "RibbonToolBar";
+    tb.movable = false;
+    tb.floatable = false;
+    tb.setAllowedAreas(Qt.TopToolBarArea);
+    tb.setContentsMargins(0, 0, 0, 0);
+    var stack = new QStackedWidget(tb);
+    stack.objectName = "RibbonStack";
+    stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum);
+    tb.addWidget(stack);
+    // first row: in front of whichever toolbar is first, then a break so it has the row to itself
+    var first = mw.findChild("ResetToolBar");
+    if (isNull(first)) {
+        first = mw.findChild("FileToolBar");
+    }
+    if (!isNull(first)) {
+        mw.insertToolBar(first, tb);
+        mw.insertToolBarBreak(first);
+    }
+    else {
+        mw.addToolBar(Qt.TopToolBarArea, tb);
+        mw.addToolBarBreak(Qt.TopToolBarArea);
+    }
+    return stack;
+};
+
+/** Brings this drawing's ribbon to the front of the stack. */
+Ribbon.show = function(entry) {
+    try {
+        Ribbon.host().setCurrentWidget(entry.ribbon.root);
+    }
+    catch (e) {
+        qWarning("Ribbon.show: " + e);
+    }
+};
+
+/** Takes a closed drawing's ribbon page out of the stack. */
+Ribbon.discard = function(entry) {
+    try {
+        if (entry.ribbonDiscarded === true) { return; }
+        entry.ribbonDiscarded = true;
+        Ribbon.host().removeWidget(entry.ribbon.root);
+        entry.ribbon.root.deleteLater();
+    }
+    catch (e) {
+        qWarning("Ribbon.discard: " + e);
+    }
+};
+
+// ---------------------------------------------------------------------
 // Icons
 // ---------------------------------------------------------------------
 
@@ -204,8 +268,8 @@ Ribbon.makeButton = function(entry, item, parent) {
 };
 
 /** Builds the ribbon for a window into `parent`'s layout (`insertAt` 0 = top). Returns the ribbon state. */
-Ribbon.attach = function(entry, parent, layout) {
-    var root = new QWidget(parent);
+Ribbon.attach = function(entry, stack) {
+    var root = new QWidget(stack);
     root.objectName = "RibbonRoot";
     root.setAttribute(Qt.WA_StyledBackground, true);
     // the ribbon takes the height it needs and no more; the drawing gets the rest
@@ -283,12 +347,7 @@ Ribbon.attach = function(entry, parent, layout) {
     }
     bodyRow.addStretch(1);
 
-    try {
-        layout.insertWidget(0, root);
-    }
-    catch (e) {
-        layout.addWidget(root);
-    }
+    stack.addWidget(root);
     Ribbon.applyTheme(entry);
     Ribbon.setCollapsed(entry, RSettings.getBoolValue("Ribbon/Collapsed", false));
     return rb;
