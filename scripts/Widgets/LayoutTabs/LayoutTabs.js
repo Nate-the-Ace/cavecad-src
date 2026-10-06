@@ -1523,7 +1523,11 @@ LayoutTabs.ribbonContext = function(entry) {
     var editing = !isNull(entry.editing);
     var ctx = { mode: editing ? "editing" : (isNull(cur) ? "model" : "layout"), layout: cur, tool: Ribbon.currentTool(),
         viewport: editing ? undefined : LayoutTabs.controlViewport(entry) };
-    if (editing) {
+    // top right of the ribbon: what the running command asks for, else where you are
+    if (!isNull(Ribbon.prompt) && Ribbon.prompt !== "") {
+        ctx.stateText = Ribbon.prompt;
+    }
+    else if (editing) {
         ctx.stateText = qsTr("Editing through a viewport");
     }
     else if (isNull(cur)) {

@@ -113,6 +113,7 @@ Ribbon.host = function() {
  * command runs, and the tab you were on returns when it ends. Nothing about the
  * commands changes: they still fill the same toolbar, which now lives in the ribbon.
  */
+Ribbon.prompt = "";      // the running command's prompt, "" when idle
 Ribbon.tools = [];       // [{title}] while a command with option fields runs, else empty
 Ribbon.toolHooked = false;
 
@@ -150,13 +151,20 @@ Ribbon.pollTools = function() {
     var n = tb.actions().length;
     var icon = tb.findChild("Icon");
     var tip = isNull(icon) ? "" : String(icon.toolTip);
-    var signature = n + "|" + tip;
+    // the command's prompt ("Choose line, arc, circle or ellipse:") from the command line's label
+    var promptLabel = RMainWindowQt.getMainWindow().findChild("CommandLabel");
+    var prompt = isNull(promptLabel) ? "" : String(promptLabel.text).replace(/<[^>]*>/g, "").replace(/^\s+|\s+$/g, "");
+    if (prompt === "Command:" || prompt === qsTr("Command:")) {
+        prompt = "";
+    }
+    var signature = n + "|" + tip + "|" + prompt;
     if (signature === Ribbon.toolSignature) {
         return;
     }
     Ribbon.toolSignature = signature;
     var title = tip.indexOf(":") >= 0 ? tip.substring(tip.indexOf(":") + 1).replace(/^\s+|\s+$/g, "") : tip;
     title = title.replace(/\s*\([A-Z0-9]{1,4}\)\s*$/, "");   // the command's shortcut, "(OF)"
+    Ribbon.prompt = prompt;
     var had = Ribbon.tools.length > 0;
     // resting state: the Reset tool is "active" and the bar holds only its resting items
     var idle = tip.indexOf("Reset") >= 0 || tip.indexOf("Idle") >= 0 || tip === "";
@@ -164,9 +172,8 @@ Ribbon.pollTools = function() {
         Ribbon.toolBase = n;
     }
     Ribbon.tools = (!idle && n > (isNull(Ribbon.toolBase) ? 3 : Ribbon.toolBase)) ? [{ title: title }] : [];
-    if ((Ribbon.tools.length > 0) !== had || Ribbon.tools.length > 0) {
-        if (!isNull(Ribbon.onToolChange)) { Ribbon.onToolChange(); }
-    }
+    // a changed prompt matters even for a command with no option fields
+    if (!isNull(Ribbon.onToolChange)) { Ribbon.onToolChange(); }
 };
 
 /** The command whose options are showing, as {title}, or undefined. */
@@ -422,10 +429,6 @@ Ribbon.attach = function(entry, stack) {
     var state = new QLabel(head);
     state.objectName = "RibbonState";
     headRow.addWidget(state, 0, 0);
-    var collapse = new QToolButton(head);
-    collapse.objectName = "RibbonCollapse";
-    collapse.autoRaise = true;
-    headRow.addWidget(collapse, 0, 0);
     head.setLayout(headRow);
     head.setFixedHeight(Ribbon.TAB_HEIGHT);
     col.addWidget(head, 0, 0);
@@ -441,7 +444,7 @@ Ribbon.attach = function(entry, stack) {
     col.addWidget(body, 0, 0);
     root.setLayout(col);
 
-    var rb = { root: root, head: head, bar: bar, body: body, bodyRow: bodyRow, state: state, collapse: collapse,
+    var rb = { root: root, head: head, bar: bar, body: body, bodyRow: bodyRow, state: state,
         tabIndexOf: {}, tabIds: [], panelWidgets: {}, current: undefined, building: false };
     entry.ribbon = rb;
 
@@ -458,8 +461,6 @@ Ribbon.attach = function(entry, stack) {
         rb.picked = rb.current;
         Ribbon.showPanels(entry);
     });
-    bar.tabBarDoubleClicked.connect(function() { Ribbon.toggleCollapsed(entry); });
-    collapse.clicked.connect(function() { Ribbon.toggleCollapsed(entry); });
 
     // panels: widgets built once, shown per tab
     for (var tid in Ribbon.panels) {
@@ -477,7 +478,6 @@ Ribbon.attach = function(entry, stack) {
 
     stack.addWidget(root);
     Ribbon.applyTheme(entry);
-    Ribbon.setCollapsed(entry, RSettings.getBoolValue("Ribbon/Collapsed", false));
     return rb;
 };
 
@@ -555,19 +555,6 @@ Ribbon.makePanel = function(entry, def, parent) {
     pw.setLayout(v);
     pw.setProperty("ribbonDivider", true);
     return pw;
-};
-
-Ribbon.setCollapsed = function(entry, collapsed) {
-    var rb = entry.ribbon;
-    rb.collapsed = collapsed;
-    rb.body.visible = !collapsed;
-    rb.collapse.text = collapsed ? "▾" : "▴";
-    rb.collapse.toolTip = collapsed ? qsTr("Show the ribbon") : qsTr("Collapse the ribbon to its tabs");
-    RSettings.setValue("Ribbon/Collapsed", collapsed);
-};
-
-Ribbon.toggleCollapsed = function(entry) {
-    Ribbon.setCollapsed(entry, entry.ribbon.collapsed !== true);
 };
 
 Ribbon.showPanels = function(entry) {
