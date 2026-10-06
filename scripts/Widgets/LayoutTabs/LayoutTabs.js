@@ -180,23 +180,6 @@ LayoutTabs.attach = function(root, di) {
     done.toolTip = qsTr("Leave the viewport and return to the layout");
     done.visible = false;
     topRow.addWidget(done, 0, 0);
-    // THE ANNOTATION SCALE, always at the right: the scale annotative text is shown at in
-    // the model, and whether its other scales are shown shaded back (see Annotate/Annotative.js)
-    topRow.addSpacing(10);
-    var annoLabel = new QLabel(qsTr("Annotation scale:"), top);
-    annoLabel.objectName = "AnnoScaleLabel";
-    topRow.addWidget(annoLabel, 0, 0);
-    var annoCombo = new QComboBox(top);
-    annoCombo.objectName = "AnnoScaleCombo";
-    annoCombo.toolTip = qsTr("The scale annotative text is shown at in the model. Inside a viewport, text follows that viewport's own scale.");
-    annoCombo.setMinimumWidth(110);
-    topRow.addWidget(annoCombo, 0, 0);
-    var annoGhost = new QPushButton(qsTr("All scales"), top);
-    annoGhost.objectName = "AnnoVisibleButton";
-    annoGhost.checkable = true;
-    annoGhost.toolTip = qsTr("Show every scale of annotative text: the current one normal, the others shaded back");
-    annoGhost.maximumHeight = LayoutTabs.STRIP_HEIGHT - 4;
-    topRow.addWidget(annoGhost, 0, 0);
     top.setLayout(topRow);
     top.setFixedHeight(LayoutTabs.STRIP_HEIGHT + 6);
     try {
@@ -230,10 +213,7 @@ LayoutTabs.attach = function(root, di) {
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
     entryRef.entry = entry;
     entry.top = top;
-    entry.annoCombo = annoCombo;
-    entry.annoGhost = annoGhost;
-    annoCombo["activated(int)"].connect(function(index) { LayoutTabs.annoPicked(entry, index); });
-    annoGhost.clicked.connect(function(checked) { Annotative.setVisible(entry.di, checked); });
+
     entry.modeLabel = modeLabel;
     entry.banner = banner;
     entry.done = done;
@@ -265,6 +245,9 @@ LayoutTabs.attach = function(root, di) {
 
 /** The annotation scale list and the all-scales button, from the document. */
 LayoutTabs.refreshAnno = function(entry) {
+    if (isNull(entry.annoCombo)) {
+        return;     // the annotation controls live in the Property Editor now
+    }
     try {
         var doc = entry.di.getDocument();
         var scales = Layouts.scales(), cur = Annotative.currentScale(doc), at = -1;

@@ -1,7 +1,6 @@
 function init(basePath) {
     include("scripts/Annotate/Annotative.js");
     Annotative.install();
-    var menu = EAction.getMenu(qsTr("&Annotate"), "AnnotateMenu");
     var action = new RGuiAction(qsTranslate("AddCurrentScale", "Add Current Scale"), RMainWindowQt.getMainWindow());
     action.setRequiresDocument(true);
     action.setScriptFile(basePath + "/AddCurrentScale.js");
@@ -9,5 +8,5 @@ function init(basePath) {
     action.setDefaultCommands(["addscale", "asc"]);
     action.setGroupSortOrder(70000);
     action.setSortOrder(30);
-    action.setWidgetNames(["AnnotateMenu"]);
+    // no menu: the controls live in the Property Editor (Annotation section); these are commands only
 }
