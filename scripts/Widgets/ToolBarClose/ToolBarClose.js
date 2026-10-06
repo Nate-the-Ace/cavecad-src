@@ -12,6 +12,7 @@ include("scripts/EAction.js");
 function ToolBarClose() {
 }
 
+ToolBarClose.appliers = {};
 ToolBarClose.STRIP = 30;   // the x is this big: wide enough to hit without aiming
 
 ToolBarClose.init = function(basePath) {
@@ -79,7 +80,15 @@ ToolBarClose.names = function(appWin) {
 };
 
 ToolBarClose.attach = function(tb) {
-    if (isNull(tb) || tb.property("ToolBarCloseDone") === true) {
+    if (isNull(tb)) {
+        return;
+    }
+    if (tb.property("ToolBarCloseDone") === true) {
+        // a toolbar restored as floating from the saved layout never signals it: look again
+        var again = ToolBarClose.appliers[String(tb.objectName)];
+        if (!isNull(again)) {
+            again();
+        }
         return;
     }
     if (String(tb.objectName) === "RibbonToolBar") {
@@ -113,5 +122,7 @@ ToolBarClose.attach = function(tb) {
         act.visible = floating;
     };
     tb.topLevelChanged.connect(apply);
+    tb.visibilityChanged.connect(apply);
+    ToolBarClose.appliers[String(tb.objectName)] = apply;
     apply();
 };
