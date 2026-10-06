@@ -397,6 +397,7 @@ Ribbon.pollTools = function() {
     Ribbon.toolSignature = signature;
     var title = tip.indexOf(":") >= 0 ? tip.substring(tip.indexOf(":") + 1).replace(/^\s+|\s+$/g, "") : tip;
     title = title.replace(/\s*\([A-Z0-9]{1,4}\)\s*$/, "");   // the command's shortcut, "(OF)"
+    title = title.replace(/\s*\([^)]*\)/g, "");               // and qualifiers: "Offset (with Distance)" -> "Offset"
     Ribbon.prompt = prompt;
     var had = Ribbon.tools.length > 0;
     // resting state: the Reset tool is "active" and the bar holds only its resting items
@@ -679,6 +680,23 @@ Ribbon.colors = function() {
         { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff", field: "#ffffff", tab: "#d5dce6", dim2: "#4a5b6e", textStrong: "#0b1d33" };
 };
 
+/** A small orange dot: what marks a contextual tab (one that appears with what you are doing). */
+Ribbon.accentDot = function() {
+    if (isNull(Ribbon.dotIcon)) {
+        var pm = new QPixmap(12, 12);
+        pm.fill(new QColor(0, 0, 0, 0));
+        var p = new QPainter();
+        p.begin(pm);
+        p.setRenderHint(QPainter.Antialiasing, true);
+        p.setBrush(new QBrush(new QColor("#ff9a2e")));
+        p.setPen(new QPen(new QColor(0, 0, 0, 0)));
+        p.drawEllipse(2, 2, 8, 8);
+        p.end();
+        Ribbon.dotIcon = new QIcon(pm);
+    }
+    return Ribbon.dotIcon;
+};
+
 /** Dresses the ribbon for the current light or dark theme. */
 Ribbon.applyTheme = function(entry) {
     var rb = entry.ribbon;
@@ -687,7 +705,7 @@ Ribbon.applyTheme = function(entry) {
     }
     var c = Ribbon.colors();
     rb.root.setStyleSheet(
-        "QWidget#RibbonRoot, QWidget#RibbonBody { background:" + c.bg + "; } " +
+        "QWidget#RibbonRoot, QWidget#RibbonBody, QWidget#RibbonBodyInner { background:" + c.bg + "; } " +
         "QWidget#RibbonHead { background:" + c.head + "; border-bottom:1px solid " + c.line + "; } " +
         "QWidget#RibbonBody { border-bottom:2px solid " + c.line + "; } " +
         "QLabel { color:" + c.text + "; background:transparent; } " +
@@ -713,6 +731,9 @@ Ribbon.applyTheme = function(entry) {
         "QTableWidget#RibbonHistoryList::item { padding:2px 8px; } " +
         "QTableWidget#RibbonHistoryList::item:selected { background:" + c.accent + "; color:white; } " +
         "QLabel#RibbonHistoryFooter { color:" + c.dim2 + "; border-top:1px solid " + c.line + "; padding-top:3px; } " +
+        "QScrollArea#RibbonBody QScrollBar:horizontal { height:7px; background:transparent; margin:0px; } " +
+        "QScrollArea#RibbonBody QScrollBar::handle:horizontal { background:" + c.line + "; border-radius:3px; min-width:30px; } " +
+        "QScrollArea#RibbonBody QScrollBar::add-line:horizontal, QScrollArea#RibbonBody QScrollBar::sub-line:horizontal { width:0px; } " +
         "QFrame#RibbonPopupSep { color:" + c.line + "; background:" + c.line + "; max-height:1px; } " +
         "QFrame#RibbonOverflow { background:" + c.bg + "; border:1px solid " + c.line + "; border-top:2px solid " + c.accent + "; } " +
         "QToolButton#RibbonOverflowButton { color:" + c.textStrong + "; font-size:12px; border:1px solid " + c.line + "; border-radius:3px; background:" + c.tab + "; } " +
@@ -728,6 +749,9 @@ Ribbon.applyTheme = function(entry) {
         "QWidget#RibbonOptionsHost QLineEdit:focus, QWidget#RibbonOptionsHost QAbstractSpinBox:focus, QWidget#RibbonOptionsHost QComboBox:focus { border-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QComboBox QAbstractItemView { color:" + c.text + "; background:" + c.field + "; selection-background-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QRadioButton, QWidget#RibbonOptionsHost QCheckBox, QWidget#RibbonOptionsHost QLabel { color:" + c.text + "; spacing:6px; } " +
+        "QWidget#RibbonOptionsHost QCheckBox::indicator, QWidget#RibbonCell QCheckBox::indicator { width:14px; height:14px; border:1px solid " + c.dim + "; border-radius:3px; background:" + c.field + "; } " +
+        "QWidget#RibbonOptionsHost QCheckBox::indicator:hover, QWidget#RibbonCell QCheckBox::indicator:hover { border-color:" + c.accent + "; } " +
+        "QWidget#RibbonOptionsHost QCheckBox::indicator:checked, QWidget#RibbonCell QCheckBox::indicator:checked { background:" + c.accent + "; border-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QToolButton:checked { background:" + c.hover + "; border-color:" + c.accent + "; } " +
         "QWidget#RibbonOptionsHost QLabel#Icon { background:" + c.hover + "; border:1px solid " + c.line + "; border-radius:4px; margin:2px 4px 2px 2px; } ");
 };
@@ -940,14 +964,22 @@ Ribbon.attach = function(entry, stack) {
     head.setFixedHeight(Ribbon.TAB_HEIGHT);
     col.addWidget(head, 0, 0);
 
-    var body = new QWidget(root);
+    // the panels live in a strip inside a scroll area: a window too narrow for them scrolls the strip
+    // (wheel or drag) instead of squeezing every label or widening the window
+    var body = new QScrollArea(root);
     body.objectName = "RibbonBody";
-    body.setAttribute(Qt.WA_StyledBackground, true);
+    body.setFrameShape(QFrame.NoFrame);
+    body.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded);
+    body.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff);
+    body.setWidgetResizable(true);
+    var strip = new QWidget(body);
+    strip.objectName = "RibbonBodyInner";
+    strip.setAttribute(Qt.WA_StyledBackground, true);
     var bodyRow = new QHBoxLayout();
     bodyRow.setContentsMargins(6, 2, 6, 2);
     bodyRow.setSpacing(2);
-    bodyRow.setSizeConstraint(1);   // QLayout.SetNoConstraint: panels that do not fit are clipped, they never widen the window
-    body.setLayout(bodyRow);
+    strip.setLayout(bodyRow);
+    body.setWidget(strip);
     body.setFixedHeight(Ribbon.BODY_HEIGHT);
     body.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed);
     col.addWidget(body, 0, 0);
@@ -977,7 +1009,7 @@ Ribbon.attach = function(entry, stack) {
         rb.panelWidgets[tid] = [];
         var list = Ribbon.panels[tid];
         for (var p = 0; p < list.length; p++) {
-            var pw = Ribbon.makePanel(entry, list[p], body);
+            var pw = Ribbon.makePanel(entry, list[p], strip);
             pw.visible = false;
             bodyRow.addWidget(pw, 0, 0);
             rb.panelWidgets[tid].push(pw);
@@ -987,6 +1019,15 @@ Ribbon.attach = function(entry, stack) {
 
     stack.addWidget(root);
     Ribbon.applyTheme(entry);
+    // a panel keeps the width its buttons need: in a narrow window the ribbon is clipped at the
+    // right edge instead of squeezing every label (the style sheet is on now, so sizes are real)
+    for (var tid2 in rb.panelWidgets) {
+        if (!rb.panelWidgets.hasOwnProperty(tid2)) { continue; }
+        for (var q = 0; q < rb.panelWidgets[tid2].length; q++) {
+            var pwq = rb.panelWidgets[tid2][q];
+            pwq.setMinimumWidth(pwq.sizeHint.width());
+        }
+    }
     return rb;
 };
 
@@ -1144,7 +1185,7 @@ Ribbon.refresh = function(entry) {
         var on = isNull(def.when) ? true : def.when(ctx) === true;
         rb.bar.setTabVisible(rb.tabIndexOf[def.id], on);
         if (on && typeof def.titleOf === "function") { rb.bar.setTabText(rb.tabIndexOf[def.id], def.titleOf(ctx)); }
-        if (def.accent === true) { rb.bar.setTabTextColor(rb.tabIndexOf[def.id], new QColor("#ff9a2e")); }
+        if (def.accent === true) { rb.bar.setTabIcon(rb.tabIndexOf[def.id], Ribbon.accentDot()); }
         if (on) { visibleIds.push(def.id); }
     }
     // tabs come and go, so the bar's width is recomputed (it stays at its first size otherwise)
