@@ -597,6 +597,19 @@ Layouts.paperToModel = function(vp, x, y) {
     return new RVector((x - c.x) / s + vc.x + vt.x, (y - c.y) / s + vc.y + vt.y);
 };
 
+/**
+ * Like paperToModel, but for a viewport whose contents are TURNED (rotation):
+ * the model point shown at paper (x, y), turning the viewport's contents about
+ * its centre as the engine does. paperToModel ignores the turn (the click-through
+ * edit view shows a turned viewport untwisted and relies on that).
+ */
+Layouts.paperToModelTurned = function(vp, x, y) {
+    var c = vp.getCenter(), vc = vp.getViewCenter(), vt = vp.getViewTarget(), s = vp.getScale();
+    var a = -vp.getRotation(), ca = Math.cos(a), sa = Math.sin(a);
+    var dx = (x - c.x) / s, dy = (y - c.y) / s;
+    return new RVector(dx * ca - dy * sa + vc.x + vt.x, dx * sa + dy * ca + vc.y + vt.y);
+};
+
 /** The viewport of the layout under paper point (x, y), the topmost first, or undefined. */
 Layouts.viewportAt = function(doc, info, x, y) {
     var all = Layouts.viewports(doc, info);
@@ -832,7 +845,9 @@ Layouts._writeClip = function(vp, loops) {
         y1 = Math.min(y1, loops[0][p].y); y2 = Math.max(y2, loops[0][p].y);
     }
     var nc = new RVector((x1 + x2) / 2, (y1 + y2) / 2);
-    var keep = Layouts.paperToModel(vp, nc.x, nc.y);
+    // the model point now at the new centre stays there: what the map shows at any place on the
+    // paper does not move when the outline changes (rotation included)
+    var keep = Layouts.paperToModelTurned(vp, nc.x, nc.y);
     vp.setViewCenter(new RVector(keep.x - vp.getViewTarget().x, keep.y - vp.getViewTarget().y));
     vp.setCenter(nc);
     vp.setWidth(x2 - x1);
