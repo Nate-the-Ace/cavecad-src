@@ -90,8 +90,19 @@ Ribbon.icon = function(name) {
         if (f.open(QIODevice.ReadOnly)) {
             var text = String(new QTextStream(f).readAll()).split("#2b2b2b").join(color);
             f.close();
-            var pm = new QPixmap();
-            if (pm.loadFromData(new QByteArray(text), "SVG")) {
+            // QByteArray cannot be built from a string in the script engine, so the
+            // recoloured SVG goes through a temp file
+            var tmp = QDir.tempPath() + "/cavecad-ribbon-" + name + "-" + color.substring(1) + ".svg";
+            var out = new QFile(tmp);
+            var pm;
+            if (out.open(QIODevice.WriteOnly)) {
+                var ts = new QTextStream(out);
+                ts.writeString(text);
+                ts.flush();
+                out.close();
+                pm = new QPixmap(tmp);
+            }
+            if (!isNull(pm) && !pm.isNull()) {
                 icon = new QIcon(pm);
             }
         }
@@ -118,6 +129,32 @@ Ribbon.findAction = function(suffix) {
 // ---------------------------------------------------------------------
 // Building
 // ---------------------------------------------------------------------
+
+/** Dresses the ribbon for the current light or dark theme. */
+Ribbon.applyTheme = function(entry) {
+    var rb = entry.ribbon;
+    if (isNull(rb)) {
+        return;
+    }
+    var dark = Ribbon.iconColor() !== "#2b2b2b";
+    var c = dark ?
+        { bg: "#1b2733", head: "#16202a", text: "#eaf3ff", dim: "#7d8fa3", line: "#34495e", hover: "#2c4258", accent: "#188cff" } :
+        { bg: "#f3f6fa", head: "#e4e9f0", text: "#16283c", dim: "#9aa8b8", line: "#c3cdd9", hover: "#dfe9f5", accent: "#188cff" };
+    rb.root.setStyleSheet(
+        "QWidget#RibbonRoot, QWidget#RibbonBody { background:" + c.bg + "; } " +
+        "QWidget#RibbonHead { background:" + c.head + "; border-bottom:1px solid " + c.line + "; } " +
+        "QWidget#RibbonBody { border-bottom:2px solid " + c.line + "; } " +
+        "QLabel { color:" + c.text + "; background:transparent; } " +
+        "QLabel#RibbonPanelTitle { color:" + c.dim + "; font-size:11px; } " +
+        "QToolButton { color:" + c.text + "; background:transparent; border:1px solid transparent; border-radius:4px; } " +
+        "QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } " +
+        "QToolButton:disabled { color:" + c.dim + "; } " +
+        "QCheckBox { color:" + c.text + "; } " +
+        "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
+        "QTabBar::tab { color:" + c.text + "; background:transparent; padding:3px 14px; margin-right:2px; border:1px solid transparent; border-top-left-radius:4px; border-top-right-radius:4px; } " +
+        "QTabBar::tab:selected { background:" + c.bg + "; border-color:" + c.line + "; font-weight:bold; } " +
+        "QTabBar::tab:hover:!selected { background:" + c.hover + "; }");
+};
 
 Ribbon.makeButton = function(entry, item, parent) {
     var btn = new QToolButton(parent);
@@ -171,6 +208,8 @@ Ribbon.attach = function(entry, parent, layout) {
     var root = new QWidget(parent);
     root.objectName = "RibbonRoot";
     root.setAttribute(Qt.WA_StyledBackground, true);
+    // the ribbon takes the height it needs and no more; the drawing gets the rest
+    root.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum);
     var col = new QVBoxLayout();
     col.setContentsMargins(0, 0, 0, 0);
     col.setSpacing(0);
@@ -250,6 +289,7 @@ Ribbon.attach = function(entry, parent, layout) {
     catch (e) {
         layout.addWidget(root);
     }
+    Ribbon.applyTheme(entry);
     Ribbon.setCollapsed(entry, RSettings.getBoolValue("Ribbon/Collapsed", false));
     return rb;
 };
@@ -357,8 +397,13 @@ Ribbon.refresh = function(entry) {
         var def = Ribbon.tabs[t];
         var on = isNull(def.when) ? true : def.when(ctx) === true;
         rb.bar.setTabVisible(rb.tabIndexOf[def.id], on);
+        if (def.accent === true) { rb.bar.setTabTextColor(rb.tabIndexOf[def.id], new QColor("#ff9a2e")); }
         if (on) { visibleIds.push(def.id); }
     }
+    // tabs come and go, so the bar's width is recomputed (it stays at its first size otherwise)
+    rb.bar.setElideMode(Qt.ElideNone);
+    rb.bar.updateGeometry();
+    rb.bar.adjustSize();
     // which tab: a contextual one that has just appeared wins; else the person's pick; else the first visible
     var want = rb.current;
     var appeared = [];

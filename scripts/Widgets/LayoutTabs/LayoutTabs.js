@@ -262,7 +262,6 @@ LayoutTabs.sync = function(entry) {
         entry.bar.setCurrentIndex(wanted);
     }
     entry.syncing = false;
-    entry.newVp.visible = !isNull(cur);
     LayoutTabs.updateMode(entry);
     LayoutCanvas.update(entry, cur);
 };
@@ -313,22 +312,7 @@ LayoutTabs.updateMode = function(entry) {
         }
     }
     try {
-        var doc = entry.di.getDocument();
-        var cur = Layouts.current(doc);
-        if (!isNull(entry.editing)) {
-            entry.modeLabel.text = qsTr("EDITING THROUGH A VIEWPORT");
-            // only the way back is on offer while editing through a viewport
-            var hide = ["vpLabel", "vpScale", "vpLock", "vpLayers", "vpBar", "newVp", "trimVp", "squareVp"];
-            for (var h = 0; h < hide.length; h++) {
-                entry[hide[h]].visible = false;
-            }
-        }
-        else if (isNull(cur)) {
-            entry.modeLabel.text = qsTr("MODEL SPACE  -  the cave itself.  Pick a layout tab below to compose a sheet.");
-        }
-        else {
-            entry.modeLabel.text = qsTr("LAYOUT \u201c%1\u201d  -  double-click a viewport to edit through it").arg(cur.name);
-        }
+        Ribbon.refresh(entry);
     }
     catch (e) {
     }
@@ -990,23 +974,14 @@ LayoutTabs.refreshControls = function(entry) {
     }
     catch (eGlyph) {
     }
+    // which tab and buttons show is the ribbon's business (Ribbon.refresh, by context)
     try {
-        var sel = LayoutTabs.controlViewport(entry);
-        entry.trimVp.visible = !isNull(sel) && isNull(entry.editing);
-        entry.squareVp.visible = !isNull(sel) && isNull(entry.editing) && Layouts.hasClip(sel);
+        Ribbon.refresh(entry);
     }
-    catch (eShape) {
+    catch (eRibbon) {
     }
     var vp = LayoutTabs.controlViewport(entry);
-    var show = !isNull(vp);
-    entry.vpLabel.visible = show;
-    entry.vpScale.visible = show;
-    entry.vpLock.visible = show;
-    entry.vpLayers.visible = show;
-    // offered only where the cave suite is loaded and the viewport has no bar yet
-    entry.vpBar.visible = show && typeof Layouts.addScaleBarFor === "function" &&
-        !Layouts.hasScaleBarOf(entry.di.getDocument(), vp);
-    if (!show) {
+    if (isNull(vp) || isNull(entry.vpScale)) {
         return;
     }
     var doc = entry.di.getDocument();
@@ -1487,18 +1462,7 @@ LayoutTabs.applyTheme = function(entry) {
         return;
     }
     entry.themeKey = key;
-    entry.top.setStyleSheet(
-        "QWidget#LayoutControlStrip { background:" + c.stripBg + "; border-bottom:2px solid " + c.stripBorder + "; } " +
-        "QLabel { color:" + c.text + "; background:transparent; } " +
-        "QCheckBox { color:" + c.text + "; } " +
-        "QPushButton { color:" + c.text + "; background:" + c.btnBg + "; border:1px solid " + c.btnBorder + "; border-radius:4px; padding:2px 10px; } " +
-        "QPushButton:hover { background:" + c.btnHover + "; } " +
-        "QPushButton:disabled { color:" + c.btnDisabled + "; } " +
-        "QComboBox { color:" + c.text + "; background:" + c.btnBg + "; border:1px solid " + c.btnBorder + "; border-radius:3px; padding:1px 6px; } " +
-        "QComboBox QAbstractItemView { color:" + c.text + "; background:" + c.btnBg + "; }");
-    entry.modeLabel.setStyleSheet("font-weight:bold; color:" + c.mode + ";");
-    entry.banner.setStyleSheet("font-weight:bold; color:" + c.bannerText + "; background:" + c.bannerBg + "; border:1px solid " + c.bannerBorder + "; border-radius:3px; padding:1px 8px;");
-    entry.done.setStyleSheet("QPushButton { background:#188cff; color:white; font-weight:bold; border:1px solid #0b5fb5; border-radius:4px; padding:3px 14px; } QPushButton:hover { background:#0f78e0; }");
+    Ribbon.applyTheme(entry);
     entry.strip.setStyleSheet(
         "QWidget#LayoutTabStrip { background:" + c.tabBarBg + "; } " +
         "QTabBar { background:" + c.tabBarBg + "; } " +
