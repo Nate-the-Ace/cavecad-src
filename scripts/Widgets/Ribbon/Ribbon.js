@@ -57,6 +57,7 @@ Ribbon.registerPanel = function(tabId, def) {
             return;
         }
     }
+    def.tabId = tabId;
     list.push(def);
     list.sort(function(a, b) { return (isNull(a.order) ? 100 : a.order) - (isNull(b.order) ? 100 : b.order); });
 };
@@ -431,7 +432,7 @@ Ribbon.applyTheme = function(entry) {
         "QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; } " +
         "QToolButton:disabled { color:" + c.dim + "; } " +
         // a split button's arrow sits at the right, clear of the label; a pure dropdown shows its own arrow in the text
-        "QToolButton[popupMode=\"1\"] { padding-right:14px; } " +
+        "QToolButton[ribbonSplit=\"true\"] { padding-right:15px; } " +
 
         "QCheckBox { color:" + c.text + "; } " +
         "QComboBox { color:" + c.text + "; background:" + c.bg + "; border:1px solid " + c.line + "; border-radius:3px; padding:1px 6px; } " +
@@ -440,6 +441,9 @@ Ribbon.applyTheme = function(entry) {
             "border:1px solid " + c.line + "; border-bottom:none; border-top-left-radius:5px; border-top-right-radius:5px; } " +
         "QTabBar::tab:selected { color:" + c.textStrong + "; background:" + c.bg + "; border-top:3px solid " + c.accent + "; font-weight:bold; margin-bottom:-1px; } " +
         "QTabBar::tab:hover:!selected { color:" + c.textStrong + "; background:" + c.hover + "; } " +
+        "QFrame#RibbonOverflow { background:" + c.bg + "; border:1px solid " + c.line + "; border-top:2px solid " + c.accent + "; } " +
+        "QToolButton#RibbonOverflowButton { color:" + c.textStrong + "; font-size:12px; border:1px solid " + c.line + "; border-radius:3px; background:" + c.tab + "; } " +
+        "QToolButton#RibbonOverflowButton:hover { background:" + c.hover + "; color:" + c.textStrong + "; } " +
         // a line between panels, so each group of commands reads as one
         "QWidget[ribbonDivider=\"true\"] { border-right:1px solid " + c.line + "; } " +
         // the options toolbar a running command fills: flat, on the ribbon's own colours
@@ -496,6 +500,7 @@ Ribbon.makeButton = function(entry, item, parent) {
     btn.toolTip = !isNull(item.tooltip) ? item.tooltip : (!isNull(action) ? String(action.statusTip) : String(btn.text).replace("\n", " "));
 
     var trigger = function() {
+        if (!isNull(Ribbon.popupOpen)) { Ribbon.popupOpen.hide(); Ribbon.popupOpen = undefined; }
         if (!isNull(item.onClick)) {
             item.onClick(entry, Ribbon.contextOf(entry));
         }
@@ -522,7 +527,10 @@ Ribbon.makeButton = function(entry, item, parent) {
             var ca = entries[e].action;
             var act = cmdMenu.addAction(Ribbon.shortText(entries[e].text));
             if (!ca.icon.isNull()) { act.setIcon(ca.icon); }
-            act.triggered.connect((function(target) { return function() { target.slotTrigger(); }; })(ca));
+            act.triggered.connect((function(target) { return function() {
+                if (!isNull(Ribbon.popupOpen)) { Ribbon.popupOpen.hide(); Ribbon.popupOpen = undefined; }
+                target.slotTrigger();
+            }; })(ca));
             made.push({ act: act, cmd: ca });
         }
         cmdMenu.aboutToShow.connect(function() {
@@ -531,6 +539,7 @@ Ribbon.makeButton = function(entry, item, parent) {
         btn.setMenu(cmdMenu);
         if (!isNull(action) || !isNull(item.onClick)) {
             btn.popupMode = QToolButton.MenuButtonPopup;
+            btn.setProperty("ribbonSplit", true);   // the style sheet clears room for the arrow
             btn.clicked.connect(trigger);
         }
         else {
@@ -660,6 +669,41 @@ Ribbon.remember = function(entry, item, widget, panelId) {
     }
 };
 
+/** Most columns a panel shows; the rest wait behind the panel's arrow. A panel can set maxColumns itself. */
+Ribbon.MAX_COLUMNS = 3;
+
+/** Builds one column of a panel (a button, a stack of small ones, or a widget) into `row`. */
+Ribbon.makeColumn = function(entry, def, item, owner, row) {
+    var w;
+    if (item.type === "widget") {
+        w = item.make(entry, owner);
+    }
+    else if (item.type === "stack") {
+        // a column of small things (buttons or widgets)
+        w = new QWidget(owner);
+        var col = new QVBoxLayout();
+        col.setContentsMargins(0, 0, 0, 0);
+        col.setSpacing(0);
+        for (var k = 0; k < item.items.length; k++) {
+            var sub = item.items[k];
+            var sw = sub.type === "widget" ? sub.make(entry, w) : Ribbon.makeButton(entry, sub, w);
+            if (!isNull(sw)) {
+                col.addWidget(sw, 0, 0);
+                Ribbon.remember(entry, sub, sw, def.id);
+            }
+        }
+        col.addStretch(1);
+        w.setLayout(col);
+    }
+    else {
+        w = Ribbon.makeButton(entry, item, owner);
+    }
+    if (!isNull(w)) {
+        row.addWidget(w, 0, 0);
+        Ribbon.remember(entry, item, w, def.id);
+    }
+};
+
 Ribbon.makePanel = function(entry, def, parent) {
     var pw = new QWidget(parent);
     pw.objectName = "RibbonPanel-" + def.id;
@@ -670,42 +714,52 @@ Ribbon.makePanel = function(entry, def, parent) {
     var row = new QHBoxLayout();
     row.setSpacing(2);
     row.setContentsMargins(0, 0, 0, 0);
-    for (var i = 0; i < def.items.length; i++) {
-        var item = def.items[i];
-        var w;
-        if (item.type === "widget") {
-            w = item.make(entry, pw);
-        }
-        else if (item.type === "stack") {
-            // a column of small things (buttons or widgets)
-            w = new QWidget(pw);
-            var col = new QVBoxLayout();
-            col.setContentsMargins(0, 0, 0, 0);
-            col.setSpacing(0);
-            for (var k = 0; k < item.items.length; k++) {
-                var sub = item.items[k];
-                var sw = sub.type === "widget" ? sub.make(entry, w) : Ribbon.makeButton(entry, sub, w);
-                if (!isNull(sw)) {
-                    col.addWidget(sw, 0, 0);
-                    Ribbon.remember(entry, sub, sw, def.id);
-                }
-            }
-            col.addStretch(1);
-            w.setLayout(col);
-        }
-        else {
-            w = Ribbon.makeButton(entry, item, pw);
-        }
-        if (!isNull(w)) {
-            row.addWidget(w, 0, 0);
-            Ribbon.remember(entry, item, w, def.id);
-        }
+
+    // the everyday tabs hold three columns a panel; contextual tabs (and ones that say so) show everything
+    var tabDef = Ribbon.tabById(def.tabId);
+    var unlimited = !isNull(tabDef) && (tabDef.accent === true || tabDef.unlimited === true);
+    var limit = !isNull(def.maxColumns) ? def.maxColumns : (unlimited ? 99 : Ribbon.MAX_COLUMNS);
+    var shown = Math.min(limit, def.items.length);
+    for (var i = 0; i < shown; i++) {
+        Ribbon.makeColumn(entry, def, def.items[i], pw, row);
     }
     v.addLayout(row, 0);
+
+    // the title row: the title, and an arrow when columns are waiting behind it
+    var titleRow = new QHBoxLayout();
+    titleRow.setContentsMargins(0, 0, 0, 0);
+    titleRow.setSpacing(0);
     var label = new QLabel(def.title, pw);
     label.alignment = Qt.AlignHCenter;
     label.objectName = "RibbonPanelTitle";
-    v.addWidget(label, 0, 0);
+    titleRow.addWidget(label, 1, 0);
+    if (def.items.length > shown) {
+        var pop = new QFrame(pw);
+        pop.objectName = "RibbonOverflow";
+        pop.setWindowFlags(Qt.Popup);
+        pop.setAttribute(Qt.WA_StyledBackground, true);
+        var popRow = new QHBoxLayout();
+        popRow.setContentsMargins(8, 4, 8, 4);
+        popRow.setSpacing(2);
+        pop.setLayout(popRow);
+        for (var o = shown; o < def.items.length; o++) {
+            Ribbon.makeColumn(entry, def, def.items[o], pop, popRow);
+        }
+        var more = new QToolButton(pw);
+        more.objectName = "RibbonOverflowButton";
+        more.text = "\u25be";
+        more.autoRaise = true;
+        more.toolTip = qsTr("More %1 commands").arg(def.title);
+        more.setFixedSize(24, 16);
+        more.clicked.connect(function() {
+            pop.adjustSize();
+            pop.move(more.mapToGlobal(new QPoint(0, more.height)));
+            Ribbon.popupOpen = pop;
+            pop.show();
+        });
+        titleRow.addWidget(more, 0, 0);
+    }
+    v.addLayout(titleRow, 0);
     pw.setLayout(v);
     pw.setProperty("ribbonDivider", true);
     return pw;

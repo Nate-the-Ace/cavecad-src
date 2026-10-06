@@ -1587,7 +1587,7 @@ LayoutTabs.registerRibbon = function() {
     // the everyday tabs (Home, Insert, ...) come first; the contextual ones follow
     RibbonCommands.register();
     // the layout tab is there while a layout is showing
-    Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), when: function(ctx) { return ctx.mode === "layout"; } });
+    Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
     Ribbon.registerTab({ id: "viewport", title: qsTr("Viewport"), accent: true, when: function(ctx) { return !isNull(ctx.viewport); } });
     // a command with option fields is running: its options, in the ribbon
     Ribbon.registerTab({ id: "tool", title: qsTr("Tool options"), accent: true,

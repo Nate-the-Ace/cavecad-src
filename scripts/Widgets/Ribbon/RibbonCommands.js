@@ -97,25 +97,26 @@ RibbonCommands.register = function() {
         K([ s("File/NewFile/NewFile.js"), s("File/OpenFile/OpenFile.js"), s("File/Save/Save.js") ]) ] });
     Ribbon.registerPanel("home", { id: "h-draw", title: qsTr("Draw"), order: 10, items: [
         S("Draw/Line/Line2P/Line2P.js", "DrawLineMenu", { text: qsTr("Line") }),
-        C("Draw/Polyline/DrawPolyline/DrawPolyline.js", { text: qsTr("Polyline") }),
         S("Draw/Circle/CircleCR/CircleCR.js", "DrawCircleMenu", { text: qsTr("Circle") }),
-        S("Draw/Arc/Arc3P/Arc3P.js", "DrawArcMenu", { text: qsTr("Arc") }),
-        K([ ss("Draw/Shape/ShapeRectanglePP/ShapeRectanglePP.js", "DrawShapeMenu", { text: qsTr("Rectangle") }),
-            ss("Draw/Ellipse/EllipseCPP/EllipseCPP.js", "DrawEllipseMenu", { text: qsTr("Ellipse") }),
-            s("Draw/Spline/SplineControlPoints/SplineControlPoints.js", { text: qsTr("Spline") }) ]),
-        K([ s("Draw/Point/Point1P/Point1P.js", { text: qsTr("Point") }),
-            s("Draw/Hatch/HatchFromSelection/HatchFromSelection.js", { text: qsTr("Hatch") }),
+        K([ s("Draw/Polyline/DrawPolyline/DrawPolyline.js", { text: qsTr("Polyline") }),
+            ss("Draw/Arc/Arc3P/Arc3P.js", "DrawArcMenu", { text: qsTr("Arc") }),
+            ss("Draw/Shape/ShapeRectanglePP/ShapeRectanglePP.js", "DrawShapeMenu", { text: qsTr("Rectangle") }) ]),
+        // behind the arrow
+        K([ ss("Draw/Ellipse/EllipseCPP/EllipseCPP.js", "DrawEllipseMenu", { text: qsTr("Ellipse") }),
+            s("Draw/Spline/SplineControlPoints/SplineControlPoints.js", { text: qsTr("Spline") }),
+            s("Draw/Point/Point1P/Point1P.js", { text: qsTr("Point") }) ]),
+        K([ s("Draw/Hatch/HatchFromSelection/HatchFromSelection.js", { text: qsTr("Hatch") }),
             s("Draw/Text/Text.js", { text: qsTr("Text") }) ]) ] });
     Ribbon.registerPanel("home", { id: "h-modify", title: qsTr("Modify"), order: 20, items: [
         C("Modify/Translate/Translate.js", { text: qsTr("Move") }),
         K([ s("Modify/Rotate/Rotate.js"), s("Modify/Mirror/Mirror.js"), s("Modify/Scale/Scale.js") ]),
-        S("Modify/Trim/Trim.js", [ "Modify/Trim/Trim.js", "Modify/TrimBoth/TrimBoth.js", "Modify/AutoTrim/AutoTrim.js" ]),
-        K([ ss("Modify/Offset/Offset.js", [ "Modify/Offset/Offset.js", "Modify/OffsetThrough/OffsetThrough.js" ], { text: qsTr("Offset") }),
-            s("Modify/Stretch/Stretch.js"),
+        K([ ss("Modify/Trim/Trim.js", [ "Modify/Trim/Trim.js", "Modify/TrimBoth/TrimBoth.js", "Modify/AutoTrim/AutoTrim.js" ]),
+            ss("Modify/Offset/Offset.js", [ "Modify/Offset/Offset.js", "Modify/OffsetThrough/OffsetThrough.js" ], { text: qsTr("Offset") }),
             ss("Modify/Round/Round.js", [ "Modify/Round/Round.js", "Modify/Bevel/Bevel.js" ], { text: qsTr("Fillet") }) ]),
-        K([ s("Modify/Explode/Explode.js"),
-            ss("Modify/BreakOut/BreakOut.js", [ "Modify/BreakOut/BreakOut.js", "Modify/BreakOutManual/BreakOutManual.js", "Modify/BreakOutGap/BreakOutGap.js", "Modify/Divide/Divide.js" ], { text: qsTr("Break") }),
-            s("Modify/Lengthen/Lengthen.js", { text: qsTr("Lengthen") }) ]),
+        // behind the arrow
+        K([ s("Modify/Stretch/Stretch.js"), s("Modify/Explode/Explode.js"),
+            ss("Modify/BreakOut/BreakOut.js", [ "Modify/BreakOut/BreakOut.js", "Modify/BreakOutManual/BreakOutManual.js", "Modify/BreakOutGap/BreakOutGap.js", "Modify/Divide/Divide.js" ], { text: qsTr("Break") }) ]),
+        K([ s("Modify/Lengthen/Lengthen.js", { text: qsTr("Lengthen") }), s("Modify/FlipHorizontal/FlipHorizontal.js"), s("Modify/FlipVertical/FlipVertical.js") ]),
         M("ModifyMenu", { text: qsTr("All\nmodify"), icon: "layers" }) ] });
     Ribbon.registerPanel("home", { id: "h-annotation", title: qsTr("Annotation"), order: 30, items: [
         S("Draw/Dimension/DimAligned/DimAligned.js", "DimensionMenu", { text: qsTr("Dimension") }),
@@ -128,8 +129,8 @@ RibbonCommands.register = function() {
         M("SnapMenu", { text: qsTr("Snaps"), icon: "square" }),
         S("Snap/RestrictOrthogonal/RestrictOrthogonal.js", [ "Snap/RestrictOff/RestrictOff.js", "Snap/RestrictOrthogonal/RestrictOrthogonal.js", "Snap/RestrictHorizontal/RestrictHorizontal.js",
             "Snap/RestrictVertical/RestrictVertical.js", "Snap/RestrictAngleLength/RestrictAngleLength.js" ], { text: qsTr("Restrict") }),
-        C("View/ToggleGrid/ToggleGrid.js", { text: qsTr("Grid") }),
-        S("Information/InfoDistancePP/InfoDistancePP.js", "InformationMenu", { text: qsTr("Measure") }) ] });
+        K([ s("View/ToggleGrid/ToggleGrid.js", { text: qsTr("Grid") }),
+            ss("Information/InfoDistancePP/InfoDistancePP.js", "InformationMenu", { text: qsTr("Measure") }) ]) ] });
     Ribbon.registerPanel("home", { id: "h-clipboard", title: qsTr("Clipboard"), order: 80, items: [
         C("Edit/Paste/Paste.js"),
         K([ s("Edit/Cut/Cut.js"), s("Edit/Copy/Copy.js"), s("Edit/Duplicate/Duplicate.js") ]),
@@ -139,9 +140,9 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("insert", { id: "i-block", title: qsTr("Block"), order: 10, items: [
         C("Block/InsertBlock/InsertBlock.js"),
         C("Block/CreateBlock/CreateBlock.js", { text: qsTr("Create\nblock") }),
-        C("Block/EditBlock/EditBlock.js"),
-        K([ s("Block/AddBlock/AddBlock.js", { text: qsTr("New block") }), s("Block/RenameBlock/RenameBlock.js", { text: qsTr("Rename") }), s("Block/RemoveBlock/RemoveBlock.js", { text: qsTr("Remove") }) ]),
-        K([ s("Block/ShowAllBlocks/ShowAllBlocks.js"), s("Block/HideAllBlocks/HideAllBlocks.js"), s("Block/EditMainDrawing/EditMainDrawing.js") ]) ] });
+        K([ s("Block/EditBlock/EditBlock.js"), s("Block/AddBlock/AddBlock.js", { text: qsTr("New block") }), s("Block/RenameBlock/RenameBlock.js", { text: qsTr("Rename") }) ]),
+        K([ s("Block/RemoveBlock/RemoveBlock.js", { text: qsTr("Remove") }), s("Block/ShowAllBlocks/ShowAllBlocks.js"), s("Block/HideAllBlocks/HideAllBlocks.js") ]),
+        K([ s("Block/EditMainDrawing/EditMainDrawing.js") ]) ] });
     Ribbon.registerPanel("insert", { id: "i-reference", title: qsTr("Import"), order: 20, items: [
         C("Draw/Image/Image.js", { text: qsTr("Image") }),
         C("File/ImportFile/ImportFile.js", { text: qsTr("Import\ndrawing") }),
@@ -161,14 +162,14 @@ RibbonCommands.register = function() {
     // ----------------------------------------------------------------- View
     Ribbon.registerPanel("view", { id: "v-zoom", title: qsTr("Zoom"), order: 10, items: [
         C("View/Zoom/ZoomIn/ZoomIn.js"), C("View/Zoom/ZoomOut/ZoomOut.js"),
-        C("View/Zoom/WindowZoom/WindowZoom.js", { text: qsTr("Window") }), C("View/Zoom/ZoomToSelection/ZoomToSelection.js", { text: qsTr("Selection") }),
-        K([ s("View/Zoom/AutoZoom/AutoZoom.js"), s("View/Zoom/PreviousView/PreviousView.js"), s("View/Zoom/PanZoom/PanZoom.js") ]) ] });
+        K([ s("View/Zoom/WindowZoom/WindowZoom.js", { text: qsTr("Window") }), s("View/Zoom/ZoomToSelection/ZoomToSelection.js", { text: qsTr("Selection") }), s("View/Zoom/PreviousView/PreviousView.js") ]),
+        K([ s("View/Zoom/AutoZoom/AutoZoom.js"), s("View/Zoom/PanZoom/PanZoom.js") ]) ] });
     Ribbon.registerPanel("view", { id: "v-display", title: qsTr("Display"), order: 20, items: [
         C("View/ToggleGrid/ToggleGrid.js", { text: qsTr("Grid") }),
         C("View/DraftMode/DraftMode.js", { text: qsTr("Draft\nmode") }),
-        C("View/AntialiasingMode/AntialiasingMode.js", { text: qsTr("Anti-\naliasing") }),
-        S("View/IsometricView/IsometricGridOff/IsometricGridOff.js", [ "View/IsometricView/IsometricGridOff/IsometricGridOff.js", "View/IsometricView/IsometricGridTop/IsometricGridTop.js",
-            "View/IsometricView/IsometricGridLeft/IsometricGridLeft.js", "View/IsometricView/IsometricGridRight/IsometricGridRight.js" ], { text: qsTr("Isometric") }) ] });
+        K([ s("View/AntialiasingMode/AntialiasingMode.js", { text: qsTr("Anti-aliasing") }),
+            ss("View/IsometricView/IsometricGridOff/IsometricGridOff.js", [ "View/IsometricView/IsometricGridOff/IsometricGridOff.js", "View/IsometricView/IsometricGridTop/IsometricGridTop.js",
+                "View/IsometricView/IsometricGridLeft/IsometricGridLeft.js", "View/IsometricView/IsometricGridRight/IsometricGridRight.js" ], { text: qsTr("Isometric") }) ]) ] });
     Ribbon.registerPanel("view", { id: "v-palettes", title: qsTr("Palettes"), order: 30, items: [
         C("Widgets/LayerManager/LayerManager.js", { text: qsTr("Layer\nmanager") }), C("Widgets/PropertyEditor/PropertyEditor.js", { text: qsTr("Properties") }),
         K([ s("Widgets/BlockList/BlockList.js"), s("Widgets/LayerList/LayerList.js"), s("Widgets/CommandLine/CommandLine.js") ]) ] });
@@ -181,11 +182,12 @@ RibbonCommands.register = function() {
         C("Edit/AppPreferences/AppPreferences.js", { text: qsTr("Application\npreferences") }),
         C("Edit/ConvertUnit/ConvertUnit.js", { text: qsTr("Convert\nunit") }) ] });
     Ribbon.registerPanel("manage", { id: "m-select", title: qsTr("Selection"), order: 20, items: [
-        C("Select/SelectAll/SelectAll.js"), C("Select/DeselectAll/DeselectAll.js"), C("Select/InvertSelection/InvertSelection.js", { text: qsTr("Invert") }),
-        K([ s("Select/SelectContour/SelectContour.js"), s("Select/SelectRectangle/SelectRectangle.js"), s("Select/SelectLayerByEntity/SelectLayerByEntity.js") ]) ] });
+        C("Select/SelectAll/SelectAll.js"), C("Select/DeselectAll/DeselectAll.js"),
+        K([ s("Select/InvertSelection/InvertSelection.js", { text: qsTr("Invert") }), s("Select/SelectContour/SelectContour.js"), s("Select/SelectRectangle/SelectRectangle.js") ]),
+        K([ s("Select/SelectLayerByEntity/SelectLayerByEntity.js"), s("Select/SelectIntersectedEntities/SelectIntersectedEntities.js") ]) ] });
     Ribbon.registerPanel("manage", { id: "m-help", title: qsTr("Help"), order: 30, items: [
-        C("Help/FAQ/FAQ.js"), C("Help/BrowseUserManual/BrowseUserManual.js", { text: qsTr("User\nmanual") }),
-        C("Help/CheckForUpdates/CheckForUpdates.js", { text: qsTr("Check for\nupdates") }), C("Help/SendFeedback/SendFeedback.js", { text: qsTr("Send\nfeedback") }),
+        C("Help/FAQ/FAQ.js"),
+        K([ s("Help/BrowseUserManual/BrowseUserManual.js", { text: qsTr("User manual") }), s("Help/CheckForUpdates/CheckForUpdates.js", { text: qsTr("Updates") }), s("Help/SendFeedback/SendFeedback.js", { text: qsTr("Send feedback") }) ]),
         C("Help/About/About.js") ] });
 
     // --------------------------------------------------------------- Output
@@ -209,14 +211,12 @@ RibbonCommands.register = function() {
         K([ cs_("CaveTemplate", { text: qsTr("New cave map") }), cs_("TeachingCave", { text: qsTr("Teaching cave") }), cs_("Handbook") ]) ] });
     Ribbon.registerPanel("cave", { id: "c-data", title: qsTr("Survey data"), order: 20, items: [
         CS("SurveyNotebook", { text: qsTr("Survey\nnotebook") }),
-        CS("ImportCaveSurvey", { text: qsTr("Import\nsurvey") }),
-        K([ cs_("StationTable", { text: qsTr("Station table") }), cs_("SurveyStats", { text: qsTr("Statistics") }), cs_("EntranceLocation", { text: qsTr("Entrance") }) ]),
-        K([ cs_("SurfaceData", { text: qsTr("Surface data") }) ]) ] });
+        K([ cs_("ImportCaveSurvey", { text: qsTr("Import survey") }), cs_("StationTable", { text: qsTr("Station table") }), cs_("SurveyStats", { text: qsTr("Statistics") }) ]),
+        K([ cs_("EntranceLocation", { text: qsTr("Entrance") }), cs_("SurfaceData", { text: qsTr("Surface data") }) ]) ] });
     Ribbon.registerPanel("cave", { id: "c-draw", title: qsTr("Draw and trace"), order: 30, items: [
         CS("DrawPanel", { text: qsTr("Draw") }),
         CS("SketchScans", { text: qsTr("Sketch\nscans") }),
-        CS("CrossSection", { text: qsTr("Cross\nsection") }),
-        K([ cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]) ] });
+        K([ cs_("CrossSection", { text: qsTr("Cross section") }), cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]) ] });
     Ribbon.registerPanel("cave", { id: "c-check", title: qsTr("Check and repair"), order: 40, items: [
         CS("CheckMap", { text: qsTr("Check\nmap") }),
         CS("LoopErrors", { text: qsTr("Loop\nerrors") }),
@@ -228,9 +228,8 @@ RibbonCommands.register = function() {
     csUsed["ShapedLines"] = true;
     Ribbon.registerPanel("cave", { id: "c-publish", title: qsTr("Plan and publish"), order: 60, items: [
         CS("SheetSetup", { text: qsTr("Sheet\nsetup") }),
-        K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }) ]),
-        CS("Cave3D", { text: qsTr("3D\nview") }),
-        CS("ExpeditionPlanner", { text: qsTr("Expedition\nplanner") }) ] });
+        CS("ExpeditionPlanner", { text: qsTr("Expedition\nplanner") }),
+        K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }), cs_("Cave3D", { text: qsTr("3D view") }) ]) ] });
     // whatever the survey suite adds later still shows up
     var leftovers = [];
     var all = Ribbon.actionsOf("CaveSurveyMenu");
