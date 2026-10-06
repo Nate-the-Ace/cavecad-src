@@ -134,7 +134,7 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("home", { id: "h-clipboard", title: qsTr("Clipboard"), order: 80, items: [
         C("Edit/Paste/Paste.js"),
         K([ s("Edit/Cut/Cut.js"), s("Edit/Copy/Copy.js"), s("Edit/Duplicate/Duplicate.js") ]),
-        K([ s("Edit/Undo/Undo.js"), s("Edit/Redo/Redo.js"), s("Edit/Delete/Delete.js") ]) ] });
+        K([ s("Edit/Delete/Delete.js") ]) ] });
 
     // -------------------------------------------------------------- Insert
     Ribbon.registerPanel("insert", { id: "i-block", title: qsTr("Block"), order: 10, items: [

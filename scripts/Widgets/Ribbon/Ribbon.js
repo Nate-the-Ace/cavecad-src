@@ -104,6 +104,169 @@ Ribbon.host = function() {
 };
 
 // ---------------------------------------------------------------------
+// Quick access: undo and redo, each with a history dropdown (as in AutoCAD)
+// ---------------------------------------------------------------------
+
+/**
+ * Two curved arrows to the right of the tabs, each with an arrow that lists what it would
+ * undo (or redo), newest first, ten deep. Moving over the list marks everything from the top
+ * down to the line under the mouse, the footer says how many actions that is, and one click
+ * undoes (or redoes) them all.
+ */
+Ribbon.HISTORY_DEPTH = 10;
+
+Ribbon.makeQuickAccess = function(entry, parent) {
+    var box = new QWidget(parent);
+    box.objectName = "RibbonQuickAccess";
+    var hb = new QHBoxLayout();
+    hb.setContentsMargins(0, 0, 0, 0);
+    hb.setSpacing(0);
+    var qa = {};
+    var kinds = [ { key: "undo", file: "Edit/Undo/Undo.js", tip: qsTr("Undo") }, { key: "redo", file: "Edit/Redo/Redo.js", tip: qsTr("Redo") } ];
+    for (var i = 0; i < kinds.length; i++) {
+        var k = kinds[i];
+        var action = Ribbon.findAction(k.file);
+        var btn = new QToolButton(box);
+        btn.objectName = "RibbonQuick-" + k.key;
+        btn.autoRaise = true;
+        btn.toolTip = k.tip;
+        btn.setIconSize(new QSize(18, 18));
+        btn.setFixedSize(26, 22);
+        if (!isNull(action)) { btn.setIcon(action.icon); }
+        var arrow = new QToolButton(box);
+        arrow.objectName = "RibbonQuickArrow";
+        arrow.text = "\u25be";
+        arrow.autoRaise = true;
+        arrow.toolTip = k.key === "undo" ? qsTr("Undo history") : qsTr("Redo history");
+        arrow.setFixedSize(14, 22);
+        hb.addWidget(btn, 0, 0);
+        hb.addWidget(arrow, 0, 0);
+        if (i === 0) { hb.addSpacing(6); }
+        qa[k.key] = btn;
+        qa[k.key + "Arrow"] = arrow;
+        qa[k.key + "Action"] = action;
+        btn.clicked.connect((function(act) { return function() { if (!isNull(act)) { act.slotTrigger(); } }; })(action));
+        arrow.clicked.connect((function(kind, anchorBtn) { return function() { Ribbon.openHistory(entry, anchorBtn, kind); }; })(k.key, btn));
+    }
+    box.setLayout(hb);
+    entry.ribbonQa = qa;
+    return box;
+};
+
+/** The undo (or redo) steps, newest first: [{text, id}], id being the transaction to go back to. */
+Ribbon.historyOf = function(entry, kind) {
+    var doc = entry.di.getDocument();
+    var st = doc.getStorage();
+    var last = st.getLastTransactionId();
+    var steps = [];
+    var group = -2;
+    var take = function(id) {
+        var t = st.getTransaction(id);
+        if (isNull(t)) { return; }
+        var g = -1;
+        var text = "";
+        try { g = t.getGroup(); } catch (e1) { }
+        try { text = String(t.getText()); } catch (e2) { }
+        // transactions of one group are one step
+        if (g >= 0 && g === group && steps.length > 0) {
+            var cur = steps[steps.length - 1];
+            if (cur.text === "" && text !== "") { cur.text = text; }
+            cur.low = Math.min(cur.low, id);
+            cur.high = Math.max(cur.high, id);
+        }
+        else {
+            steps.push({ text: text, low: id, high: id });
+        }
+        group = g;
+    };
+    if (kind === "undo") {
+        for (var id = last; id >= 1; id--) { take(id); }
+    }
+    else {
+        for (var rid = last + 1; rid <= st.getMaxTransactionId(); rid++) { take(rid); }
+    }
+    return steps;
+};
+
+/** Undoes (or redoes) up to and including the given step. */
+Ribbon.runHistory = function(entry, kind, step) {
+    var doc = entry.di.getDocument();
+    var st = doc.getStorage();
+    var guard = 500;
+    if (kind === "undo") {
+        while (guard-- > 0 && st.getLastTransactionId() >= step.low && doc.isUndoAvailable()) { entry.di.undo(); }
+    }
+    else {
+        while (guard-- > 0 && st.getLastTransactionId() < step.high && doc.isRedoAvailable()) { entry.di.redo(); }
+    }
+};
+
+Ribbon.openHistory = function(entry, anchor, kind) {
+    Ribbon.closePopup();
+    var all = Ribbon.historyOf(entry, kind);
+    // steps with no name (setup work, not a command) take part in the undo but are not listed
+    var listed = [];
+    for (var i = 0; i < all.length && listed.length < Ribbon.HISTORY_DEPTH; i++) {
+        if (all[i].text !== "") { listed.push(all[i]); }
+    }
+    if (listed.length === 0) {
+        return;
+    }
+    var pop = new QFrame(anchor);
+    pop.objectName = "RibbonOverflow";
+    pop.setWindowFlags(Qt.Popup);
+    pop.setAttribute(Qt.WA_StyledBackground, true);
+    pop.setAttribute(Qt.WA_DeleteOnClose, true);
+    var v = new QVBoxLayout();
+    v.setContentsMargins(4, 4, 4, 4);
+    v.setSpacing(4);
+    // a one-column table, because QListWidget has no usable methods in the script engine
+    var rowH = 24;
+    var list = new QTableWidget(listed.length, 1, pop);
+    list.objectName = "RibbonHistoryList";
+    list.mouseTracking = true;
+    list.horizontalHeader().hide();
+    list.verticalHeader().hide();
+    list.setShowGrid(false);
+    list.setEditTriggers(0);
+    list.setSelectionMode(QAbstractItemView.MultiSelection);
+    list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);
+    list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff);
+    list.setFrameShape(QFrame.NoFrame);
+    list.setColumnWidth(0, 250);
+    for (var j = 0; j < listed.length; j++) {
+        var cell = new QTableWidgetItem(Ribbon.shortText(listed[j].text));
+        cell.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable);
+        list.setItem(j, 0, cell);
+        list.setRowHeight(j, rowH);
+    }
+    list.setFixedSize(252, rowH * listed.length + 2);
+    var footer = new QLabel(pop);
+    footer.objectName = "RibbonHistoryFooter";
+    footer.alignment = Qt.AlignHCenter;
+    var verb = kind === "undo" ? qsTr("Undo") : qsTr("Redo");
+    var mark = function(upTo) {
+        list.clearSelection();
+        for (var m = 0; m <= upTo; m++) { list.item(m, 0).setSelected(true); }
+        footer.text = verb + " " + (upTo + 1) + " " + (upTo === 0 ? qsTr("action") : qsTr("actions"));
+    };
+    mark(0);
+    list.cellEntered.connect(function(row, col) { mark(row); });
+    list.cellClicked.connect(function(row, col) {
+        Ribbon.closePopup();
+        Ribbon.runHistory(entry, kind, listed[row]);
+    });
+    v.addWidget(list, 0, 0);
+    v.addWidget(footer, 0, 0);
+    pop.setLayout(v);
+    pop.adjustSize();
+    var at = anchor.mapToGlobal(new QPoint(0, anchor.height));
+    pop.move(at.x(), at.y());
+    Ribbon.popupOpen = pop;
+    pop.show();
+};
+
+// ---------------------------------------------------------------------
 // Tool options: the options toolbar, hosted in a context tab
 // ---------------------------------------------------------------------
 
@@ -147,6 +310,14 @@ Ribbon.hookTools = function() {
 /** Brings the showing ribbon's command buttons in line with their commands (enabled, checked). */
 Ribbon.syncCommands = function() {
     var entry = Ribbon.activeEntry;
+    if (!isNull(entry) && !isNull(entry.ribbonQa)) {
+        var doc = entry.di.getDocument();
+        var canUndo = doc.isUndoAvailable();
+        var canRedo = doc.isRedoAvailable();
+        var qa = entry.ribbonQa;
+        if (qa.undo.enabled !== canUndo) { qa.undo.enabled = canUndo; qa.undoArrow.enabled = canUndo; }
+        if (qa.redo.enabled !== canRedo) { qa.redo.enabled = canRedo; qa.redoArrow.enabled = canRedo; }
+    }
     if (isNull(entry) || isNull(entry.ribbonCmd)) {
         return;
     }
@@ -447,6 +618,13 @@ Ribbon.applyTheme = function(entry) {
             "border:1px solid " + c.line + "; border-bottom:none; border-top-left-radius:5px; border-top-right-radius:5px; } " +
         "QTabBar::tab:selected { color:" + c.textStrong + "; background:" + c.bg + "; border-top:3px solid " + c.accent + "; font-weight:bold; margin-bottom:-1px; } " +
         "QTabBar::tab:hover:!selected { color:" + c.textStrong + "; background:" + c.hover + "; } " +
+        "QWidget#RibbonQuickAccess QToolButton { border:1px solid transparent; border-radius:3px; color:" + c.dim2 + "; } " +
+        "QWidget#RibbonQuickAccess QToolButton:hover { background:" + c.hover + "; border-color:" + c.line + "; color:" + c.textStrong + "; } " +
+        "QToolButton#RibbonQuickArrow { font-size:9px; } " +
+        "QTableWidget#RibbonHistoryList { background:" + c.bg + "; color:" + c.text + "; border:none; outline:none; } " +
+        "QTableWidget#RibbonHistoryList::item { padding:2px 8px; } " +
+        "QTableWidget#RibbonHistoryList::item:selected { background:" + c.accent + "; color:white; } " +
+        "QLabel#RibbonHistoryFooter { color:" + c.dim2 + "; border-top:1px solid " + c.line + "; padding-top:3px; } " +
         "QFrame#RibbonPopupSep { color:" + c.line + "; background:" + c.line + "; max-height:1px; } " +
         "QFrame#RibbonOverflow { background:" + c.bg + "; border:1px solid " + c.line + "; border-top:2px solid " + c.accent + "; } " +
         "QToolButton#RibbonOverflowButton { color:" + c.textStrong + "; font-size:12px; border:1px solid " + c.line + "; border-radius:3px; background:" + c.tab + "; } " +
@@ -664,6 +842,8 @@ Ribbon.attach = function(entry, stack) {
     bar.expanding = false;
     bar.drawBase = false;
     headRow.addWidget(bar, 0, 0);
+    headRow.addSpacing(14);
+    headRow.addWidget(Ribbon.makeQuickAccess(entry, head), 0, 0);
     headRow.addStretch(1);
     var state = new QLabel(head);
     state.objectName = "RibbonState";
