@@ -389,7 +389,8 @@ LayoutTabs.sheetSpin = function(parent, onDone) {
     sp.setRange(0, 5000);
     sp.setDecimals(2);
     sp.setMinimumWidth(78);
-    sp.editingFinished.connect(onDone);
+    sp.keyboardTracking = false;   // a typed number applies on Enter or leaving the box, not on each digit
+    sp["valueChanged(double)"].connect(function(v) { onDone(); });
     return sp;
 };
 
@@ -515,7 +516,7 @@ LayoutTabs.refreshSheet = function(entry) {
     var setSpin = function(sp, mm) {
         sp.setDecimals(inches ? 3 : 1);
         sp.setSingleStep(inches ? 0.05 : 1);
-        sp.suffix = inches ? qsTr(" in") : qsTr(" mm");
+        sp.setSuffix(inches ? qsTr(" in") : qsTr(" mm"));
         sp.value = show(mm);
     };
     // paper size list: the named papers, with the current size first when it is none of them
@@ -564,11 +565,45 @@ LayoutTabs.sheetApply = function(entry, changes) {
     var doc = entry.di.getDocument();
     var cur = Layouts.current(doc);
     if (isNull(cur)) { return; }
+    var now = Layouts.get(doc, cur.name);
+    if (!isNull(now) && !LayoutTabs.sheetChanges(now, changes)) { return; }
     Layouts.pageSetup(entry.di, cur.name, changes);
     entry.sheetSig = undefined;
     LayoutTabs.refresh(entry);
     LayoutCanvas.restoreOrFit(entry);
     LayoutTabs.refreshControls(entry);
+};
+
+/** From the tab strip's menu: show that sheet, then its settings. */
+LayoutTabs.sheetOpenFor = function(entry, name) {
+    var doc = entry.di.getDocument();
+    var cur = Layouts.current(doc);
+    if (isNull(cur) || cur.name !== name) {
+        Layouts.activate(entry.di, name);
+        LayoutTabs.refresh(entry);
+    }
+    LayoutTabs.refreshControls(entry);
+    Ribbon.selectTab(entry, "sheet");
+};
+
+/** True when `changes` would actually alter the sheet. */
+LayoutTabs.sheetChanges = function(info, changes) {
+    var diff = function(a, b) { return Math.abs(a - b) > 0.01; };
+    if (!isNull(changes.landscape) && changes.landscape !== (info.paperMM.w >= info.paperMM.h)) { return true; }
+    if (!isNull(changes.units) && changes.units !== info.units) { return true; }
+    if (!isNull(changes.paper)) {
+        var p = (typeof changes.paper === "string") ? Layouts.paperByName(changes.paper) : changes.paper;
+        if (!isNull(p)) {
+            var wide = Math.max(p.w, p.h), tall = Math.min(p.w, p.h);
+            if (diff(wide, Math.max(info.paperMM.w, info.paperMM.h)) || diff(tall, Math.min(info.paperMM.w, info.paperMM.h))) { return true; }
+        }
+    }
+    if (!isNull(changes.margins)) {
+        var m = changes.margins;
+        if (typeof m === "number") { m = { l: m, b: m, r: m, t: m }; }
+        if (diff(m.l, info.marginsMM.l) || diff(m.b, info.marginsMM.b) || diff(m.r, info.marginsMM.r) || diff(m.t, info.marginsMM.t)) { return true; }
+    }
+    return false;
 };
 
 LayoutTabs.sheetPaperPicked = function(entry, index) {
@@ -716,7 +751,7 @@ LayoutTabs.contextMenu = function(entry, pos) {
             Layouts.canRevertOf(entry.di.getDocument(), Layouts.get(entry.di.getDocument(), entry.names[index]))) {
             actRevert = menu.addAction(qsTr("Revert to automatic"));
         }
-        actSetup = menu.addAction(qsTr("Page setup..."));
+        actSetup = menu.addAction(qsTr("Sheet settings"));
         actRename = menu.addAction(qsTr("Rename..."));
         actDup = menu.addAction(qsTr("Duplicate"));
         actLeft = menu.addAction(qsTr("Move left"));
@@ -743,7 +778,8 @@ LayoutTabs.contextMenu = function(entry, pos) {
         }
     }
     else if (index > 0 && chosen.text === actSetup.text) {
-        LayoutTabs.pageSetup(entry, name);
+        // the paper settings live in the ribbon's Sheet settings tab now
+        LayoutTabs.sheetOpenFor(entry, name);
     }
     else if (index > 0 && chosen.text === actRename.text) {
         LayoutTabs.rename(entry, index);
@@ -1433,7 +1469,7 @@ LayoutTabs.pageSetup = function(entry, name) {
     margin.setRange(0, 5);
     margin.setDecimals(2);
     margin.setSingleStep(0.05);
-    margin.suffix = qsTr(" in");
+    margin.setSuffix(qsTr(" in"));
     margin.value = info.marginsMM.l / 25.4;
     row(qsTr("Margin:"), margin);
     var buttons = new QDialogButtonBox(dialog);
@@ -1876,7 +1912,8 @@ LayoutTabs.registerRibbon = function() {
         { type: "button", id: "savetemplate", action: "LayoutSaveTemplate.js", text: qsTr("Save as\ntemplate"), icon: "page", size: "large", enabled: onLayout },
         { type: "stack", items: [
             { type: "button", id: "pagesetup", text: qsTr("Page setup"), icon: "page", size: "small", enabled: onLayout,
-              onClick: function(entry) { var cur = Layouts.current(entry.di.getDocument()); if (!isNull(cur)) { LayoutTabs.pageSetup(entry, cur.name); } } },
+              tooltip: qsTr("Edit this sheet's paper, margins and printing in the Sheet settings tab"),
+              onClick: function(entry) { Ribbon.selectTab(entry, "sheet"); } },
             { type: "button", id: "rename", text: qsTr("Rename"), icon: "rename", size: "small", enabled: onLayout,
               onClick: function(entry) { var i = LayoutTabs.currentIndex(entry); if (i > 0) { LayoutTabs.rename(entry, i); } } },
             { type: "button", id: "duplicate", text: qsTr("Duplicate"), icon: "duplicate", size: "small", enabled: onLayout,

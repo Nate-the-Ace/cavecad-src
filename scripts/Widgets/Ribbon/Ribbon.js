@@ -417,6 +417,15 @@ Ribbon.pollTools = function() {
     if (!isNull(Ribbon.onToolChange)) { Ribbon.onToolChange(); }
 };
 
+/** Brings a tab to the front (as if it had been clicked). */
+Ribbon.selectTab = function(entry, id) {
+    var rb = entry.ribbon;
+    if (isNull(rb) || isNull(rb.tabIndexOf[id]) || !rb.bar.isTabVisible(rb.tabIndexOf[id])) {
+        return;
+    }
+    rb.bar.setCurrentIndex(rb.tabIndexOf[id]);   // the bar's own signal does the rest and remembers the pick
+};
+
 /** The command whose options are showing, as {title}, or undefined. */
 Ribbon.currentTool = function() {
     return Ribbon.tools.length === 0 ? undefined : Ribbon.tools[Ribbon.tools.length - 1];
