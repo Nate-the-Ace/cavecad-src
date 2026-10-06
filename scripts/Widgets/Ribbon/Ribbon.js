@@ -102,10 +102,104 @@ Ribbon.host = function() {
     return stack;
 };
 
+// ---------------------------------------------------------------------
+// Tool options: the options toolbar, hosted in a context tab
+// ---------------------------------------------------------------------
+
+/**
+ * A command that has option fields (a UI file) puts them in QCAD's options toolbar
+ * when it starts and takes them out when it ends. The ribbon wears that toolbar
+ * in a context tab ("tool"): the tab appears, and takes focus, while such a
+ * command runs, and the tab you were on returns when it ends. Nothing about the
+ * commands changes: they still fill the same toolbar, which now lives in the ribbon.
+ */
+Ribbon.tools = [];       // [{title}] while a command with option fields runs, else empty
+Ribbon.toolHooked = false;
+
+/**
+ * Commands run in script engines of their own, so wrapping EAction's methods does not
+ * reach them. The options toolbar is the one thing they all share, so it is what we
+ * watch: past its resting items (the active-tool icon, a separator, ...) a command
+ * has put its option fields there, and the icon's tooltip names the command.
+ */
+Ribbon.hookTools = function() {
+    if (Ribbon.toolHooked === true) {
+        return;
+    }
+    Ribbon.toolHooked = true;
+    Ribbon.toolSignature = "";
+    var timer = new QTimer();
+    timer.interval = 120;
+    timer.timeout.connect(function() {
+        try {
+            Ribbon.pollTools();
+        }
+        catch (e) {
+            qWarning("Ribbon.pollTools: " + e);
+        }
+    });
+    timer.start(120);
+    Ribbon.toolTimer = timer;
+};
+
+Ribbon.pollTools = function() {
+    var tb = EAction.getOptionsToolBar();
+    if (isNull(tb)) {
+        return;
+    }
+    var n = tb.actions().length;
+    var icon = tb.findChild("Icon");
+    var tip = isNull(icon) ? "" : String(icon.toolTip);
+    var signature = n + "|" + tip;
+    if (signature === Ribbon.toolSignature) {
+        return;
+    }
+    Ribbon.toolSignature = signature;
+    var title = tip.indexOf(":") >= 0 ? tip.substring(tip.indexOf(":") + 1).replace(/^\s+|\s+$/g, "") : tip;
+    title = title.replace(/\s*\([A-Z0-9]{1,4}\)\s*$/, "");   // the command's shortcut, "(OF)"
+    var had = Ribbon.tools.length > 0;
+    // resting state: the Reset tool is "active" and the bar holds only its resting items
+    var idle = tip.indexOf("Reset") >= 0 || tip.indexOf("Idle") >= 0 || tip === "";
+    if (idle) {
+        Ribbon.toolBase = n;
+    }
+    Ribbon.tools = (!idle && n > (isNull(Ribbon.toolBase) ? 3 : Ribbon.toolBase)) ? [{ title: title }] : [];
+    if ((Ribbon.tools.length > 0) !== had || Ribbon.tools.length > 0) {
+        if (!isNull(Ribbon.onToolChange)) { Ribbon.onToolChange(); }
+    }
+};
+
+/** The command whose options are showing, as {title}, or undefined. */
+Ribbon.currentTool = function() {
+    return Ribbon.tools.length === 0 ? undefined : Ribbon.tools[Ribbon.tools.length - 1];
+};
+
+/** Moves the options toolbar out of the main window and into this drawing's tool tab. */
+Ribbon.placeOptions = function(entry) {
+    var host = isNull(entry.ribbonItems) ? undefined : entry.ribbonItems.optionsHost;
+    if (isNull(host)) {
+        return;
+    }
+    var tb = EAction.getOptionsToolBar();
+    if (isNull(tb)) {
+        return;
+    }
+    if (Ribbon.optionsHost !== entry.id || tb.property("RibbonHosted") !== true) {
+        RMainWindowQt.getMainWindow().removeToolBar(tb);
+        tb.movable = false;
+        tb.floatable = false;
+        host.layout().addWidget(tb);
+        tb.setProperty("RibbonHosted", true);
+        Ribbon.optionsHost = entry.id;
+    }
+    tb.visible = true;
+};
+
 /** Brings this drawing's ribbon to the front of the stack. */
 Ribbon.show = function(entry) {
     try {
         Ribbon.host().setCurrentWidget(entry.ribbon.root);
+        if (!isNull(Ribbon.currentTool())) { Ribbon.placeOptions(entry); }
     }
     catch (e) {
         qWarning("Ribbon.show: " + e);
@@ -470,6 +564,7 @@ Ribbon.refresh = function(entry) {
         var def = Ribbon.tabs[t];
         var on = isNull(def.when) ? true : def.when(ctx) === true;
         rb.bar.setTabVisible(rb.tabIndexOf[def.id], on);
+        if (on && typeof def.titleOf === "function") { rb.bar.setTabText(rb.tabIndexOf[def.id], def.titleOf(ctx)); }
         if (def.accent === true) { rb.bar.setTabTextColor(rb.tabIndexOf[def.id], new QColor("#ff9a2e")); }
         if (on) { visibleIds.push(def.id); }
     }
@@ -511,6 +606,7 @@ Ribbon.refresh = function(entry) {
         if (total.hasOwnProperty(pid) && !shown[pid] && !(entry.ribbonFixed && entry.ribbonFixed[pid])) { rb.panelEmpty[pid] = true; }
     }
     Ribbon.showPanels(entry);
+    if (!isNull(ctx.tool) && rb.root.visible) { Ribbon.placeOptions(entry); }
     rb.state.text = isNull(ctx.stateText) ? "" : ctx.stateText;
     var en = isNull(entry.ribbonEnable) ? [] : entry.ribbonEnable;
     for (var e = 0; e < en.length; e++) {

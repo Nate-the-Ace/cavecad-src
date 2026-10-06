@@ -164,6 +164,8 @@ LayoutTabs.attach = function(root, di) {
     Ribbon.refresh(entry);
     Ribbon.show(entry);
     LayoutTabs.hookMdi();
+    Ribbon.hookTools();
+    Ribbon.onToolChange = function() { LayoutTabs.refreshControlsAll(); };
     try {
         LayoutTabs.applyTheme(entry);
     }
@@ -1519,7 +1521,7 @@ LayoutTabs.ribbonContext = function(entry) {
     var doc = entry.di.getDocument();
     var cur = Layouts.current(doc);
     var editing = !isNull(entry.editing);
-    var ctx = { mode: editing ? "editing" : (isNull(cur) ? "model" : "layout"), layout: cur,
+    var ctx = { mode: editing ? "editing" : (isNull(cur) ? "model" : "layout"), layout: cur, tool: Ribbon.currentTool(),
         viewport: editing ? undefined : LayoutTabs.controlViewport(entry) };
     if (editing) {
         ctx.stateText = qsTr("Editing through a viewport");
@@ -1579,6 +1581,20 @@ LayoutTabs.registerRibbon = function() {
 
     Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), when: function(ctx) { return ctx.mode !== "editing"; } });
     Ribbon.registerTab({ id: "viewport", title: qsTr("Viewport"), accent: true, when: function(ctx) { return !isNull(ctx.viewport); } });
+    // a command with option fields is running: its options, in the ribbon
+    Ribbon.registerTab({ id: "tool", title: qsTr("Tool options"), accent: true,
+        titleOf: function(ctx) { return ctx.tool.title + " " + qsTr("options"); },
+        when: function(ctx) { return !isNull(ctx.tool); } });
+    Ribbon.registerPanel("tool", { id: "tooloptions", title: qsTr("Options"), order: 10, items: [
+        { type: "widget", id: "optionsHost", make: function(entry, parent) {
+            var w = new QWidget(parent);
+            w.objectName = "RibbonOptionsHost";
+            var l = new QHBoxLayout();
+            l.setContentsMargins(0, 0, 0, 0);
+            l.setSpacing(0);
+            w.setLayout(l);
+            return w;
+        } } ] });
     Ribbon.registerTab({ id: "editing", title: qsTr("Editing Viewport"), accent: true, when: function(ctx) { return ctx.mode === "editing"; } });
 
     // ---- Layout tab

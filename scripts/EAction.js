@@ -1165,13 +1165,7 @@ EAction.getOptionsToolBar = function() {
     }
 
     if (!isNull(EAction.optionsToolBar)) {
-        // CaveCAD keeps the tool-options bar hidden (its tools take their options elsewhere).
-        // Every tool that adds an option asks for this bar, and this used to show it each time.
-        // RSettings key OptionsToolBar/Hidden = false brings it back.
-        if (RSettings.getBoolValue("OptionsToolBar/Hidden", true)) {
-            EAction.optionsToolBar.visible = false;
-        }
-        else if (!RSettings.getOriginalArguments().contains("-no-show")) {
+        if (!RSettings.getOriginalArguments().contains("-no-show")) {
             EAction.optionsToolBar.visible = true;
         }
     }
