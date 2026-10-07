@@ -114,6 +114,8 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
     bool ret = false;
 
     RVector offset = targetPoint - referencePoint;
+    RVector oldPosition = position;
+    bool corner = false;
 
     if (referencePoint.equalsFuzzy(position)) {
         position = targetPoint;
@@ -133,6 +135,7 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
         width += offset.x;
         height += offset.y;
         ret = true;
+        corner = true;
     }
     else if (referencePoint.equalsFuzzy(position + RVector(-width/2, height/2))) {
         position.x += offset.x/2;
@@ -140,6 +143,7 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
         width -= offset.x;
         height += offset.y;
         ret = true;
+        corner = true;
     }
     else if (referencePoint.equalsFuzzy(position + RVector(-width/2, -height/2))) {
         position.x += offset.x/2;
@@ -147,6 +151,7 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
         width -= offset.x;
         height -= offset.y;
         ret = true;
+        corner = true;
     }
     else if (referencePoint.equalsFuzzy(position + RVector(width/2, -height/2))) {
         position.x += offset.x/2;
@@ -154,6 +159,17 @@ bool RViewportData::moveReferencePoint(const RVector& referencePoint, const RVec
         width += offset.x;
         height -= offset.y;
         ret = true;
+        corner = true;
+    }
+
+    if (corner) {
+        // Resizing moves the centre, and the model-to-paper mapping is
+        // anchored to the centre: without this the map slides under the
+        // frame. Shift the view centre by the same (turned, scaled) amount
+        // so the frame only covers or exposes what is underneath.
+        RVector shift = position - oldPosition;
+        shift.rotate(-rotation);
+        viewCenter += shift / scaleFactor;
     }
     return ret;
 }
