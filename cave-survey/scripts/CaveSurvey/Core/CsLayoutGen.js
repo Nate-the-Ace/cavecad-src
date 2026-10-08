@@ -190,10 +190,10 @@ CsLayoutGen.layersOfFrames = function(doc, frames) {
  * \param tag  value of the generator's own tag (CsLayoutGen.TAG) on what is drawn;
  *             pieces carrying it are Sheet Setup's to rewrite, so the menu tools pass ""
  */
-CsLayoutGen.envFor = function(doc, di, blockId, opText, tag) {
+CsLayoutGen.envFor = function(doc, di, blockId, opText, tag, undoable) {
     var inch = Layouts.toPaper(doc, 25.4);              // paper-space coordinates in one inch
     var P = function(inches) { return inches * inch; };
-    var op = new RAddObjectsOperation();
+    var op = new RAddObjectsOperation(undoable !== false);
     op.setText(opText);
     var layerIds = {};
     var ensure = function(name) {
@@ -234,7 +234,7 @@ CsLayoutGen.envFor = function(doc, di, blockId, opText, tag) {
         }
         return entity;
     };
-    return { op: op, P: P, add: add, text: text, line: line, greyed: greyed };
+    return { op: op, P: P, add: add, text: text, line: line, greyed: greyed, doc: doc, di: di };
 };
 
 /**
@@ -245,37 +245,17 @@ CsLayoutGen.envFor = function(doc, di, blockId, opText, tag) {
  * \return true when a magnetic north was drawn too
  */
 CsLayoutGen.drawNorth = function(env, nx, ny, reading, guid) {
-    var arrow = CsSheetSetup.NORTH;
-    var line = env.line, text = env.text, greyed = env.greyed, P = env.P;
-    var nh = arrow.height;
-    // every piece names its viewport and its pivot: CsNorth turns them with it
-    var pivot = { x: P(nx), y: P(ny) };
-    var mk = function(entity, part) { return CsNorth.mark(entity, guid, pivot, part); };
-    mk(line(nx, ny, nx, ny + nh, CsLayers.NORTH_ARROW), "shape");
-    mk(line(nx, ny + nh, nx - arrow.headHalf, ny + nh - arrow.headLength, CsLayers.NORTH_ARROW), "shape");
-    mk(line(nx, ny + nh, nx + arrow.headHalf, ny + nh - arrow.headLength, CsLayers.NORTH_ARROW), "shape");
-    mk(text(nx - 0.09, ny + nh + 0.28, CsSheetSetup.TEXT.heading, "N", CsLayers.NORTH_ARROW), "label");
-    var decl = "";
-    if (!isNull(reading) && reading.declination !== 0) {
-        decl = "  (DECLINATION " + Number(reading.declination).toFixed(1) + "\u00b0 APPLIED)";
-    }
-    mk(text(nx - 0.9, ny - 0.2, CsSheetSetup.TEXT.small, "TRUE NORTH" + decl, CsLayers.NORTH_ARROW), "caption");
-    if (isNull(reading)) {
+    // ONE block reference at the arrow's pivot (its insertion point); the block is drawn turned to nothing and the
+    // caller's sync turns it to the viewport's angle (CsNorth.sync redraws the definition, never moves the reference)
+    var blockId = CsNorth.defineBlock(env.doc, env.di, guid, reading, 0);
+    if (isNull(blockId)) {
         return false;
     }
-    mk(greyed(text(nx - 0.9, ny - (0.2 + CsSheetSetup.TEXT.small * 2), CsSheetSetup.TEXT.small,
-        CsSheetSetup.magneticText(reading), CsLayers.NORTH_ARROW)), "caption");
-    var mag = CsSheetSetup.magneticUnit(reading.declination);
-    var mh = arrow.magneticHeight;
-    var tipX = nx + mag.x * mh, tipY = ny + mag.y * mh;
-    mk(greyed(line(nx, ny, tipX, tipY, CsLayers.NORTH_ARROW)), "shape");
-    var back = arrow.magneticHeadLength, half = arrow.magneticHeadHalf;
-    var bx2 = tipX - mag.x * back, by2 = tipY - mag.y * back;
-    mk(greyed(line(tipX, tipY, bx2 - mag.y * half, by2 + mag.x * half, CsLayers.NORTH_ARROW)), "shape");
-    mk(greyed(line(tipX, tipY, bx2 + mag.y * half, by2 - mag.x * half, CsLayers.NORTH_ARROW)), "shape");
-    mk(greyed(text(tipX + mag.x * 0.12 - 0.06, tipY + 0.18, CsSheetSetup.TEXT.small, "mN",
-        CsLayers.NORTH_ARROW, null, true)), "label");
-    return true;
+    var ref = new RBlockReferenceEntity(env.doc, new RBlockReferenceData(blockId,
+        new RVector(env.P(nx), env.P(ny)), new RVector(1, 1), 0.0));
+    CsNorth.markRef(ref, guid, reading, 0);
+    env.add(ref, CsLayers.NORTH_ARROW, "north");
+    return !isNull(reading);
 };
 
 /**
@@ -484,6 +464,12 @@ CsLayoutGen.signatureRows = function(doc, info) {
                 var lp = sp.x <= ep.x ? sp : ep;
                 rows.push(["BAR", CsLayoutGen.round(lp.x), CsLayoutGen.round(lp.y)].join("|"));
             }
+            continue;
+        }
+        if (e.getType() === RS.EntityBlockRef && CsTags.get(e, CsNorth.LINK) !== "") {
+            // a linked north arrow turns with its viewport by itself (its block is redrawn): only WHERE it sits is a hand edit
+            var np = e.getPosition();
+            rows.push(["NORTH", CsLayoutGen.round(np.x), CsLayoutGen.round(np.y)].join("|"));
             continue;
         }
         // NAMES, never ids: ids are not the same in a reloaded drawing

@@ -6,12 +6,18 @@
 // longer up the page: an arrow that stays upright is wrong. An arrow on a
 // sheet therefore follows the rotation of the viewport it belongs to.
 //
-// WHICH ARROWS. Two kinds, both on the NORTH-ARROW layer of a layout:
-//  - the arrow Sheet Setup draws: its pieces carry NorthOf (the viewport's
-//    GUID, the id the scale bar uses too), NorthAt (the pivot, "x,y" paper
-//    units) and NorthPart (shape | label | caption);
-//  - an arrow the caver PLACED (a block reference): it belongs to the
-//    viewport under it, or to the layout's only viewport.
+// WHICH ARROWS. Three kinds, all on the NORTH-ARROW layer of a layout:
+//  - the arrow Sheet Setup draws NOW: ONE BLOCK REFERENCE named after its
+//    viewport (NORTH-ARROW-<guid>), tagged NorthOf (the viewport's GUID, the id
+//    the scale bar uses too), NorthRot (the angle its block is drawn at) and
+//    NorthDecl (the declination, so a redraw needs nothing else). The block's
+//    insertion point IS the pivot, so moving the reference can never displace
+//    it; a turn redraws the block DEFINITION and leaves the reference alone;
+//  - the loose-piece arrow older drawings carry: its pieces carry NorthOf,
+//    NorthAt (the pivot, "x,y" paper units) and NorthPart (shape | label |
+//    caption). Still read and turned, about the pivot as it is NOW;
+//  - an arrow the caver PLACED (a block reference of their own): it belongs to
+//    the viewport under it, or to the layout's only viewport.
 //
 // HOW. Every piece remembers the rotation it has been turned by (NorthRot);
 // a sync turns it by the difference to the viewport's rotation, about the
@@ -25,6 +31,58 @@ CsNorth.LINK = "NorthOf";
 CsNorth.AT = "NorthAt";
 CsNorth.PART = "NorthPart";
 CsNorth.ROT = "NorthRot";
+CsNorth.DECL = "NorthDecl";
+CsNorth.DATE = "NorthDate";
+CsNorth.BLOCK_PREFIX = "NORTH-ARROW-";
+
+/** The block definition of the arrow linked to a viewport GUID. */
+CsNorth.blockName = function(guid) {
+    return CsNorth.BLOCK_PREFIX + String(guid);
+};
+
+/**
+ * Where every part of an arrow goes, in INCHES from its pivot, turned by `angle`
+ * (radians, anticlockwise). Pure: the one definition of the arrow's shape.
+ *
+ * \param spec  { arrow: CsSheetSetup.NORTH, heading, small } (text heights, inches)
+ * \param decl  the declination in degrees, or null for a true-north-only arrow
+ * \return { lines: [{x1,y1,x2,y2,grey}], labels: [{x,y,text,grey,keepCase}], captions: [{x,y,text,grey}] }
+ *         Labels follow the turn but stay upright; captions never move.
+ */
+CsNorth.layout = function(angle, decl, spec) {
+    var a = spec.arrow, c = Math.cos(angle), sn = Math.sin(angle);
+    var rot = function(x, y) { return { x: x * c - y * sn, y: x * sn + y * c }; };
+    var out = { lines: [], labels: [], captions: [] };
+    var line = function(x1, y1, x2, y2, grey) {
+        var p = rot(x1, y1), q = rot(x2, y2);
+        out.lines.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, grey: grey === true });
+    };
+    var nh = a.height;
+    line(0, 0, 0, nh);
+    line(0, nh, -a.headHalf, nh - a.headLength);
+    line(0, nh, a.headHalf, nh - a.headLength);
+    var n = rot(-0.09, nh + 0.28);
+    out.labels.push({ x: n.x, y: n.y, text: "N", grey: false, keepCase: false });
+    var hasMag = decl !== null && decl !== undefined && isFinite(decl);
+    var note = (hasMag && decl !== 0) ? "  (DECLINATION " + Number(decl).toFixed(1) + "\u00b0 APPLIED)" : "";
+    out.captions.push({ x: -0.9, y: -0.2, text: "TRUE NORTH" + note, grey: false });
+    if (!hasMag) {
+        return out;
+    }
+    var rad = Number(decl) * Math.PI / 180;
+    var mx = Math.sin(rad), my = Math.cos(rad);
+    var mh = a.magneticHeight;
+    var tipX = mx * mh, tipY = my * mh;
+    line(0, 0, tipX, tipY, true);
+    var back = a.magneticHeadLength, half = a.magneticHeadHalf;
+    var bx = tipX - mx * back, by = tipY - my * back;
+    line(tipX, tipY, bx - my * half, by + mx * half, true);
+    line(tipX, tipY, bx + my * half, by - mx * half, true);
+    var m = rot(tipX + mx * 0.12 - 0.06, tipY + 0.18);
+    out.labels.push({ x: m.x, y: m.y, text: "mN", grey: true, keepCase: true });
+    out.captions.push({ x: -0.9, y: -(0.2 + spec.small * 2), text: null, grey: true });   // text: CsSheetSetup.magneticText(reading), filled in by the drawer
+    return out;
+};
 
 /** Tags a piece of the generated arrow (before it is added). */
 CsNorth.mark = function(entity, guid, pivot, part) {
@@ -77,7 +135,12 @@ CsNorth.arrows = function(doc, blockId) {
             continue;
         }
         var guid = CsTags.get(e, CsNorth.LINK);
-        if (guid !== "") {
+        if (guid !== "" && e.getType() === RS.EntityBlockRef) {
+            // the arrow as ONE block: its insertion point is the pivot
+            var bp = e.getPosition();
+            out.push({ pieces: [e], ref: e, pivot: { x: bp.x, y: bp.y }, guid: guid, placed: false, block: true });
+        }
+        else if (guid !== "") {
             var g = groups[guid];
             if (isNull(g)) {
                 var at = CsTags.get(e, CsNorth.AT).split(",");
@@ -146,6 +209,25 @@ CsNorth.sync = function(doc, di, vp, group, quiet) {
         if (!mine) {
             continue;
         }
+        if (ar.block === true) {
+            // the arrow as one block: redraw its DEFINITION at the new angle; the reference stays where it is
+            if (Math.abs(target - CsNorth.appliedOf(ar.ref)) <= 1e-9) {
+                continue;
+            }
+            CsNorth.defineBlock(doc, di, ar.guid, CsNorth.readingOf(ar.ref), target, { group: group, quiet: quiet === true });
+            var bref = doc.queryEntity(ar.ref.getId());
+            CsTags.set(bref, CsNorth.ROT, String(target));
+            if (op === null) {
+                op = new RModifyObjectsOperation(quiet !== true);
+                op.setText(qsTr("North arrow follows its viewport"));
+                if (group >= 0) {
+                    op.setTransactionGroup(group);
+                }
+            }
+            op.addObject(bref, false);
+            wrote = true;
+            continue;
+        }
         var delta = target - CsNorth.appliedOf(ar.pieces[0]);
         if (Math.abs(delta) <= 1e-9) {
             continue;
@@ -182,6 +264,78 @@ CsNorth.sync = function(doc, di, vp, group, quiet) {
         di.applyOperation(op);
     }
     return wrote;
+};
+
+/** The declination reading an arrow block was drawn with ({declination, date}), or null for a true-north-only arrow. */
+CsNorth.readingOf = function(ref) {
+    var d = CsTags.getNumber(ref, CsNorth.DECL);
+    if (d === null) {
+        return null;
+    }
+    return { declination: d, date: CsTags.get(ref, CsNorth.DATE) };
+};
+
+/** Tags a block reference as the arrow of a viewport (before it is added). */
+CsNorth.markRef = function(ref, guid, reading, angle) {
+    CsTags.set(ref, CsNorth.LINK, guid);
+    CsTags.set(ref, CsNorth.ROT, String(angle));
+    if (!isNull(reading) && isFinite(reading.declination)) {
+        CsTags.set(ref, CsNorth.DECL, String(reading.declination));
+        CsTags.set(ref, CsNorth.DATE, isNull(reading.date) ? "" : String(reading.date));
+    }
+    return ref;
+};
+
+/**
+ * Creates or REDRAWS the block definition of a viewport's arrow, turned by `angle`.
+ * Everything goes into one operation (one undo step, joined to `opts.group` when given;
+ * `opts.quiet` makes it non-undoable, for a sync answering an undo or a redo).
+ *
+ * \return the block id, or null when the block could not be made
+ */
+CsNorth.defineBlock = function(doc, di, guid, reading, angle, opts) {
+    var o = isNull(opts) ? {} : opts;
+    var name = CsNorth.blockName(guid);
+    var blockId = doc.getBlockId(name);
+    if (blockId === RBlock.INVALID_ID || blockId === undefined || blockId === null || blockId < 0) {
+        di.applyOperation(new RAddObjectOperation(new RBlock(doc, name, new RVector(0, 0)), false));
+        blockId = doc.getBlockId(name);
+    }
+    if (blockId === RBlock.INVALID_ID || blockId === undefined || blockId === null || blockId < 0) {
+        return null;
+    }
+    var env = CsLayoutGen.envFor(doc, di, blockId, qsTr("Draw north arrow"), "", o.quiet !== true);
+    if (!isNull(o.group) && o.group >= 0) {
+        env.op.setTransactionGroup(o.group);
+    }
+    var old = doc.queryBlockEntities(blockId);
+    for (var i = 0; i < old.length; i++) {
+        var oe = doc.queryEntity(old[i]);
+        if (!isNull(oe)) {
+            env.op.deleteObject(oe);
+        }
+    }
+    var decl = isNull(reading) ? null : reading.declination;
+    var shape = CsNorth.layout(angle, decl, { arrow: CsSheetSetup.NORTH, small: CsSheetSetup.TEXT.small });
+    var L = CsLayers.NORTH_ARROW, k;
+    for (k = 0; k < shape.lines.length; k++) {
+        var ln = shape.lines[k];
+        var le = env.line(ln.x1, ln.y1, ln.x2, ln.y2, L);
+        if (ln.grey) { env.greyed(le); }
+    }
+    for (k = 0; k < shape.labels.length; k++) {
+        var lb = shape.labels[k];
+        var te = env.text(lb.x, lb.y, lb.grey ? CsSheetSetup.TEXT.small : CsSheetSetup.TEXT.heading, lb.text, L, undefined, lb.keepCase);
+        if (lb.grey) { env.greyed(te); }
+    }
+    for (k = 0; k < shape.captions.length; k++) {
+        var cp = shape.captions[k];
+        var words = isNull(cp.text) ? CsSheetSetup.magneticText(reading) : cp.text;
+        var ce = env.text(cp.x, cp.y, CsSheetSetup.TEXT.small, words, L);
+        if (cp.grey) { env.greyed(ce); }
+    }
+    di.applyOperation(env.op);
+    return blockId;
 };
 
 /** Syncs every arrow in the drawing (tests, and a manual refresh). */

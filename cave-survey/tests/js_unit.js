@@ -28258,6 +28258,28 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
         "CsSheetSetup: and nothing to go on is treated as no " +
             "declination rather than a NaN arm");
 
+    // CsNorth.layout: the arrow's shape in inches from its pivot, turned about that pivot
+    var nSpec = { arrow: CsSheetSetup.NORTH, small: 0.08 };
+    var n0 = CsNorth.layout(0, null, nSpec);
+    ok(n0.lines.length === 3 && n0.labels.length === 1 && n0.captions.length === 1,
+        "CsNorth.layout: a true-north-only arrow is a shaft, two head strokes, an N and a caption");
+    near(n0.lines[0].x1, 0, 1e-12, "CsNorth.layout: the shaft starts at the pivot");
+    near(n0.lines[0].y2, CsSheetSetup.NORTH.height, 1e-12, "CsNorth.layout: and points up the page");
+    var n90 = CsNorth.layout(Math.PI / 2, null, nSpec);
+    near(n90.lines[0].x1, 0, 1e-12, "CsNorth.layout: turning keeps the shaft's start on the pivot (x)");
+    near(n90.lines[0].y1, 0, 1e-12, "CsNorth.layout: and (y)");
+    near(n90.lines[0].x2, -CsSheetSetup.NORTH.height, 1e-9, "CsNorth.layout: a quarter turn lays the shaft along -x");
+    near(n90.captions[0].x, n0.captions[0].x, 1e-12, "CsNorth.layout: the caption never moves");
+    near(n90.captions[0].y, n0.captions[0].y, 1e-12, "CsNorth.layout: either way");
+    var nm = CsNorth.layout(0, 30, nSpec);
+    ok(nm.lines.length === 6 && nm.labels.length === 2 && nm.captions.length === 2,
+        "CsNorth.layout: a declination adds the grey needle, its head, an mN and its caption");
+    ok(nm.lines[3].grey && !nm.lines[0].grey, "CsNorth.layout: the needle is grey, the true arrow is not");
+    near(nm.lines[3].x2, Math.sin(Math.PI / 6) * CsSheetSetup.NORTH.magneticHeight, 1e-9,
+        "CsNorth.layout: 30 degrees east leans the needle east");
+    ok(nm.captions[0].text.indexOf("DECLINATION 30.0") > 0, "CsNorth.layout: the caption states the declination applied");
+    ok(CsNorth.blockName("abc") === "NORTH-ARROW-abc", "CsNorth.blockName: one block per viewport link");
+
     eqs(CsSheetSetup.magneticText({ declination: 3.2,
         date: "2024-11-03" }),
         "MAGNETIC NORTH 3.2\u00b0 E (2024-11-03)",

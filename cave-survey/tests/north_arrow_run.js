@@ -27,39 +27,48 @@ var res = CsLayoutGen.generate(doc, di, { caveBox: { minX: ox, minY: oy, maxX: o
 var info = Layouts.get(doc, res.made[0]);
 var vp = Layouts.viewports(doc, info)[0];
 var arrows = CsNorth.arrows(doc, info.blockId);
-check(arrows.length === 1 && !arrows[0].placed && arrows[0].pieces.length >= 4, "the generated arrow is found by its link: " + arrows.length);
+check(arrows.length === 1 && arrows[0].block === true && !arrows[0].placed, "the generated arrow is ONE block reference, found by its link: " + arrows.length);
 
-function shapeAngle() {
+// The arrow's parts live in its block definition, in inches from the pivot (the insertion point).
+function theRef() { return CsNorth.arrows(doc, info.blockId).filter(function(x) { return x.block === true; })[0].ref; }
+function defEntities() {
+    var ref = doc.queryEntity(theRef().getId()), ids = doc.queryBlockEntities(ref.getReferencedBlockId()), out = [];
+    for (var i = 0; i < ids.length; i++) { var e = doc.queryEntity(ids[i]); if (!isNull(e) && !e.isUndone()) { out.push(e); } }
+    return out;
+}
+function shaft() {
     // the shaft is the longest line of the arrow
-    var a = CsNorth.arrows(doc, info.blockId)[0], best = null, bestLen = -1;
-    for (var i = 0; i < a.pieces.length; i++) {
-        var e = doc.queryEntity(a.pieces[i].getId());
-        if (CsTags.get(e, CsNorth.PART) === "shape" && e.getType() === RS.EntityLine) {
-            var s = e.getStartPoint(), t = e.getEndPoint();
-            var len = s.getDistanceTo(t);
-            if (len > bestLen) { bestLen = len; best = Math.atan2(t.y - s.y, t.x - s.x); }
+    var best = null, bestLen = -1, es = defEntities();
+    for (var i = 0; i < es.length; i++) {
+        if (es[i].getType() === RS.EntityLine) {
+            var len = es[i].getStartPoint().getDistanceTo(es[i].getEndPoint());
+            if (len > bestLen) { bestLen = len; best = es[i]; }
         }
     }
     return best;
 }
+function shapeAngle() { var s = shaft(), a = s.getStartPoint(), t = s.getEndPoint(); return Math.atan2(t.y - a.y, t.x - a.x); }
 var before = shapeAngle();
 check(near(before, Math.PI / 2, 1e-9), "the arrow points up the page to begin with");
+check(near(shaft().getStartPoint().x, 0, 1e-9) && near(shaft().getStartPoint().y, 0, 1e-9), "its pivot is the block's insertion point");
 
 // unlock and turn the viewport 30 degrees; the arrow follows
 Layouts.setLocked(di, vp, false);
 vp = Layouts.viewports(doc, info)[0];
 vp.setRotation(30 * Math.PI / 180);
 di.applyOperation(new RModifyObjectOperation(vp));
+var refPos0 = doc.queryEntity(theRef().getId()).getPosition();
 check(CsNorth.syncAll(doc, di, -1, false) === 1, "sync turned the arrow");
 check(near(shapeAngle(), Math.PI / 2 + 30 * Math.PI / 180, 1e-9), "its shaft turned by the viewport's 30 degrees");
+var refPos1 = doc.queryEntity(theRef().getId()).getPosition();
+check(near(refPos1.x, refPos0.x, 1e-9) && near(refPos1.y, refPos0.y, 1e-9), "turning redraws the block; the reference stays where it was put");
 check(CsNorth.syncAll(doc, di, -1, false) === 0, "a second sync writes nothing");
 // label keeps upright but moved with it; caption untouched
-var lab = null, cap = null, a1 = CsNorth.arrows(doc, info.blockId)[0];
-for (var k = 0; k < a1.pieces.length; k++) {
-    var e1 = doc.queryEntity(a1.pieces[k].getId());
-    var pt = CsTags.get(e1, CsNorth.PART);
-    if (pt === "label" && lab === null) lab = e1;
-    if (pt === "caption" && cap === null) cap = e1;
+var lab = null, cap = null, es1 = defEntities();
+for (var k = 0; k < es1.length; k++) {
+    if (typeof es1[k].getPlainText === "function") {
+        if (String(es1[k].getPlainText()) === "N") lab = es1[k]; else if (cap === null) cap = es1[k];
+    }
 }
 check(!isNull(lab) && near(lab.getAngle(), 0, 1e-9), "the letter N stays upright");
 check(!isNull(cap) && near(cap.getAngle(), 0, 1e-9), "the caption stays upright");
@@ -68,30 +77,16 @@ vp = Layouts.viewports(doc, info)[0]; vp.setRotation(0); di.applyOperation(new R
 CsNorth.syncAll(doc, di, -1, false);
 check(near(shapeAngle(), Math.PI / 2, 1e-9), "turning the viewport back turns the arrow back");
 
-// MOVED arrow: the stored pivot is where it was drawn, so after a move a turn must still be about the arrow's own base
-function shaftBase() {
-    var a = CsNorth.arrows(doc, info.blockId).filter(function(x) { return !x.placed; })[0];
-    for (var i = 0; i < a.pieces.length; i++) {
-        var e = doc.queryEntity(a.pieces[i].getId());
-        if (CsTags.get(e, CsNorth.PART) === "shape" && e.getType() === RS.EntityLine) { return e.getStartPoint(); }
-    }
-    return null;
-}
-var base0 = shaftBase();
-var mv = new RModifyObjectsOperation();
-var gen = CsNorth.arrows(doc, info.blockId).filter(function(x) { return !x.placed; })[0];
-for (var m = 0; m < gen.pieces.length; m++) {
-    var pe = doc.queryEntity(gen.pieces[m].getId());
-    pe.move(new RVector(1.5, 0.75));
-    mv.addObject(pe, false);
-}
-di.applyOperation(mv);
-var base1 = shaftBase();
-check(near(base1.x, base0.x + 1.5, 1e-9) && near(base1.y, base0.y + 0.75, 1e-9), "the arrow moved with all its pieces");
+// MOVED arrow: the pivot is the insertion point, so a move can never displace the turn
+var mref = doc.queryEntity(theRef().getId());
+var movedFrom = mref.getPosition();
+mref.move(new RVector(1.5, 0.75));
+di.applyOperation(new RModifyObjectOperation(mref));
 vp = Layouts.viewports(doc, info)[0]; vp.setRotation(40 * Math.PI / 180); di.applyOperation(new RModifyObjectOperation(vp));
 CsNorth.syncAll(doc, di, -1, false);
-var base2 = shaftBase();
-check(near(base2.x, base1.x, 1e-9) && near(base2.y, base1.y, 1e-9), "a moved arrow turns about its own base, not the place it was drawn");
+var movedTo = doc.queryEntity(theRef().getId()).getPosition();
+check(near(movedTo.x, movedFrom.x + 1.5, 1e-9) && near(movedTo.y, movedFrom.y + 0.75, 1e-9), "the moved arrow stayed where it was moved to");
+check(near(shaft().getStartPoint().x, 0, 1e-9) && near(shaft().getStartPoint().y, 0, 1e-9), "and it turns about its own base, not the place it was drawn");
 check(near(shapeAngle(), Math.PI / 2 + 40 * Math.PI / 180, 1e-9), "and still takes the viewport's angle");
 vp = Layouts.viewports(doc, info)[0]; vp.setRotation(0); di.applyOperation(new RModifyObjectOperation(vp));
 CsNorth.syncAll(doc, di, -1, false);
