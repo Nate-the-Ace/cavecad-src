@@ -97,6 +97,7 @@ RibbonCommands.classifySelection = function(doc) {
     var out = { count: all.length, kinds: {}, ids: {}, truncated: all.length > RibbonCommands.SELECTION_LIMIT };
     var n = Math.min(all.length, RibbonCommands.SELECTION_LIMIT);
     var haveTags = (typeof CsTags !== "undefined" && typeof CsShapeLine !== "undefined");
+    var haveCallout = (typeof CsTags !== "undefined" && typeof CsCallout !== "undefined");
     for (var i = 0; i < n; i++) {
         var e = doc.queryEntity(all[i]);
         if (isNull(e)) { continue; }
@@ -107,9 +108,24 @@ RibbonCommands.classifySelection = function(doc) {
         else if (haveTags && (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "")) {
             kind = "shaped";
         }
+        else if (haveCallout && CsTags.get(e, CsCallout.KEY.ID) !== "") {
+            kind = (CsTags.get(e, CsCallout.KEY.KIND) === CsCallout.KIND_SECTION && CsTags.get(e, CsCallout.KEY.ROLE) === CsCallout.ROLE_BLOCK) ? "section" : "callout";
+        }
         out.kinds[kind] = (out.kinds[kind] || 0) + 1;
         if (isNull(out.ids[kind])) { out.ids[kind] = []; }
         out.ids[kind].push(all[i]);
+    }
+    // area fills: a boundary or its fill (an "other" entity until the area engine says so)
+    if (typeof CsArea !== "undefined" && !isNull(out.ids.other)) {
+        try {
+            var areas = CsArea.resolveSelection(doc, out.ids.other);
+            if (areas.length > 0) {
+                out.kinds.area = areas.length;
+                out.ids.area = areas;
+            }
+        }
+        catch (eArea) {
+        }
     }
     var present = [];
     for (var k in out.kinds) { if (out.kinds.hasOwnProperty(k)) { present.push(k); } }
@@ -329,6 +345,43 @@ RibbonCommands.register = function() {
         K([ s("Modify/Rotate/Rotate.js"), s("Modify/Scale/Scale.js"), s("Modify/Mirror/Mirror.js") ]) ] });
     Ribbon.registerPanel("sel-scan", { id: "sc-more", title: qsTr("Scans"), order: 20, items: [
         C(cs("SketchScans"), { text: qsTr("Sketch scans\npanel") }) ] });
+
+    Ribbon.registerTab({ id: "sel-callout", title: qsTr("Callout"), when: hasSel("callout") });
+    Ribbon.registerPanel("sel-callout", { id: "co-edit", title: qsTr("Callout"), order: 10, items: [
+        C(cs("Callout"), { text: qsTr("Callout\npanel") }),
+        { type: "button", id: "calloutReflow", text: qsTr("Reflow\nselected"), icon: "back", size: "large",
+          tooltip: qsTr("Re-place the selected callouts' text and leaders"),
+          onClick: function(entry, ctx) {
+              if (typeof CsCalloutSync === "undefined") { EAction.handleUserWarning(qsTr("Reflow needs the Cave Survey tools.")); return; }
+              EAction.handleUserMessage(CsCalloutSync.run(entry.di.getDocument(), entry.di));
+          } } ] });
+    Ribbon.registerTab({ id: "sel-section", title: qsTr("Cross Section"), when: hasSel("section") });
+    Ribbon.registerPanel("sel-section", { id: "se-edit", title: qsTr("Cross section"), order: 10, items: [
+        { type: "button", id: "sectionReopen", text: qsTr("Reopen in\nthe bay"), icon: "rename", size: "large",
+          tooltip: qsTr("Put the selected cross section back into its bay to edit it (one undo step)"),
+          onClick: function(entry, ctx) {
+              if (typeof SectionEdit === "undefined") { EAction.handleUserWarning(qsTr("Reopen needs the Cave Survey tools (Cross Section).")); return; }
+              SectionEdit.run();
+          } },
+        C(cs("CrossSection"), { text: qsTr("Cross section\ntool") }) ] });
+    Ribbon.registerTab({ id: "sel-area", title: qsTr("Area Fill"), when: hasSel("area") });
+    Ribbon.registerPanel("sel-area", { id: "ar-edit", title: qsTr("Area fill"), order: 10, items: [
+        C(cs("AreaFill"), { text: qsTr("Area fill\npanel") }),
+        C(cs("AreaSync"), { text: qsTr("Sync\nareas") }) ] });
+
+    // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
+    var onSheet = function(ctx) { return ctx.mode === "layout"; };
+    var L = function(name, text) { csUsed[name] = true; return C(cs(name), { text: text, enabled: onSheet }); };
+    Ribbon.registerPanel("layout", { id: "cave-sheet", title: qsTr("Cave sheet"), order: 40, items: [
+        L("LayoutBorder", qsTr("Border")), L("LayoutTitleBlock", qsTr("Title\nblock")),
+        L("LayoutNorthArrow", qsTr("North\narrow")), L("LayoutScaleBar", qsTr("Scale\nbar")),
+        L("LayoutLegend", qsTr("Legend")), L("LayoutGrid", qsTr("Grid")), L("LayoutIndex", qsTr("Index")),
+        L("LayoutCheck", qsTr("Check\nsheet")), L("LayoutPlot", qsTr("Plot")) ] });
+    // fitting a viewport to the cave map follows the selected viewport
+    var onViewport = function(ctx) { return !isNull(ctx.viewport); };
+    var V = function(name, text) { csUsed[name] = true; return C(cs(name), { text: text, enabled: onViewport }); };
+    Ribbon.registerPanel("viewport", { id: "cave-fit", title: qsTr("Fit to the cave"), order: 60, items: [
+        V("LayoutMatchViewport", qsTr("Match\nviewport")), V("LayoutZoomViewport", qsTr("Zoom\nviewport")) ] });
 
     RibbonCommands.sweepOnce = true;
     // whatever the survey suite adds later still shows up
