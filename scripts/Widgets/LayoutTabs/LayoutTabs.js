@@ -1784,6 +1784,10 @@ LayoutTabs.setViewportFrozen = function(vp, layerIds) {
     var op = new RModifyObjectOperation(fresh);
     op.setText(qsTr("Viewport layers"));
     entry.di.applyOperation(op);
+    // say what happened: the layout's viewport is the only place the change shows (the editing view stays whole)
+    var now = doc.queryEntity(vp.getId());
+    var n = isNull(now) ? 0 : now.getFrozenLayerIds().length;
+    EAction.handleUserMessage(qsTr("%1 layer(s) are now hidden in this viewport only. Go back to the layout to see it.").arg(n));
 };
 
 /** Tells the Layer Manager when the viewport it works through has changed. */
