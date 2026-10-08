@@ -12,8 +12,7 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 **Rule for the cloud session:** every change adds an entry here in the same commit (what, why, files, version, tested?).
 
 ## Status of the latest test build
-- Mac test build (`macos-test.yml`, started by hand) dispatched for tools **0.9.215.8**, head `656ae95d`.
-  Artifact name: `cavecad-macos-test`. Result: *(update when known)*.
+- Mac test build (`macos-test.yml`, started by hand) dispatched for tools **0.9.215.11**, head `3114ed23`. Artifact name: `cavecad-macos-test`. Result: *(update when known)*.
 
 ## Work log (newest first)
 
