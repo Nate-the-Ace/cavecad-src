@@ -138,7 +138,8 @@ jobs:
           # the built-in updater stays out (it offers any other app commit, newer or not)
           printf '{"platform": "macos-arm64", "app_commit": "dev"}\n' > "$R/cavecad-build.json"
           codesign --force --deep -s - CaveCAD.app
-          codesign --verify --deep --strict CaveCAD.app && echo "signature verified"
+          codesign --verify --deep --strict CaveCAD.app
+          echo "signature verified"
           # hdiutil fails now and then on hosted runners ("Resource busy"): retry, as package-macos.sh does
           df -h . | tail -1
           for attempt in 1 2 3; do
