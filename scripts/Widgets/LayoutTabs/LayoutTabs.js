@@ -1790,6 +1790,62 @@ LayoutTabs.setViewportFrozen = function(vp, layerIds) {
     EAction.handleUserMessage(qsTr("%1 layer(s) are now hidden in this viewport only. Go back to the layout to see it.").arg(n));
 };
 
+/**
+ * Where the click landed on a layout: a click inside a viewport selects that viewport, unless something is really
+ * drawn under the cursor (a line, a piece of text within a few pixels). Whatever ELSE won the pick -- a block whose
+ * area reaches across the viewport, say -- is passed over, and the reason is told in the console so it can be fixed
+ * at its source.
+ *
+ * \return the id to select: the viewport's, or `entityId` unchanged
+ */
+LayoutTabs.pickFix = function(di, event, entityId) {
+    try {
+        var doc = di.getDocument();
+        var info = Layouts.current(doc);
+        if (isNull(info)) {
+            return entityId;
+        }
+        var p = event.getModelPosition();
+        var inside = [];
+        var vps = Layouts.viewports(doc, info);
+        for (var i = 0; i < vps.length; i++) {
+            var v = vps[i];
+            if (v.isOverall() || v.isUndone()) { continue; }
+            var c = v.getCenter();
+            if (Math.abs(p.x - c.x) <= v.getWidth() / 2 && Math.abs(p.y - c.y) <= v.getHeight() / 2) {
+                inside.push(v);
+            }
+        }
+        if (inside.length === 0) {
+            return entityId;
+        }
+        var target = inside[0];
+        for (var k = 1; k < inside.length; k++) {
+            if (inside[k].getWidth() * inside[k].getHeight() < target.getWidth() * target.getHeight()) { target = inside[k]; }
+        }
+        if (entityId === target.getId()) {
+            return entityId;
+        }
+        var view = event.getGraphicsView();
+        var near = view.mapDistanceFromView(4);
+        if (entityId !== RObject.INVALID_ID && entityId !== -1) {
+            var win = doc.queryEntity(entityId);
+            if (!isNull(win)) {
+                var d = win.getDistanceTo(p, true, near, false, view.mapDistanceFromView(10));
+                if (isFinite(d) && d <= near) {
+                    return entityId;       // really on something's line
+                }
+                EAction.handleUserMessage(qsTr("Click passed over a %1 on layer %2 to reach the viewport.")
+                    .arg(String(win.getType())).arg(String(doc.getLayerName(win.getLayerId()))));
+            }
+        }
+        return target.getId();
+    }
+    catch (e) {
+        return entityId;
+    }
+};
+
 /** Tells the Layer Manager when the viewport it works through has changed. */
 LayoutTabs.syncLayerManager = function() {
     try {

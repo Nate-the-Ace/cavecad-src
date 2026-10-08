@@ -16,6 +16,10 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### (app script) -- clicking inside a viewport selects it again
+- Reported: on a layout, plain clicks do not select either viewport (Select All and double-click-through still work; the double click uses the same pick, so the viewport IS the closest thing at the click on a double click). Cause not found by reading. `LayoutTabs.pickFix` (called from `DefaultAction` when a click is released): a click inside a viewport selects that viewport unless something is really drawn within 4 px of the cursor; anything else that won the pick is passed over and named in the console ("Click passed over a ... on layer ... to reach the viewport"). Untested in app; the console line tells which sheet item was catching the click.
+- VP Freeze (Layer Manager) was confirmed working by the user; the earlier "not working" was the unselectable viewport.
+
 ### (app script) -- Layer Manager: VP Freeze column placed after Freeze
 - Reported: viewport-specific layer visibility "not working". The VP Freeze column exists (shown only while one viewport is selected or edited through) but was the LAST column, off the right edge of a docked palette. `RLayerTreeQt.applyColumnVisibility` now moves it to sit right after Freeze. Separate open problem: plain clicks cannot select viewports on a layout (Select All and double-click-through still work); cause not found yet (see conversation: suspects are block-style sheet items catching the click).
 

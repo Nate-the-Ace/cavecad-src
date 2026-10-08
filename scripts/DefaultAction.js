@@ -329,6 +329,10 @@ DefaultAction.prototype.mouseReleaseEvent = function(event) {
 
             // find selectable entity under cursor:
             entityId = this.getEntityId(event, false, true);
+            // CaveCAD: a click inside a viewport on a layout selects that viewport unless something is really drawn there
+            if (typeof LayoutTabs !== "undefined" && typeof LayoutTabs.pickFix === "function") {
+                entityId = LayoutTabs.pickFix(this.di, event, entityId);
+            }
 
             //qDebug("entityId: ", entityId);
             //if (entityId!==RObject.INVALID_ID) qDebug("  parentId: ", this.document.queryEntityDirect(entityId).getParentId());
