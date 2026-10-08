@@ -20,7 +20,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 - Baseline (full test builds, runs 16/17): about 9-9.5 minutes. Biggest steps: cavecadjsapi plugin ~4 min, qtjsapi ~1.5, CaveCAD compile ~2 (ccache), Package ~1.7, Qt install ~0.6.
 - `macos-test.yml`: a `plan` job decides FAST or FULL. FAST (only scripts/data/tools/docs changed since the last full test build) reuses that build's compiled app from the internal `test-app-base` release, replaces its scripts (stripped as the packaging step does), adds the tools and re-signs. FULL (anything else, no base yet, or the `full` input ticked) compiles as before and then stores the bare app as the new base. Test builds only; published builds are untouched.
 - `macos.yml`: the Qt install is cached (`actions/cache`).
-- Measured results are recorded below once the runs finish.
+- Measured: FULL build 12 min 11 s (run 37842056754; earlier full builds were 9-9.5 min -- the cavecadjsapi plugin step swings between 3 and 5 min on the hosted runners); Qt cache hit saved ~25 s (restore 9 s vs install 33 s). FAST path 1 min 57 s (run 37843975870, nothing compiled, same commit family).
+- The first full build with this workflow failed at the disk-image step twice with no message (`hdiutil create -quiet` hid it); a retry loop and visible output were added and the next full build passed. Cause unknown -- if it returns, the log now shows hdiutil's own message and free disk.
+- Rules of thumb: script/tool/doc/data-only change -> FAST (~2 min); any C++, CMake, plugin, packaging-script or workflow change to macos.yml -> FULL (~10-12 min). Tick "Force a full build" when in doubt.
 
 ### 0.9.215.14 -- attached drawings are placed by entrance location, not raw file coordinates
 - Cause of the "cave won't line up" complaint: every cave file has its own arbitrary local origin; Set Location only records lat/lon (only Pick on Drawing moves a cave). Attach used to put everything at 0,0.
