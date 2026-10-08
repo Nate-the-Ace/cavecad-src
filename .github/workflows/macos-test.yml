@@ -5,6 +5,9 @@ name: macOS test build (app + tools)
 # Download the "cavecad-macos-test" artifact from the finished run.
 
 on:
+  push:
+    branches: [claude/cavecad-contextual-ribbon-oq2r4f]
+    paths: ['.github/workflows/macos-test.yml']
   workflow_dispatch:
     inputs:
       tools_ref:
@@ -30,7 +33,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: Nate-the-Ace/CaveCAD
-          ref: ${{ inputs.tools_ref }}
+          ref: ${{ inputs.tools_ref || 'legacy-map' }}
           path: tools-src
       - name: Stage the Cave Survey tools
         run: |
