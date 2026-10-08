@@ -123,6 +123,18 @@ RibbonCommands.registerSelectionKinds = function() {
             }
             return ours;
         } });
+    // the cave profile (elevation) drawing: everything it draws carries a profile tag
+    K({ id: "profile", order: 70, test: function(e) {
+        return tagged() && (CsTags.get(e, "ProfileRun") !== "" || CsTags.get(e, "ProfileBox") !== "" || CsTags.get(e, "ProfileStation") !== "");
+    } });
+    // sheet furniture: what the layout tools draw on a sheet (north arrow, scale bar, title block, grid, index, detail marks)
+    K({ id: "sheet", order: 80, test: function(e) {
+        if (!tagged()) { return false; }
+        if (typeof CsLayoutGen !== "undefined" && CsTags.get(e, CsLayoutGen.TAG) !== "") { return true; }
+        if (typeof CsScaleBar !== "undefined" && CsScaleBar.isPiece(e)) { return true; }
+        if (typeof CsNorth !== "undefined" && CsTags.get(e, CsNorth.LINK) !== "") { return true; }
+        return CsTags.get(e, "GridOf") !== "" || CsTags.get(e, "SheetIndex") !== "" || CsTags.get(e, "DetailMark") !== "";
+    } });
     // an area is a boundary plus its fill, so it is read from the whole leftover selection
     K({ id: "area", order: 90, resolve: function(doc, ids) { return typeof CsArea !== "undefined" ? CsArea.resolveSelection(doc, ids) : []; } });
 };
@@ -398,6 +410,23 @@ RibbonCommands.register = function() {
         C(cs("StationTable"), { text: qsTr("Station\ntable") }),
         C(cs("LoopErrors"), { text: qsTr("Loop\nerrors") }),
         C(cs("DrawPanel"), { text: qsTr("Draw") }) ] });
+
+    Ribbon.registerSelectionTab({ id: "sel-profile", title: qsTr("Profile"), kind: "profile" });
+    Ribbon.registerPanel("sel-profile", { id: "pr-use", title: qsTr("Profile"), order: 10, items: [
+        C(cs("GenerateProfile"), { text: qsTr("Rebuild\nprofile") }),
+        C(cs("CrossSection"), { text: qsTr("Cross\nsection") }) ] });
+    Ribbon.registerSelectionTab({ id: "sel-sheet", title: qsTr("Sheet Item"), kind: "sheet" });
+    Ribbon.registerPanel("sel-sheet", { id: "sh-fix", title: qsTr("Sheet item"), order: 10, items: [
+        { type: "button", id: "sheetRefresh", text: qsTr("Refresh north\nand scale bars"), icon: "back", size: "large",
+          tooltip: qsTr("Bring every north arrow and scale bar back in line with its viewport"),
+          onClick: function(entry, ctx) {
+              if (typeof CsNorth === "undefined" || typeof CsScaleBar === "undefined") { EAction.handleUserWarning(qsTr("Refresh needs the Cave Survey tools.")); return; }
+              var doc = entry.di.getDocument();
+              var n = CsNorth.syncAll(doc, entry.di, undefined, true) + CsScaleBar.syncAll(doc, entry.di, undefined, true);
+              EAction.handleUserMessage(qsTr("Sheet items refreshed: %1 updated.").arg(n));
+          } },
+        C(cs("LayoutCheck"), { text: qsTr("Check\nsheet") }),
+        C(cs("LayoutPlot"), { text: qsTr("Plot") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
