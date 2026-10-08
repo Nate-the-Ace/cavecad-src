@@ -857,7 +857,7 @@ CsLayoutFurniture.removeFor = function(doc, di, info, vp, what) {
         op.deleteObject(victims[v]);
     }
     di.applyOperation(op);
-    CsSheetBlock.purge(doc, di, what === "bar" ? CsScaleBar.BLOCK_PREFIX : CsNorth.BLOCK_PREFIX);
+    CsSheetBlock.purge(doc, di, what === "bar" ? CsScaleBar.BLOCK_PREFIX : (what === "grid" ? CsLayoutFurniture.GRID_PREFIX : CsNorth.BLOCK_PREFIX));
     return victims.length;
 };
 
@@ -876,16 +876,112 @@ CsLayoutFurniture.gridStep = function(doc, vp, minIn) {
     return steps[steps.length - 1] * feetUnit;
 };
 
+CsLayoutFurniture.GRID_PREFIX = "GRID-";
+
 /**
+ * Where every tick and label of a viewport's grid goes, PURE, in inches from the viewport's LOWER-LEFT corner.
+ *
+ * \param g.widthIn,g.heightIn  the viewport on paper
+ * \param g.leftModel,g.bottomModel  the model coordinates at its lower-left corner
+ * \param g.inPerModel  inches of paper per model unit
+ * \param g.step  grid interval in model units; g.origin {x, y}; g.absolute; g.foot (model units per foot); g.textIn (label height)
+ * \return [{ kind: "line", x1, y1, x2, y2 } | { kind: "text", x, y, text, align: "center" | "right" }]
+ */
+CsLayoutFurniture.gridLayout = function(g) {
+    var out = [], tick = 0.08, th = g.textIn;
+    var fmt = function(v) { return String(Math.round(v / g.foot)); };
+    var x0 = Math.ceil((g.leftModel - g.origin.x) / g.step - 1e-9);
+    var x1 = Math.floor((g.leftModel + g.widthIn / g.inPerModel - g.origin.x) / g.step + 1e-9);
+    for (var gx = x0; gx <= x1; gx++) {
+        var px = (g.origin.x + gx * g.step - g.leftModel) * g.inPerModel;
+        out.push({ kind: "line", x1: px, y1: -tick, x2: px, y2: 0 });
+        out.push({ kind: "line", x1: px, y1: g.heightIn, x2: px, y2: g.heightIn + tick });
+        out.push({ kind: "text", x: px, y: -tick - th, text: fmt(g.absolute ? g.origin.x + gx * g.step : gx * g.step), align: "center" });
+    }
+    var y0 = Math.ceil((g.bottomModel - g.origin.y) / g.step - 1e-9);
+    var y1 = Math.floor((g.bottomModel + g.heightIn / g.inPerModel - g.origin.y) / g.step + 1e-9);
+    for (var gy = y0; gy <= y1; gy++) {
+        var py = (g.origin.y + gy * g.step - g.bottomModel) * g.inPerModel;
+        out.push({ kind: "line", x1: -tick, y1: py, x2: 0, y2: py });
+        out.push({ kind: "line", x1: g.widthIn, y1: py, x2: g.widthIn + tick, y2: py });
+        out.push({ kind: "text", x: -tick - 0.04, y: py, text: fmt(g.absolute ? g.origin.y + gy * g.step : gy * g.step), align: "right" });
+    }
+    return out;
+};
+
+/** What a viewport looks like to its grid: the numbers gridLayout needs, plus the lower-left corner on paper (paper units). */
+CsLayoutFurniture.gridParams = function(doc, vp) {
+    var inch = Layouts.toPaper(doc, 25.4), c = vp.getCenter(), hw = vp.getWidth() / 2, hh = vp.getHeight() / 2;
+    var left = c.x - hw, bottom = c.y - hh;
+    return { widthIn: vp.getWidth() / inch, heightIn: vp.getHeight() / inch,
+        leftModel: Layouts.paperToModel(vp, left, c.y).x, bottomModel: Layouts.paperToModel(vp, c.x, bottom).y,
+        inPerModel: vp.getScale() / inch, foot: Layouts.groundFoot(doc), textIn: CsSheetSetup.TEXT.small,
+        atX: left, atY: bottom, step: CsLayoutFurniture.gridStep(doc, vp, 0.8) };
+};
+
+/** A short text that changes whenever the grid would be drawn differently (scale, pan, size). PURE. */
+CsLayoutFurniture.gridSig = function(g, hidden, absolute, origin) {
+    var f = function(v) { return Number(v).toFixed(6); };
+    return [f(g.widthIn), f(g.heightIn), f(g.leftModel), f(g.bottomModel), f(g.inPerModel), f(g.step),
+        hidden ? "H" : "V", absolute ? "A" : "R", f(origin.x), f(origin.y)].join("|");
+};
+
+CsLayoutFurniture.gridDraw = function(g, hidden, absolute, origin) {
+    return function(env) {
+        if (hidden) { return; }
+        var items = CsLayoutFurniture.gridLayout({ widthIn: g.widthIn, heightIn: g.heightIn, leftModel: g.leftModel,
+            bottomModel: g.bottomModel, inPerModel: g.inPerModel, step: g.step, origin: origin, absolute: absolute,
+            foot: g.foot, textIn: g.textIn });
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (it.kind === "line") {
+                env.line(it.x1, it.y1, it.x2, it.y2, CsLayers.BORDER, "grid");
+            }
+            else {
+                env.text(it.x, it.y, g.textIn, it.text, CsLayers.BORDER, "grid", true, 0,
+                    it.align === "center" ? RS.HAlignCenter : RS.HAlignRight);
+            }
+        }
+    };
+};
+
+/** The grid reference of a viewport (one block), or null. */
+CsLayoutFurniture.gridRef = function(doc, blockId, guid) {
+    var ids = doc.queryBlockEntities(blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (!isNull(e) && !e.isUndone() && e.getType() === RS.EntityBlockRef && CsTags.get(e, "GridOf") === guid) {
+            return e;
+        }
+    }
+    return null;
+};
+
+CsLayoutFurniture.gridHidden = function(vp) {
+    return Layouts.hasClip(vp) || Math.abs(vp.getRotation()) > 1e-9;
+};
+
+/**
+ * A grid round a viewport as ONE block, anchored at the viewport's lower-left corner and linked to it by its GUID, so it
+ * follows the viewport (see syncGrid). Adding it again replaces the earlier one.
+ *
  * \param opts.absolute  label with the true map coordinates (default: distance from the cave's south-west corner)
  * \return the number of ticks drawn, or -1 when the viewport cannot take a grid
  */
 CsLayoutFurniture.addGrid = function(doc, di, info, vp, opts) {
-    if (Layouts.hasClip(vp) || Math.abs(vp.getRotation()) > 1e-9) {
+    if (CsLayoutFurniture.gridHidden(vp)) {
         CsTell.warn(qsTr("Add Grid: a grid goes round a rectangular viewport that is not turned."));
         return -1;
     }
-    var guid = CsScaleBar.ensureGuid(vp);
+    doc.startTransactionGroup();
+    var group = doc.getTransactionGroup();
+    var fresh = doc.queryEntity(vp.getId());
+    var guid = CsScaleBar.ensureGuid(fresh);
+    var mod = new RModifyObjectOperation(fresh);
+    mod.setText(qsTr("Add grid"));
+    mod.setTransactionGroup(group);
+    di.applyOperation(mod);
+    fresh = doc.queryEntity(vp.getId());
     CsLayoutFurniture.removeTagged(doc, di, info, "GridOf", guid);
     var absolute = !isNull(opts) && opts.absolute === true;
     var origin = { x: 0, y: 0 };
@@ -895,36 +991,81 @@ CsLayoutFurniture.addGrid = function(doc, di, info, vp, opts) {
         if (isNull(cb)) { cb = NewViewport.modelExtents(doc); }
         if (!isNull(cb)) { origin = { x: cb.minX, y: cb.minY }; }
     }
-    var inch = Layouts.toPaper(doc, 25.4);
-    var step = CsLayoutFurniture.gridStep(doc, vp, 0.8);
-    var c = vp.getCenter(), hw = vp.getWidth() / 2, hh = vp.getHeight() / 2;
-    var left = c.x - hw, right = c.x + hw, bottom = c.y - hh, top = c.y + hh;
-    var env = CsLayoutGen.envFor(doc, di, info.blockId, qsTr("Add grid"), "");
-    var P = function(v) { return v / inch; };
-    var tick = 0.08, th = CsSheetSetup.TEXT.small, n = 0;
-    var mark = function(entity) { CsTags.set(entity, "GridOf", guid); return entity; };
-    var fmt = function(v) { return String(Math.round(v / Layouts.groundFoot(doc))); };
-    // model x at a paper x, and back
-    var modelX = function(px) { return Layouts.paperToModel(vp, px, c.y).x; };
-    var modelY = function(py) { return Layouts.paperToModel(vp, c.x, py).y; };
-    var paperX = function(mx) { return c.x + (mx - Layouts.paperToModel(vp, c.x, c.y).x) * vp.getScale(); };
-    var paperY = function(my) { return c.y + (my - Layouts.paperToModel(vp, c.x, c.y).y) * vp.getScale(); };
-    var x0 = Math.ceil((modelX(left) - origin.x) / step), x1 = Math.floor((modelX(right) - origin.x) / step);
-    for (var gx = x0; gx <= x1; gx++) {
-        var px = paperX(origin.x + gx * step);
-        mark(env.line(P(px), P(bottom) - tick, P(px), P(bottom), CsLayers.BORDER, "grid"));
-        mark(env.line(P(px), P(top), P(px), P(top) + tick, CsLayers.BORDER, "grid"));
-        mark(env.text(P(px), P(bottom) - tick - th, th, fmt(absolute ? origin.x + gx * step : gx * step), CsLayers.BORDER, "grid", true, 0, RS.HAlignCenter));
-        n += 2;
+    var g = CsLayoutFurniture.gridParams(doc, fresh);
+    var defId = CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.GRID_PREFIX, guid),
+        CsLayoutFurniture.gridDraw(g, false, absolute, origin), { group: group, text: qsTr("Add grid") });
+    if (defId === null) {
+        throw new Error("grid block could not be made");
     }
-    var y0 = Math.ceil((modelY(bottom) - origin.y) / step), y1 = Math.floor((modelY(top) - origin.y) / step);
-    for (var gy = y0; gy <= y1; gy++) {
-        var py = paperY(origin.y + gy * step);
-        mark(env.line(P(left) - tick, P(py), P(left), P(py), CsLayers.BORDER, "grid"));
-        mark(env.line(P(right), P(py), P(right) + tick, P(py), CsLayers.BORDER, "grid"));
-        mark(env.text(P(left) - tick - 0.04, P(py), th, fmt(absolute ? origin.y + gy * step : gy * step), CsLayers.BORDER, "grid", true, 0, RS.HAlignRight));
-        n += 2;
+    var ref = CsSheetBlock.reference(doc, di, defId, info.blockId, CsLayers.BORDER, g.atX, g.atY);
+    CsLayoutFurniture.gridTag(ref, guid, g, false, absolute, origin);
+    var op = new RAddObjectsOperation();
+    op.setText(qsTr("Add grid"));
+    op.setTransactionGroup(group);
+    op.addObject(ref, false);
+    di.applyOperation(op);
+    return CsLayoutFurniture.gridLayout({ widthIn: g.widthIn, heightIn: g.heightIn, leftModel: g.leftModel,
+        bottomModel: g.bottomModel, inPerModel: g.inPerModel, step: g.step, origin: origin, absolute: absolute,
+        foot: g.foot, textIn: g.textIn }).length;
+};
+
+CsLayoutFurniture.gridTag = function(ref, guid, g, hidden, absolute, origin) {
+    CsTags.set(ref, "GridOf", guid);
+    CsTags.set(ref, "GridAbsolute", absolute ? "1" : "0");
+    CsTags.set(ref, "GridOrigin", origin.x + "," + origin.y);
+    CsTags.set(ref, "GridSig", CsLayoutFurniture.gridSig(g, hidden, absolute, origin));
+    CsTags.set(ref, "GridAt", g.atX + "," + g.atY);
+};
+
+/**
+ * Keeps a viewport's grid on its viewport: when the viewport was moved, re-scaled, panned or resized, the grid block
+ * is redrawn and slides by the same distance as the viewport (a grid you nudged by hand keeps its offset). A viewport
+ * that has been turned or clipped HIDES its grid (the block is emptied, not deleted); it comes back when the viewport
+ * is square again.
+ *
+ * \return true when something changed
+ */
+CsLayoutFurniture.syncGrid = function(doc, di, vp, group, quiet) {
+    var guid = CsScaleBar.guidOf(vp);
+    if (guid === "" || vp.isUndone()) { return false; }
+    var ref = CsLayoutFurniture.gridRef(doc, vp.getBlockId(), guid);
+    if (ref === null) { return false; }
+    var hidden = CsLayoutFurniture.gridHidden(vp);
+    var absolute = CsTags.get(ref, "GridAbsolute") === "1";
+    var oo = String(CsTags.get(ref, "GridOrigin")).split(","), origin = { x: parseFloat(oo[0]), y: parseFloat(oo[1]) };
+    if (!isFinite(origin.x) || !isFinite(origin.y)) { origin = { x: 0, y: 0 }; }
+    var g = CsLayoutFurniture.gridParams(doc, vp);
+    if (CsTags.get(ref, "GridSig") === CsLayoutFurniture.gridSig(g, hidden, absolute, origin) &&
+            CsTags.get(ref, "GridAt") === g.atX + "," + g.atY) {
+        return false;
     }
-    di.applyOperation(env.op);
+    CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.GRID_PREFIX, guid),
+        CsLayoutFurniture.gridDraw(g, hidden, absolute, origin),
+        { group: group, quiet: quiet === true, text: qsTr("Grid follows its viewport") });
+    ref = CsLayoutFurniture.gridRef(doc, vp.getBlockId(), guid);
+    var was = String(CsTags.get(ref, "GridAt")).split(",");
+    var ax = parseFloat(was[0]), ay = parseFloat(was[1]);
+    if (isFinite(ax) && isFinite(ay)) {
+        var at = ref.getPosition();
+        ref.setPosition(new RVector(at.x + (g.atX - ax), at.y + (g.atY - ay)));
+    }
+    CsLayoutFurniture.gridTag(ref, guid, g, hidden, absolute, origin);
+    var mop = new RModifyObjectsOperation(quiet !== true);
+    mop.setText(qsTr("Grid follows its viewport"));
+    if (group >= 0) { mop.setTransactionGroup(group); }
+    mop.addObject(ref, false);
+    di.applyOperation(mop);
+    return true;
+};
+
+/** Syncs every grid in the drawing (tests, and a manual refresh). \return how many changed */
+CsLayoutFurniture.syncGrids = function(doc, di, group, quiet) {
+    var n = 0, layouts = Layouts.list(doc);
+    for (var l = 0; l < layouts.length; l++) {
+        var vps = Layouts.viewports(doc, layouts[l]);
+        for (var v = 0; v < vps.length; v++) {
+            if (CsLayoutFurniture.syncGrid(doc, di, vps[v], group === undefined ? -1 : group, quiet === true)) { n++; }
+        }
+    }
     return n;
 };

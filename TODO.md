@@ -58,6 +58,13 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Grid is one dynamic block (done, untested in the app)
+The grid is ONE block reference anchored at its viewport's lower-left corner, linked by the viewport's GUID (`GridOf`), with
+`GridAbsolute`/`GridOrigin` kept on the reference. `SheetScaleBarListener` calls `CsLayoutFurniture.syncGrid` when the viewport
+moves, is re-scaled, panned or resized: the block is redrawn and slides with the viewport. A turned or clipped viewport hides
+its grid (empties the block) and it returns when the viewport is square again. Loose-tick grids from older builds are not
+converted automatically: add the grid again to replace them.
+
 ### Layout tabs can be dragged (done, untested in the app)
 Drag a layout tab left or right to reorder the sheets (Model stays first; the right-click Move left/right still works). The
 sheet index lists the sheets in tab order and redraws when the order changes.

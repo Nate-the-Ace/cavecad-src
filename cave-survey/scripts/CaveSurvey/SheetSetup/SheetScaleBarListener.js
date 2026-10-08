@@ -111,6 +111,7 @@ SheetScaleBarListener.onTransaction = function(document, transaction) {
             try {
                 CsScaleBar.sync(current, di, viewports[v], group, quiet);
                 CsNorth.sync(current, di, viewports[v], group, quiet);
+                CsLayoutFurniture.syncGrid(current, di, viewports[v], group, quiet);
             } catch (eOne) {
                 // one broken bar must not stop the others, nor surface as a dialog mid-drag
             }

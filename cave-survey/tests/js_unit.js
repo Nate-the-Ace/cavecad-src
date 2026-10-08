@@ -28341,6 +28341,18 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     ok(ixBR[0].x <= 0 && ixBR[ixBR.length - 1].y > 0, "CsLayoutFurniture.indexLayout: a bottom-right anchor grows left and up");
     ok(ixTL[0].x >= 0 && ixTL[0].y < 0, "CsLayoutFurniture.indexLayout: a top-left anchor grows right and down");
     ok(CsLayoutFurniture.indexOrderOf(ixRows) !== CsLayoutFurniture.indexOrderOf(ixRows.slice().reverse()), "CsLayoutFurniture.indexOrderOf: dragging a tab to a new place changes it");
+    // CsLayoutFurniture.gridLayout: ticks measured from the viewport's lower-left corner, so a moved viewport only moves the block
+    var gl = CsLayoutFurniture.gridLayout({ widthIn: 4, heightIn: 3, leftModel: 3, bottomModel: 0, inPerModel: 0.1, step: 10,
+        origin: { x: 0, y: 0 }, absolute: false, foot: 1, textIn: 0.08 });
+    var glLines = gl.filter(function(t) { return t.kind === "line"; }), glTexts = gl.filter(function(t) { return t.kind === "text"; });
+    ok(glTexts.length > 0 && glLines.length === glTexts.length * 2, "CsLayoutFurniture.gridLayout: two tick marks and one label per grid line");
+    ok(glTexts.some(function(t) { return t.align === "center" && t.text === "10"; }), "CsLayoutFurniture.gridLayout: the first vertical line is model x = 10");
+    near(glLines[0].x1, (10 - 3) * 0.1, 1e-9, "CsLayoutFurniture.gridLayout: x = (model - left) * inches per unit");
+    var gl2 = CsLayoutFurniture.gridLayout({ widthIn: 4, heightIn: 3, leftModel: 1003, bottomModel: 500, inPerModel: 0.1, step: 10,
+        origin: { x: 1000, y: 500 }, absolute: true, foot: 1, textIn: 0.08 });
+    ok(gl2.some(function(t) { return t.kind === "text" && t.text === "1010"; }), "CsLayoutFurniture.gridLayout: true map coordinates when absolute");
+    ok(CsLayoutFurniture.gridSig({ widthIn: 4, heightIn: 3, leftModel: 3, bottomModel: 0, inPerModel: 0.1, step: 10 }, false, false, { x: 0, y: 0 }) !==
+       CsLayoutFurniture.gridSig({ widthIn: 4, heightIn: 3, leftModel: 3, bottomModel: 0, inPerModel: 0.2, step: 10 }, false, false, { x: 0, y: 0 }), "CsLayoutFurniture.gridSig: a new scale changes it");
     var ix4 = CsLayoutFurniture.indexLayout(ixRows.concat([{ name: "C1", paper: "", scale: "" }]), 0.1, "SHEET INDEX");
     near(ix4.filter(function(i) { return i.text === "C1"; })[0].y, 0.05, 1e-9, "CsLayoutFurniture.indexLayout: a new sheet takes the bottom; the corner does not move");
     ok(ix4[0].y > ixHead.y, "CsLayoutFurniture.indexLayout: and the index is taller");

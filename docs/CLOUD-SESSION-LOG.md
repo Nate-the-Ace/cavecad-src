@@ -17,6 +17,12 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.9 -- grid is ONE dynamic block that follows its viewport
+- Reported: the grid was many loose pieces and did not move with the viewport.
+- `CsLayoutFurniture`: `gridLayout` (pure, inches from the viewport's lower-left), `gridParams`, `gridSig`, `gridDraw`, `gridRef`, `gridTag`, `addGrid` (now one block `GRID-<guid>`, GUID saved on the viewport), `syncGrid`/`syncGrids`; `removeFor("grid")` purges the block.
+- `SheetScaleBarListener.js` calls `syncGrid` with the north arrow and scale bar syncs.
+- Tests: pure checks in `tests/js_unit.js`; engine checks in `tests/layout_extras_run.js` (need the app). Untested in app.
+
 ### 0.9.215.8 `656ae95d` -- drag layout tabs to reorder
 - `LayoutTabs.js`: `bar.movable`, `tabMoved` -> `LayoutTabs.tabDragged` (deferred by a 0 ms timer, calls `Layouts.move`, then `refresh`). Model tab stays first.
 - `CsLayoutFurniture.js`: `indexOrderOf`; the index reference carries tag `IndexOrder`, so a reorder redraws the index (before, only a text change did).
@@ -62,5 +68,5 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 - `81e1b505`: warn when tools change without a `VERSION` bump. Updater: app update when `app_commit` differs; tools update when `cave-survey/VERSION` goes up.
 
 ## Open items (details in `TODO.md`)
-- Grid must become dynamic (and a block); stuck in the block editor after clicking through a viewport; Title block convert needs a Mac test.
+- Stuck in the block editor after clicking through a viewport; Title block convert needs a Mac test.
 - Callout elevation/edit buttons, entrance/station-label tabs, scan turn/flip, translations (`lupdate`), retake Handbook screenshot before a public publish, repo cutover, sheet-builder and xref follow-ups.

@@ -179,18 +179,39 @@ var step = CsLayoutFurniture.gridStep(doc, gp, 0.8);
 check(step > 0 && CsLayoutFurniture.GRID_STEPS.indexOf(Math.round(step / Layouts.groundFoot(doc))) >= 0, "the grid interval is a round number of feet: " + step);
 var gn = CsLayoutFurniture.addGrid(doc, di, Layouts.get(doc, "S1"), gp, {});
 check(gn > 4, "ticks were drawn round the viewport: " + gn);
-var labels = [], l2 = doc.queryBlockEntities(Layouts.get(doc, "S1").blockId);
-for (var gi = 0; gi < l2.length; gi++) { var ge = doc.queryEntity(l2[gi]); if (!ge.isUndone() && CsTags.get(ge, "GridOf") !== "" && ge.getType() === RS.EntityText) labels.push(String(ge.getPlainText())); }
+var texts = function(layoutName) {
+    var out = [], lay = Layouts.get(doc, layoutName), ids = doc.queryBlockEntities(lay.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var r = doc.queryEntity(ids[i]);
+        if (!isNull(r) && !r.isUndone() && r.getType() === RS.EntityBlockRef && CsTags.get(r, "GridOf") !== "") {
+            out = out.concat(CsSheetBlock.textsIn(doc, r.getReferencedBlockId()));
+        }
+    }
+    return out;
+};
+var gridRefs = function(layoutName) {
+    var n = 0, lay = Layouts.get(doc, layoutName), ids = doc.queryBlockEntities(lay.blockId);
+    for (var i = 0; i < ids.length; i++) { var r = doc.queryEntity(ids[i]); if (!isNull(r) && !r.isUndone() && CsTags.get(r, "GridOf") !== "") n++; }
+    return n;
+};
+var labels = texts("S1");
 check(labels.length > 0 && labels.every(function(t) { return Math.abs(parseFloat(t)) < 5000; }), "the default labels are small distances from the cave, not map coordinates: " + labels.slice(0, 5));
 check(labels.every(function(t) { return t.length < 6; }), "none is a seven-digit coordinate");
+check(gridRefs("S1") === 1, "the grid is ONE block reference");
 var again = CsLayoutFurniture.addGrid(doc, di, Layouts.get(doc, "S1"), doc.queryEntity(gparent.getId()), {});
-var count2 = 0, l3 = doc.queryBlockEntities(Layouts.get(doc, "S1").blockId);
-for (var gj = 0; gj < l3.length; gj++) { var ge2 = doc.queryEntity(l3[gj]); if (!ge2.isUndone() && CsTags.get(ge2, "GridOf") !== "") count2++; }
-check(count2 === gn * 1 + (count2 - gn) && again === gn && count2 >= gn, "adding the grid again replaces it, not doubles it");
+check(again === gn && gridRefs("S1") === 1, "adding the grid again replaces it, not doubles it");
+// it follows its viewport: move the viewport and the block moves with it; change the scale and it is redrawn
+var gref0 = CsLayoutFurniture.gridRef(doc, Layouts.get(doc, "S1").blockId, CsScaleBar.guidOf(doc.queryEntity(gparent.getId())));
+var gx0 = gref0.getPosition().x;
+var gv = doc.queryEntity(gparent.getId());
+gv.setCenter(new RVector(gv.getCenter().x + 10, gv.getCenter().y)); di.applyOperation(new RModifyObjectOperation(gv));
+check(CsLayoutFurniture.syncGrids(doc, di, -1, true) >= 1, "a moved viewport makes its grid follow");
+var gref1 = CsLayoutFurniture.gridRef(doc, Layouts.get(doc, "S1").blockId, CsScaleBar.guidOf(doc.queryEntity(gparent.getId())));
+check(Math.abs(gref1.getPosition().x - gx0 - 10) < 1e-6, "the grid block slid by the same distance as the viewport");
+check(CsLayoutFurniture.syncGrids(doc, di, -1, true) === 0, "and a second sync changes nothing");
 var labels2 = [];
 CsLayoutFurniture.addGrid(doc, di, Layouts.get(doc, "S1"), doc.queryEntity(gparent.getId()), { absolute: true });
-var l4 = doc.queryBlockEntities(Layouts.get(doc, "S1").blockId);
-for (var gk = 0; gk < l4.length; gk++) { var ge3 = doc.queryEntity(l4[gk]); if (!ge3.isUndone() && CsTags.get(ge3, "GridOf") !== "" && ge3.getType() === RS.EntityText) labels2.push(String(ge3.getPlainText())); }
+labels2 = texts("S1");
 check(labels2.some(function(t) { return t.length >= 6; }), "true coordinates are available when asked for: " + labels2.slice(0, 3));
 var shaped = Layouts.viewports(doc, Layouts.get(doc, "S1")).filter(function(v) { return Layouts.hasClip(v); })[0];
 check(isNull(shaped) || CsLayoutFurniture.addGrid(doc, di, Layouts.get(doc, "S1"), shaped, {}) === -1, "a shaped viewport takes no grid");
