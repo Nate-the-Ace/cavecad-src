@@ -887,17 +887,6 @@
    "shots": []
   },
   {
-   "id": "xref-attach",
-   "title": "Attach Drawing",
-   "class": "tool",
-   "file": "xref-attach.html",
-   "stage": 452,
-   "tools": [
-    "XrefAttach"
-   ],
-   "shots": []
-  },
-  {
    "id": "xref-manager",
    "title": "External References",
    "class": "tool",

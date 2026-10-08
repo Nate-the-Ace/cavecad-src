@@ -1,7 +1,12 @@
 <h1>External References</h1>
-<p>Lists the drawings this one refers to, and what state each is in. <code>externalreferences</code> (also <code>xrefs</code>)</p>
+<p>Attach another drawing to this one, and manage the drawings already attached. One window for both. <code>externalreferences</code> (also <code>xrefs</code>, <code>attachdrawing</code>, <code>xref</code>)</p>
 <h2>When you reach for it</h2>
-<p>To update a reference by hand, change how it is attached, change how its path is kept, or turn it into an ordinary block.</p>
+<p>A regional map built from several caves, a cave drawn over a surface map, or a profile shown with its plan - without copying anything. The other drawing appears as one linked object, and when its file changes this drawing offers to update.</p>
+<h2>Attaching a drawing</h2>
+<p>Press <b>Attach drawing...</b>, pick the file, and choose two things. It is placed at this drawing's origin (right for drawings that share coordinates); move it afterwards if it should sit elsewhere.</p>
+<p><b>How it is attached.</b> <b>Overlay</b> shows the other drawing's own geometry only: whatever it has itself referred to does not come along. <b>Attach</b> shows it and whatever it refers to. Two drawings that attach each other are refused (they would go round in a circle).</p>
+<p><b>How the path is kept.</b> <b>Absolute</b> keeps the full path to the file. <b>Relative</b> keeps it relative to this drawing's folder, so a cave folder can be moved or shared. Save the drawing first to use relative.</p>
+<p>What you pick becomes the choice offered next time. To begin with it is Overlay and Absolute. The other drawing's layers appear as <code>Name|LAYER</code>, so they never mix with yours.</p>
 <h2>The list</h2>
 <ul>
 <li><b>up to date</b> - the file is as it was when read.</li>
@@ -10,14 +15,11 @@
 </ul>
 <h2>The buttons</h2>
 <ul>
+<li><b>Attach drawing...</b> brings in another drawing.</li>
 <li><b>Update</b> reads the file again.</li>
 <li><b>Overlay &lt;-&gt; Attach</b> switches the attachment style and reads the file again.</li>
 <li><b>Absolute &lt;-&gt; Relative</b> changes how the path is kept.</li>
 <li><b>Bind</b> makes it an ordinary block: the link is dropped, the picture stays.</li>
 </ul>
 <h2>Where it is</h2>
-<p>The Cave Survey menu.</p>
-<h2>See also</h2>
-<ul>
-<li><a href="xref-attach.html">Attach Drawing</a></li>
-</ul>
+<p>The Cave Survey menu and the Cave Survey tab (External references).</p>

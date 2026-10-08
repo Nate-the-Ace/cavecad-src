@@ -182,7 +182,7 @@ CaveSurvey.init = function(basePath, splash) {
     // Offer to update an external reference when its file has changed. Without it External
     // References still updates by hand; this only makes the offer by itself.
     try {
-        include(includeBasePath + "/XrefAttach/XrefListener.js");
+        include(includeBasePath + "/XrefManager/XrefListener.js");
         if (typeof XrefListener !== "undefined") {
             XrefListener.install();
         }

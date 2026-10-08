@@ -1820,8 +1820,7 @@ MENU = {
     "ScatterBreakdown/ScatterBreakdown.js": (452, 30, ["scatterbreakdown", "scb"]),
     "AreaSync/AreaSync.js":               (452, 35, ["syncareas", "sya"]),
     "CrossSection/CrossSection.js":       (452, 40, ["crosssection", "cxs"]),
-    "XrefAttach/XrefAttach.js":           (452, 65, ["attachdrawing", "xref", "xr"]),
-    "XrefManager/XrefManager.js":         (452, 66, ["externalreferences", "xrefs", "xm"]),
+    "XrefManager/XrefManager.js":         (452, 66, ["externalreferences", "xrefs", "xm", "attachdrawing", "xref", "xr"]),
     # 453 -- put a reference under the map
     "SketchScans/SketchScans.js":         (453, 10, ["sketchscans", "ss"]),
     "EntranceLocation/EntranceLocation.js": (453, 15,
@@ -2091,7 +2090,7 @@ class TestSheetGuard(unittest.TestCase):
         "DrawPanel", "FeatureTrace", "GenerateProfile", "ImportCaveSurvey",
         "LoopErrors", "RepairDrawing", "ScatterBreakdown", "ShapedLines",
         "SketchScans", "SurfaceData", "SurveyNotebook", "SymbolPalette",
-        "ResetDrawing", "EntranceLocation", "LinetypeMaker", "XrefAttach", "XrefManager",
+        "ResetDrawing", "EntranceLocation", "LinetypeMaker", "XrefManager",
     ]
 
     # Tools that only READ, and are welcome on a sheet: checking a sheet

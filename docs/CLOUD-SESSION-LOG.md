@@ -16,6 +16,11 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.12 -- Attach Drawing and External References are ONE window
+- User found two commands confusing. Now only External References exists: its window has an **Attach drawing...** button (file picker, Overlay/Attach, Absolute/Relative; placed at the origin -- the click-to-place option was dropped) above the list. Typed words `attachdrawing`/`xref`/`xr` open the same window.
+- Removed the `XrefAttach` action (script, icons, handbook page, registry entries); `XrefListener.js` moved to `XrefManager/`. Ribbon: one button "External references".
+- Untested in app.
+
 ### 0.9.215.11 -- fix: Attach Drawing "setLayerNamePrefix is not a function"
 - Mac test showed: `RPasteOperation` has no `setLayerNamePrefix` in the script bindings (nor `setUseExistingBlock` / `setCreateBlockReference`, though the C++ base class has them; the bindings come from the sibling jsapi repos and were not regenerated).
 - `CsXref`: the source copy's layers are renamed in memory (`prefixLayers`, "Cave|Layer", layer 0 left alone) before the paste; an update (`reload`) now pastes into a fresh block and swaps it in (`swapBlock`: references retargeted, old block deleted, new block renamed). No unbound setter is called any more.

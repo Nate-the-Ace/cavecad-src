@@ -396,7 +396,7 @@ RibbonCommands.register = function() {
         CS("DrawPanel", { text: qsTr("Draw") }),
         CS("SketchScans", { text: qsTr("Sketch\nscans") }),
         K([ cs_("CrossSection", { text: qsTr("Cross section") }), cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]),
-        K([ cs_("XrefAttach", { text: qsTr("Attach drawing") }), cs_("XrefManager", { text: qsTr("External refs") }), cs_("LayoutViews", { text: qsTr("Sheets from views") }) ]) ] });
+        K([ cs_("XrefManager", { text: qsTr("External references") }), cs_("LayoutViews", { text: qsTr("Sheets from views") }) ]) ] });
     Ribbon.registerPanel("cave", { id: "c-check", title: qsTr("Check and repair"), order: 40, items: [
         CS("CheckMap", { text: qsTr("Check\nmap") }),
         CS("LoopErrors", { text: qsTr("Loop\nerrors") }),
