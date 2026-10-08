@@ -301,6 +301,8 @@ include(includeBasePath + "/CsLayoutTemplate.js");
 include(includeBasePath + "/CsLayoutPlot.js");
 include(includeBasePath + "/CsLayoutCheck.js");
 include(includeBasePath + "/CsLayoutGen.js");
+// After CsProfileBox and CsCallout: the list of views a sheet can be made of.
+include(includeBasePath + "/CsViews.js");
 // After CsAdjust (whose per-station shifts it draws) and CsNetwork
 // (whose loops it labels): turning a closure percentage into arrows.
 include(includeBasePath + "/CsClosure.js");

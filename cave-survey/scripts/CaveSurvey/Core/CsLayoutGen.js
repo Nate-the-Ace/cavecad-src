@@ -44,7 +44,8 @@ CsLayoutGen.INPUTS = "GenInputs";
 // purpose, see CsLayers.SHEET_LAYERS, so they are never frozen.)
 CsLayoutGen.OTHER_FRAMES = {
     plan: ["profile", "section"],
-    elevation: ["plan", "section"]
+    elevation: ["plan", "section"],
+    section: ["plan", "profile"]
 };
 
 /**
@@ -62,6 +63,10 @@ CsLayoutGen.OTHER_FRAMES = {
  * \param o.tiles       a tiled CsSheetTile layout, or null for ONE plan sheet
  * \param o.shiftInches {x, y} how far the single plan sheet was slid by hand
  * \param o.elevation   also plan an elevation sheet (needs elevBox)
+ * \param o.skipPlan   true: no default plan sheet (only the sheets of `views`)
+ * \param o.views       extra sheets, one per VIEW (CsViews): [{ name, kind: "plan"|"profile"|"section", box, scale? }].
+ *                      A profile view is an "elevation" sheet, a section view a "section" sheet; each frames its own
+ *                      box (at its own `scale` when it has one) and freezes the other views' layers.
  * \return [{id, name, kind, ...}] one per sheet, plan sheets first
  */
 CsLayoutGen.plan = function(o) {
@@ -83,21 +88,24 @@ CsLayoutGen.plan = function(o) {
             reading: o.reading });
     }
 
-    function job(id, kind, box, map, tile, titleHere, fur) {
+    function job(id, kind, box, map, tile, titleHere, fur, scaleHere) {
         return {
             id: id, name: id, kind: kind, turned: turned,
             paperInches: { w: W, h: H }, marginInches: margin,
             box: box, map: map, tile: tile, titleHere: titleHere,
             wants: { border: wants.border === true, bar: wants.bar === true,
-                north: wants.north === true && kind !== "elevation",
+                north: wants.north === true && kind === "plan",
                 title: titleHere },
-            fur: fur, titleLines: titleLines, scale: o.scale,
+            fur: fur, titleLines: titleLines, scale: isNull(scaleHere) ? o.scale : scaleHere,
             perFoot: o.perFoot, sheetName: o.sheet.name, reading: o.reading
         };
     }
 
     var i;
-    if (!isNull(o.tiles) && !isNull(o.tiles.tiles) && o.tiles.tiles.length > 0 && o.tiles.tooMany !== true) {
+    if (o.skipPlan === true) {
+        // only the views asked for (Sheets from Views): no default plan sheet
+    }
+    else if (!isNull(o.tiles) && !isNull(o.tiles.tiles) && o.tiles.tiles.length > 0 && o.tiles.tooMany !== true) {
         // a grid of one is one sheet: no "SHEET A1" label, no match lines
         var several = o.tiles.tiled === true;
         for (i = 0; i < o.tiles.tiles.length; i++) {
@@ -116,12 +124,23 @@ CsLayoutGen.plan = function(o) {
         jobs.push(job("Plan", "plan", box, CsLayoutGen.mapOfBox(box), null, titleOne, fur));
     }
 
-    if (o.elevation === true && !isNull(o.elevBox)) {
+    if (o.elevation === true && !isNull(o.elevBox) && o.skipPlan !== true) {
         var furE = furnitureFor(wants.title === true, true);
         var boxE = CsSheetSetup.borderBox(o.elevBox, o.sheet, o.scale * o.perFoot, turned,
             furE.footer, { x: 0, y: 0 });
         jobs.push(job("Elevation", "elevation", boxE, CsLayoutGen.mapOfBox(boxE), null,
             wants.title === true, furE));
+    }
+    // one sheet per chosen VIEW (the cave's box, each profile, each cross section)
+    var views = isNull(o.views) ? [] : o.views;
+    for (i = 0; i < views.length; i++) {
+        var v = views[i];
+        var vKind = v.kind === "profile" ? "elevation" : (v.kind === "section" ? "section" : "plan");
+        var vScale = isNull(v.scale) ? o.scale : v.scale;
+        var furV = furnitureFor(wants.title === true, vKind !== "plan");
+        var boxV = CsSheetSetup.borderBox(v.box, o.sheet, vScale * o.perFoot, turned,
+            furV.footer, { x: 0, y: 0 });
+        jobs.push(job(v.name, vKind, boxV, CsLayoutGen.mapOfBox(boxV), null, wants.title === true, furV, vScale));
     }
     return jobs;
 };
@@ -277,7 +296,7 @@ CsLayoutGen.drawTitle = function(env, titleX, y, lines, values, kind) {
         y -= lines[n].inches * CsSheetSetup.LINE_SPACING;
     }
     env.text(titleX, y, CsSheetSetup.TEXT.heading,
-        kind === "elevation" ? "EXTENDED ELEVATION" : "PLAN", CsLayers.TITLE_BLOCK);
+        kind === "elevation" ? "EXTENDED ELEVATION" : (kind === "section" ? "CROSS SECTION" : "PLAN"), CsLayers.TITLE_BLOCK);
     return y;
 };
 

@@ -278,6 +278,8 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsLayoutPlot.js",
     "scripts/CaveSurvey/Core/CsLayoutCheck.js",
     "scripts/CaveSurvey/Core/CsLayoutGen.js",
+    // The views a sheet can be made of (pure half: build / pick / safeName).
+    "scripts/CaveSurvey/Core/CsViews.js",
     // Pure: exaggeration, colour bands, arrow geometry and the caption
     // that has to state the exaggeration.
     "scripts/CaveSurvey/Core/CsClosure.js",
@@ -28279,6 +28281,33 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
         "CsNorth.layout: 30 degrees east leans the needle east");
     ok(nm.captions[0].text.indexOf("DECLINATION 30.0") > 0, "CsNorth.layout: the caption states the declination applied");
     ok(CsNorth.blockName("abc") === "NORTH-ARROW-abc", "CsNorth.blockName: one block per viewport link");
+    // CsViews: the list a sheet can be made of
+    var vlist = CsViews.build({
+        caveBox: { minX: 0, minY: 0, maxX: 400, maxY: 200 },
+        profileBoxes: [{ key: "A", minX: 0, minY: -500, maxX: 400, maxY: -300 }, { key: "B", minX: 0, minY: -900, maxX: 300, maxY: -600 },
+            { key: "Bad", minX: 5, minY: 5, maxX: 5, maxY: 5 }],
+        sections: [{ id: "SX1", label: "", minX: 10, minY: 10, maxX: 20, maxY: 18 }] });
+    ok(vlist.length === 4, "CsViews: the cave, two profiles and a cross section (a box with no size is left out)");
+    ok(vlist[0].id === "cave" && vlist[0].kind === "plan", "CsViews: the cave's bounding box comes first");
+    ok(vlist[1].id === "profile:A" && vlist[1].kind === "profile" && vlist[2].id === "profile:B", "CsViews: then each profile");
+    ok(vlist[3].id === "section:SX1" && vlist[3].kind === "section" && vlist[3].frame === "section", "CsViews: then each cross section");
+    ok(CsViews.safeName("Profile A/B: \"x\"") === "Profile A B x", "CsViews.safeName: a layout name is plain");
+    var clash = CsViews.build({ caveBox: null, profileBoxes: [{ key: "A", minX: 0, minY: 0, maxX: 1, maxY: 1 }, { key: "A", minX: 0, minY: 0, maxX: 2, maxY: 2 }], sections: [] });
+    ok(clash.length === 2 && clash[0].name !== clash[1].name, "CsViews: two views never share a sheet name");
+    ok(CsViews.pick(vlist, ["profile:B", "cave"]).map(function(v) { return v.id; }).join(",") === "cave,profile:B", "CsViews.pick: chosen views, in list order");
+    // the generator plans a sheet per chosen view, at its own scale, with the right kind
+    var vSheet = CsSheetSetup.sheetByName("ANSI A -- 11 x 8.5");
+    var vJobs = CsLayoutGen.plan({ caveBox: { minX: 0, minY: 0, maxX: 400, maxY: 200 }, elevBox: null, sheet: vSheet, turned: false,
+        scale: 40, perFoot: 1, wants: { border: true, bar: true, north: true, title: true }, titleValues: {}, reading: null,
+        tiles: null, elevation: false, shiftInches: { x: 0, y: 0 },
+        views: [{ name: "Profile A", kind: "profile", box: vlist[1].box, scale: 50 }, { name: "Cross section SX1", kind: "section", box: vlist[3].box, scale: 2 }] });
+    ok(vJobs.length === 3 && vJobs[0].kind === "plan", "CsLayoutGen.plan: the plan sheet, then one sheet per chosen view");
+    ok(vJobs[1].kind === "elevation" && vJobs[1].name === "Profile A" && vJobs[1].scale === 50, "CsLayoutGen.plan: a profile view is an elevation sheet at its own scale");
+    ok(vJobs[2].kind === "section" && vJobs[2].scale === 2, "CsLayoutGen.plan: a cross section view is a section sheet at its own scale");
+    ok(vJobs[0].wants.north === true && vJobs[1].wants.north === false && vJobs[2].wants.north === false,
+        "CsLayoutGen.plan: only the plan sheet gets a north arrow");
+    ok(CsLayoutGen.OTHER_FRAMES.section.join() === "plan,profile", "CsLayoutGen: a section sheet freezes the plan and profile layers");
+
     // TEXT NEVER ROTATES: turn the reference itself by 90 degrees and the drawing counter-turns, so what SHOWS is unchanged
     var nc = CsNorth.layout(0.3, 12, nSpec, Math.PI / 2), nw = CsNorth.layout(0.3, 12, nSpec, 0);
     var showsAs = function(p) { return { x: p.x * Math.cos(Math.PI / 2) - p.y * Math.sin(Math.PI / 2), y: p.x * Math.sin(Math.PI / 2) + p.y * Math.cos(Math.PI / 2) }; };

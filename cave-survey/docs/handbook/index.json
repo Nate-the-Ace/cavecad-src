@@ -887,6 +887,17 @@
    "shots": []
   },
   {
+   "id": "layout-views",
+   "title": "Sheets from Views",
+   "class": "tool",
+   "file": "layout-views.html",
+   "stage": 454,
+   "tools": [
+    "LayoutViews"
+   ],
+   "shots": []
+  },
+  {
    "id": "layout-match-viewport",
    "title": "Match Viewport",
    "class": "tool",

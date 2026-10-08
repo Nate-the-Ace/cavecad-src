@@ -88,6 +88,7 @@ Stats, the profile, the legend and callouts that dress the finished map.
 | Plot Layout | `plot` | Plot this layout, or all of them, to a PDF in the cave's PDF folder -- first finding any viewport that would print an aerial photograph or a scan and offering to leave images out. |
 | Zoom Viewport To Cave | `zvp` | Re-frame the selected viewport on its whole subject -- the cave, the elevation or the legend -- at a standard scale that fits its box. |
 | Match Viewport | `mvp` | Copy one viewport's scale and rotation to others: click the one to copy, then each one to change. |
+| Sheets from Views | `lyv` | Make a sheet of any view: the whole cave, each profile, each cross section. |
 | Check Sheet | `chs` | Check the layout before it goes out: images that would print (an aerial photograph shows where the cave is), viewports that show nothing, a legend sitting in the map, a missing north arrow, scale bar or title block, text too small to read. Reads only. |
 | Add Detail | `dtl` | Add a magnified circular view of part of the map: click the centre of the area on a map viewport, then its edge, then where the detail goes. The map gets a lettered circle and a leader; the detail is a locked circular viewport at the map's rotation, hiding the same layers. |
 | Add Sheet Index | `sidx` | Put a sheet index on the layout: every layout with its paper and scale. Adding it again replaces the earlier one. |

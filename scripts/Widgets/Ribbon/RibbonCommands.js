@@ -478,7 +478,10 @@ RibbonCommands.register = function() {
         L("LayoutBorder", qsTr("Border")), L("LayoutTitleBlock", qsTr("Title\nblock")),
         L("LayoutNorthArrow", qsTr("North\narrow")), L("LayoutScaleBar", qsTr("Scale\nbar")),
         L("LayoutLegend", qsTr("Legend")), L("LayoutGrid", qsTr("Grid")), L("LayoutIndex", qsTr("Index")),
-        L("LayoutCheck", qsTr("Check\nsheet")), L("LayoutPlot", qsTr("Plot")) ] });
+        L("LayoutCheck", qsTr("Check\nsheet")), L("LayoutPlot", qsTr("Plot")),
+        // not tied to the sheet showing: it MAKES sheets from the views in the drawing (whole cave, profiles, cross sections)
+        C(cs("LayoutViews"), { text: qsTr("Sheets from\nviews") }) ] });
+    csUsed["LayoutViews"] = true;
     // fitting a viewport to the cave map follows the selected viewport
     var onViewport = function(ctx) { return !isNull(ctx.viewport); };
     var V = function(name, text) { csUsed[name] = true; return C(cs(name), { text: text, enabled: onViewport }); };
