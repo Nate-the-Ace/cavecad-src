@@ -94,7 +94,7 @@ XrefAttach.prototype.beginEvent = function() {
 
 XrefAttach.prototype.pickAndAsk = function() {
     var doc = this.getDocument();
-    if (isNull(doc) || CsModelSpace.blocksWhole(doc, qsTr("Attach Drawing"))) {
+    if (isNull(doc) || CsModelSpace.blocks(doc, qsTr("Attach Drawing"))) {
         this.terminate();
         return;
     }
