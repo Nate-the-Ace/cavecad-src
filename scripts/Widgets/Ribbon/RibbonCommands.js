@@ -326,8 +326,7 @@ RibbonCommands.register = function() {
         K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }), cs_("Cave3D", { text: qsTr("3D view") }) ]) ] });
     // ---------------------------------------------------- Selection tabs
     // These follow what is selected (ctx.selection). They DUPLICATE the Cave Survey tab's verbs
-    // (that tab stays the full index) and are not accented, so they show without taking focus
-    // away from the tab you are working in.
+    // (that tab stays the full index) and take focus when they appear.
     Ribbon.registerSelectionTab({ id: "sel-shaped", title: qsTr("Shaped Line"), kind: "shaped" });
     Ribbon.registerPanel("sel-shaped", { id: "ss-edit", title: qsTr("Shaped line"), order: 10, items: [
         C("CaveSurvey/ShapedLines/ShapedFlip.js", { text: qsTr("Flip\nside") }),

@@ -72,8 +72,8 @@ Ribbon.registerTab = function(def) {
  *        Ribbon.registerSelectionTab({ id: "sel-symbol", title: qsTr("Symbol"), kind: "symbol" });
  *        Ribbon.registerPanel("sel-symbol", { id: "sy-use", title: qsTr("Symbol"), items: [ ... ] });
  *
- * The tab shows while at least one selected entity is of its kind. It is NOT accented, so it appears
- * without taking focus from the tab you are on (add `accent: true` to make it take focus).
+ * The tab shows while at least one selected entity is of its kind, and takes focus when it appears
+ * (pass `follow: false` to have it show without taking focus).
  * Buttons can check ctx.selection: { count, kinds: {kind: n}, ids: {kind: [ids]}, kind: the only
  * kind, or "mixed", truncated, + whatever tests stashed }, undefined when nothing is selected.
  * The host classifies once per selection or transaction signal (it queries each entity), never
@@ -98,6 +98,7 @@ Ribbon.selects = function(ctx, kind) {
 /** A tab that shows while something of `def.kind` is selected. */
 Ribbon.registerSelectionTab = function(def) {
     var kind = def.kind;
+    if (def.follow !== false) { def.follow = true; }   // takes focus when it appears; pass follow: false to only show
     def.when = function(ctx) { return Ribbon.selects(ctx, kind); };
     Ribbon.registerTab(def);
 };
