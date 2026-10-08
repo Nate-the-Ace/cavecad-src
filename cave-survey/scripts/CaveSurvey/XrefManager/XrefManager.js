@@ -124,7 +124,19 @@ XrefManager.show = function(doc, di) {
     var dlg = new QDialog(RMainWindowQt.getMainWindow());
     dlg.windowTitle = qsTr("External References");
     var v = new QVBoxLayout();
-    var list = new QListWidget();
+    // a table, not a list: QListWidget.clear is not callable in this build, the table calls below are proven (LinetypeMaker)
+    var list = new QTableWidget(0, 5);
+    list.setHorizontalHeaderLabels([qsTr("Drawing"), qsTr("Attached"), qsTr("Path"), qsTr("State"), qsTr("File")]);
+    try {
+        list.setSelectionBehavior(QAbstractItemView.SelectRows);
+        list.setSelectionMode(QAbstractItemView.SingleSelection);
+    } catch (eSel) {
+    }
+    try {
+        list.setColumnWidth(0, 160); list.setColumnWidth(1, 80); list.setColumnWidth(2, 80); list.setColumnWidth(3, 230); list.setColumnWidth(4, 360);
+        dlg.resize(980, 380);
+    } catch (eSize) {
+    }
     v.addWidget(list, 0, 0);
     var note = new QLabel("");
     v.addWidget(note, 0, 0);
@@ -140,17 +152,25 @@ XrefManager.show = function(doc, di) {
     dlg.setLayout(v);
     var items = [];
     var refresh = function() {
-        list.clear();
         items = CsXref.listIn(doc);
+        list.setRowCount(0);
+        list.setRowCount(items.length);
         for (var i = 0; i < items.length; i++) {
             var it = items[i];
-            list.addItem(CsXref.stem(it.stored) + "   [" + it.style + ", " + it.pathStyle + "]   " + (XrefManager.STATUS[it.status] || it.status) + "   " + it.stored);
+            var cells = [CsXref.stem(it.stored), it.style, it.pathStyle, XrefManager.STATUS[it.status] || it.status, it.stored];
+            for (var c = 0; c < cells.length; c++) {
+                var cell = new QTableWidgetItem(String(cells[c]));
+                try { cell.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled); } catch (eFlags) { }
+                list.setItem(i, c, cell);
+            }
         }
-        if (items.length > 0) { list.setCurrentRow(0); }
+        if (items.length > 0) {
+            try { list.setCurrentCell(0, 0); } catch (eCur) { }
+        }
         note.text = items.length === 0 ? qsTr("No drawings attached yet. Click Attach drawing... to bring one in.") : "";
     };
     var current = function() {
-        var r = list.currentRow;
+        var r = list.currentRow();
         return (r >= 0 && r < items.length) ? items[r] : null;
     };
     var act = function(fn) {

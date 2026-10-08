@@ -16,6 +16,10 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.13 -- fix: External References window opened with an error
+- Mac test: "Property 'clear' of object QListWidget is not a function". The window now uses a table (`QTableWidget`, the calls LinetypeMaker already proves in this bridge): columns Drawing / Attached / Path / State / File; `currentRow()` is a method there.
+- Note for local sessions: `QListWidget.clear()` is not callable in this engine build; `LayoutViews.ask` also uses a `QListWidget` (add + `item(r).checkState()` only) and is still untested.
+
 ### 0.9.215.12 -- Attach Drawing and External References are ONE window
 - User found two commands confusing. Now only External References exists: its window has an **Attach drawing...** button (file picker, Overlay/Attach, Absolute/Relative; placed at the origin -- the click-to-place option was dropped) above the list. Typed words `attachdrawing`/`xref`/`xr` open the same window.
 - Removed the `XrefAttach` action (script, icons, handbook page, registry entries); `XrefListener.js` moved to `XrefManager/`. Ribbon: one button "External references".
