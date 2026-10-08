@@ -58,6 +58,11 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Viewport tab: scale bar, north arrow, grid (done)
+The Viewport tab (shown when a viewport is selected) now has an **Add to viewport** group: Scale bar, North arrow and Grid are
+added straight to the selected viewport (no clicking a place), and the arrow beside each button removes it. The scale itself
+and the lock were already there.
+
 ### Grid button picks a viewport (done) and the grid must become dynamic (still to do)
 The Grid button now asks you to click the viewport (click each one you want a grid on, Esc when done); it no longer needs a
 viewport selected first. The grid itself is still drawn once and not kept up to date: see "Layout items as blocks".

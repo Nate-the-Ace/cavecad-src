@@ -684,6 +684,107 @@ CsLayoutFurniture.refreshIndex = function(doc, di, info, quiet) {
     return 1;
 };
 
+// ---------------------------------------------------------------------
+// FOR A VIEWPORT: the Viewport tab adds a scale bar, a north arrow and a grid to the viewport that is selected
+// (no clicking a place), and takes them away again. Each is tied to the viewport by its GUID.
+// ---------------------------------------------------------------------
+
+/** Asks how a grid is labelled. \return true (true map coordinates), false (distance from the cave's corner), undefined when cancelled. */
+CsLayoutFurniture.askGridLabels = function() {
+    var appWin = RMainWindowQt.getMainWindow();
+    var safe = qsTr("Distance from the cave's south-west corner (recommended)");
+    var real = qsTr("True map coordinates");
+    var pick = QInputDialog.getItem(appWin, qsTr("Add Grid"), qsTr("Label the grid with:"), [safe, real], 0, false);
+    if (isNull(pick) || pick === "") {
+        return undefined;
+    }
+    if (pick !== real) {
+        return false;
+    }
+    var sure = QMessageBox.question(appWin, qsTr("Add Grid"),
+        qsTr("True coordinates on a map show exactly where the cave is. Anyone who gets the plot gets the location. Print them anyway?"),
+        QMessageBox.Yes | QMessageBox.No);
+    return sure === QMessageBox.Yes ? true : undefined;
+};
+
+/** Is a north arrow linked to this viewport? */
+CsLayoutFurniture.hasNorth = function(doc, info, vp) {
+    var guid = CsScaleBar.guidOf(vp);
+    if (guid === "") {
+        return false;
+    }
+    var arrows = CsNorth.arrows(doc, info.blockId);
+    for (var i = 0; i < arrows.length; i++) {
+        if (arrows[i].guid === guid) { return true; }
+    }
+    return false;
+};
+
+/** Is a grid linked to this viewport? */
+CsLayoutFurniture.hasGrid = function(doc, info, vp) {
+    var guid = CsScaleBar.guidOf(vp);
+    if (guid === "") {
+        return false;
+    }
+    var ids = doc.queryBlockEntities(info.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (!isNull(e) && !e.isUndone() && CsTags.get(e, "GridOf") === guid) { return true; }
+    }
+    return false;
+};
+
+/** A north arrow for the viewport, near its upper right corner (move it afterwards: it is one block). \return true when added */
+CsLayoutFurniture.addNorthFor = function(doc, di, info, vp) {
+    if (CsLayoutFurniture.hasNorth(doc, info, vp)) {
+        return false;
+    }
+    var inch = Layouts.toPaper(doc, 25.4), c = vp.getCenter();
+    var x = c.x + vp.getWidth() / 2 - 0.9 * inch;
+    var y = c.y + vp.getHeight() / 2 - 2.3 * inch;
+    var lowest = c.y - vp.getHeight() / 2 + 0.6 * inch;       // a small viewport: keep the arrow inside it
+    return CsLayoutFurniture.addNorth(doc, di, info, x, Math.max(y, lowest), vp);
+};
+
+/**
+ * Takes away what was added to this viewport: what = "bar" (the scale bar), "north" (the north arrow) or "grid".
+ * One undo step. \return how many objects were removed
+ */
+CsLayoutFurniture.removeFor = function(doc, di, info, vp, what) {
+    var guid = CsScaleBar.guidOf(vp);
+    if (guid === "") {
+        return 0;
+    }
+    var victims = [];
+    if (what === "bar") {
+        victims = CsScaleBar.pieces(doc, info.blockId, guid);
+    }
+    else if (what === "north") {
+        var arrows = CsNorth.arrows(doc, info.blockId);
+        for (var a = 0; a < arrows.length; a++) {
+            if (arrows[a].guid === guid) { victims = victims.concat(arrows[a].pieces); }
+        }
+    }
+    else if (what === "grid") {
+        var ids = doc.queryBlockEntities(info.blockId);
+        for (var i = 0; i < ids.length; i++) {
+            var e = doc.queryEntity(ids[i]);
+            if (!isNull(e) && !e.isUndone() && CsTags.get(e, "GridOf") === guid) { victims.push(e); }
+        }
+    }
+    if (victims.length === 0) {
+        return 0;
+    }
+    var op = new RDeleteObjectsOperation();
+    op.setText(what === "bar" ? qsTr("Remove scale bar") : (what === "north" ? qsTr("Remove north arrow") : qsTr("Remove grid")));
+    for (var v = 0; v < victims.length; v++) {
+        op.deleteObject(victims[v]);
+    }
+    di.applyOperation(op);
+    CsSheetBlock.purge(doc, di, what === "bar" ? CsScaleBar.BLOCK_PREFIX : CsNorth.BLOCK_PREFIX);
+    return victims.length;
+};
+
 CsLayoutFurniture.GRID_STEPS = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
 
 /** The first step (in the drawing's own units) at which grid lines are at least `minIn` inches apart on paper. */

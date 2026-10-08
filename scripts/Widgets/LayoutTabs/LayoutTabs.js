@@ -1563,6 +1563,39 @@ LayoutTabs.setFrozen = function(entry, vp, layerIds) {
 };
 
 
+/**
+ * Adds (add true) or removes a scale bar ("bar"), north arrow ("north") or grid ("grid") for the selected viewport.
+ * The work is the cave suite's (CsLayoutFurniture); this only picks the viewport and says what happened.
+ */
+LayoutTabs.furnish = function(entry, what, add) {
+    var vp = LayoutTabs.controlViewport(entry);
+    var doc = entry.di.getDocument(), di = entry.di;
+    var info = Layouts.current(doc);
+    if (isNull(vp) || isNull(info) || typeof CsLayoutFurniture === "undefined") {
+        return;
+    }
+    var nouns = { bar: qsTr("scale bar"), north: qsTr("north arrow"), grid: qsTr("grid") };
+    if (add) {
+        var fresh = doc.queryEntity(vp.getId());
+        if (what === "bar") {
+            if (CsScaleBar.hasBar(doc, fresh)) { EAction.handleUserMessage(qsTr("This viewport already has a scale bar.")); return; }
+            CsScaleBar.addFor(doc, di, fresh);
+        }
+        else if (what === "north") {
+            if (!CsLayoutFurniture.addNorthFor(doc, di, info, fresh)) { EAction.handleUserMessage(qsTr("This viewport already has a north arrow.")); return; }
+        }
+        else {
+            var absolute = CsLayoutFurniture.askGridLabels();
+            if (absolute === undefined) { return; }
+            CsLayoutFurniture.addGrid(doc, di, info, fresh, { absolute: absolute });
+        }
+    }
+    else if (CsLayoutFurniture.removeFor(doc, di, info, vp, what) === 0) {
+        EAction.handleUserMessage(qsTr("This viewport has no %1.").arg(nouns[what]));
+    }
+    LayoutTabs.refreshControls(entry);
+};
+
 /** Adds a linked scale bar to the selected viewport. */
 LayoutTabs.addScaleBar = function(entry) {
     var vp = LayoutTabs.controlViewport(entry);
@@ -1963,15 +1996,24 @@ LayoutTabs.registerRibbon = function() {
           onClick: function(entry) { LayoutTabs.glyphClicked(entry); } },
         { type: "button", id: "layers", text: qsTr("Layers"), icon: "layers", size: "large",
           tooltip: qsTr("Choose which layers this viewport hides"),
-          onClick: function(entry) { LayoutTabs.viewportLayers(entry); } },
+          onClick: function(entry) { LayoutTabs.viewportLayers(entry); } } ] });
+    // what a map sheet carries for THIS viewport: added straight to the selected viewport, taken away again from the arrow
+    Ribbon.registerPanel("viewport", { id: "vpfurniture", title: qsTr("Add to viewport"), order: 25, items: [
         { type: "button", id: "scalebar", text: qsTr("Scale\nbar"), icon: "scale", size: "large",
-          // offered only where the cave suite is loaded and the viewport has no bar yet
-          available: function(ctx, entry) {
-              return typeof Layouts.addScaleBarFor === "function" && !isNull(ctx.viewport) &&
-                  !Layouts.hasScaleBarOf(entry.di.getDocument(), ctx.viewport);
-          },
-          tooltip: qsTr("Add a scale bar that follows this viewport's scale"),
-          onClick: function(entry) { LayoutTabs.addScaleBar(entry); } } ] });
+          available: function(ctx, entry) { return typeof CsLayoutFurniture !== "undefined" && !isNull(ctx.viewport); },
+          tooltip: qsTr("A scale bar that follows this viewport's scale. Use the arrow to remove it."),
+          onClick: function(entry) { LayoutTabs.furnish(entry, "bar", true); },
+          menu: [ { text: qsTr("Remove the scale bar"), onClick: function(entry) { LayoutTabs.furnish(entry, "bar", false); } } ] },
+        { type: "button", id: "northarrow", text: qsTr("North\narrow"), icon: "rotate", size: "large",
+          available: function(ctx, entry) { return typeof CsLayoutFurniture !== "undefined" && !isNull(ctx.viewport); },
+          tooltip: qsTr("A north arrow that turns with this viewport. Use the arrow to remove it."),
+          onClick: function(entry) { LayoutTabs.furnish(entry, "north", true); },
+          menu: [ { text: qsTr("Remove the north arrow"), onClick: function(entry) { LayoutTabs.furnish(entry, "north", false); } } ] },
+        { type: "button", id: "viewgrid", text: qsTr("Grid"), icon: "square", size: "large",
+          available: function(ctx, entry) { return typeof CsLayoutFurniture !== "undefined" && !isNull(ctx.viewport); },
+          tooltip: qsTr("Tick marks and distance labels round this viewport. Use the arrow to remove it."),
+          onClick: function(entry) { LayoutTabs.furnish(entry, "grid", true); },
+          menu: [ { text: qsTr("Remove the grid"), onClick: function(entry) { LayoutTabs.furnish(entry, "grid", false); } } ] } ] });
     Ribbon.registerPanel("viewport", { id: "vpshape", title: qsTr("Shape"), order: 30, items: [
         { type: "button", id: "trim", text: qsTr("Trim"), icon: "trim", size: "large",
           tooltip: qsTr("Cut a polygon or a circle out of the selected viewport"),

@@ -194,5 +194,16 @@ for (var gk = 0; gk < l4.length; gk++) { var ge3 = doc.queryEntity(l4[gk]); if (
 check(labels2.some(function(t) { return t.length >= 6; }), "true coordinates are available when asked for: " + labels2.slice(0, 3));
 var shaped = Layouts.viewports(doc, Layouts.get(doc, "S1")).filter(function(v) { return Layouts.hasClip(v); })[0];
 check(isNull(shaped) || CsLayoutFurniture.addGrid(doc, di, Layouts.get(doc, "S1"), shaped, {}) === -1, "a shaped viewport takes no grid");
+// ---- what the Viewport tab adds to a selected viewport, and takes away again
+var s1 = Layouts.get(doc, "S1"), vv = doc.queryEntity(gparent.getId());
+check(CsLayoutFurniture.hasGrid(doc, s1, vv), "the viewport has the grid just added");
+check(CsLayoutFurniture.removeFor(doc, di, s1, vv, "grid") > 0 && !CsLayoutFurniture.hasGrid(doc, s1, vv), "Remove the grid takes all of it away");
+check(CsLayoutFurniture.removeFor(doc, di, s1, vv, "grid") === 0, "and removing it twice does nothing");
+check(!CsLayoutFurniture.hasNorth(doc, s1, vv) || CsLayoutFurniture.removeFor(doc, di, s1, vv, "north") > 0, "start without a north arrow");
+check(CsLayoutFurniture.addNorthFor(doc, di, s1, doc.queryEntity(gparent.getId())) === true && CsLayoutFurniture.hasNorth(doc, s1, doc.queryEntity(gparent.getId())), "a north arrow is added to the viewport");
+check(CsLayoutFurniture.addNorthFor(doc, di, s1, doc.queryEntity(gparent.getId())) === false, "and a second is refused");
+check(CsLayoutFurniture.removeFor(doc, di, s1, doc.queryEntity(gparent.getId()), "north") > 0 && !CsLayoutFurniture.hasNorth(doc, s1, doc.queryEntity(gparent.getId())), "Remove the north arrow");
+check(CsScaleBar.addFor(doc, di, doc.queryEntity(gparent.getId())) !== undefined, "a scale bar is added");
+check(CsLayoutFurniture.removeFor(doc, di, s1, doc.queryEntity(gparent.getId()), "bar") > 0 && !CsScaleBar.hasBar(doc, doc.queryEntity(gparent.getId())), "Remove the scale bar");
 if (fails === 0) print("### LAYOUT EXTRAS OK");
 QCoreApplication.exit(fails === 0 ? 0 : 1);

@@ -22,24 +22,6 @@ LayoutGrid.prototype.beginEvent = function() {
     CsLayoutFurniture.beginPlacing(this, qsTr("Add Grid"), qsTr("Click the viewport to put the grid on (Esc when done)"));
 };
 
-/** Asks how the grid is labelled. \return true (true map coordinates), false (distance from the cave's corner), or undefined when cancelled. */
-LayoutGrid.askLabels = function() {
-    var appWin = RMainWindowQt.getMainWindow();
-    var safe = qsTr("Distance from the cave's south-west corner (recommended)");
-    var real = qsTr("True map coordinates");
-    var pick = QInputDialog.getItem(appWin, qsTr("Add Grid"), qsTr("Label the grid with:"), [safe, real], 0, false);
-    if (isNull(pick) || pick === "") {
-        return undefined;
-    }
-    if (pick !== real) {
-        return false;
-    }
-    var sure = QMessageBox.question(appWin, qsTr("Add Grid"),
-        qsTr("True coordinates on a map show exactly where the cave is. Anyone who gets the plot gets the location. Print them anyway?"),
-        QMessageBox.Yes | QMessageBox.No);
-    return sure === QMessageBox.Yes ? true : undefined;
-};
-
 LayoutGrid.prototype.coordinateEvent = function(event) {
     var doc = this.getDocument();
     var di = this.getDocumentInterface();
@@ -55,7 +37,7 @@ LayoutGrid.prototype.coordinateEvent = function(event) {
         return;
     }
     if (this.absolute === undefined) {
-        this.absolute = LayoutGrid.askLabels();
+        this.absolute = CsLayoutFurniture.askGridLabels();
         if (this.absolute === undefined) {
             this.terminate();
             return;
