@@ -17,6 +17,9 @@
  *         { type: "button", action: "LayoutNorthArrow.js", size: "large" },   // an existing menu action
  *         { type: "widget", id: "scale", make: function(entry, parent) { return aWidget; } } ] });
  *
+ * A tab with `follow: true` takes focus when it appears (like an accented one, but without the dot); when it goes
+ * away the ribbon returns to the tab the person last picked.
+ *
  * `ctx` is whatever the host's context function returns for the window
  * (Ribbon.contextOf); the host calls Ribbon.refresh(entry) when it changes.
  *
@@ -1406,7 +1409,7 @@ Ribbon.refresh = function(entry) {
     var appeared = [];
     for (var a = 0; a < visibleIds.length; a++) {
         var d2 = Ribbon.tabById(visibleIds[a]);
-        if (d2.accent === true && (isNull(rb.lastVisible) || rb.lastVisible.indexOf(visibleIds[a]) < 0)) {
+        if ((d2.accent === true || d2.follow === true) && (isNull(rb.lastVisible) || rb.lastVisible.indexOf(visibleIds[a]) < 0)) {
             appeared.push(visibleIds[a]);
         }
     }

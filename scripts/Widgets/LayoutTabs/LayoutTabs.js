@@ -1888,7 +1888,7 @@ LayoutTabs.registerRibbon = function() {
     // the everyday tabs (Home, Insert, ...) come first; the contextual ones follow
     RibbonCommands.register();
     // the layout tab is there while a layout is showing
-    Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), unlimited: true, when: function(ctx) { return ctx.mode === "layout"; } });
+    Ribbon.registerTab({ id: "layout", title: qsTr("Layout"), unlimited: true, follow: true, when: function(ctx) { return ctx.mode === "layout"; } });
     // the paper of the layout that is showing: always in the Layout tab, editable in place
     Ribbon.registerPanel("layout", { id: "sheetsettings", title: qsTr("Sheet settings"), order: 15, items: [
         { type: "widget", id: "sheetPaper", make: function(entry, parent) { return LayoutTabs.makeSheetPaper(entry, parent); } },
