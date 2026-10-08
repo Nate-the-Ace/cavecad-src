@@ -19,20 +19,33 @@ jobs:
     uses: ./.github/workflows/macos.yml
     secrets: inherit
 
-  assemble:
-    needs: app
-    runs-on: macos-15
+  # staged on Linux, the same as assemble.yml does (its structural checks need GNU tools)
+  addon:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: cavecad-macos-arm64
-          path: app
       - uses: actions/checkout@v7
       - name: Stage the Cave Survey tools
         run: |
           cd cave-survey
           tools/make_package.sh --stage-only --version "$(cat VERSION)"
           mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon
+          path: addon/
+
+  assemble:
+    needs: [app, addon]
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: cavecad-macos-arm64
+          path: app
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
       - name: Assemble
         run: |
           hdiutil attach -quiet -nobrowse -readonly -mountpoint base app/CaveCAD.dmg
