@@ -1,0 +1,54 @@
+<h1>3D View</h1>
+<p>Look at the surveyed passage in three dimensions. <code>c3</code></p>
+<h2>When you reach for it</h2>
+<p>When the flat views are lying to you by omission. The plan looks down, the extended elevation looks sideways, a cross section looks along — each throws away the axis it is not about, and a passage that climbs while it turns is exactly where that fails.</p>
+<h2>Steps</h2>
+<ol>
+<li><b>Cave Survey &gt; 3D View</b>. It is a docked panel, beside the drawing, because you are comparing the two.</li>
+<li><b>Drag</b> to turn the cave like a trackball: whatever you grab follows the pointer, at any angle, straight down included. <b>Shift-drag</b> or middle-drag pans, the wheel zooms. Or take <b>View</b> for <b>All</b>, <b>Plan</b> and <b>Profile</b> &mdash; the two views a cartographer checks the map against, which hand-orbiting cannot hit precisely.</li>
+<li><b>The ViewCube</b> in the top-right corner turns with the camera. Its faces are TOP, BOTTOM and the four compass points, since a cave has no front. Click a face, edge or corner to look from that side; drag the cube to turn the cave. Looking straight at a face, arrows appear: the triangles turn 90&deg; to the neighbouring face, the curved ones roll the picture 90&deg;. The house opens a menu: <b>Go Home</b>, <b>Orthographic</b> / <b>Perspective</b>, <b>Set current view as Home</b> and <b>Reset Home</b>. Home is remembered between sessions.</li>
+<li>Colour by any of eight things from the dropdown: trip, depth, distance in along the passage, passage size, survey date, closure shift, splay coverage, depth of cover. The floating legend says what the colours mean.</li>
+<li><b>Hover over the passage</b> and the cross section nearest the cursor lights up in amber &mdash; roughly what the passage is doing at that spot, which the outside of a tube cannot show. It follows the cursor and is gone when you leave the view.</li>
+<li><b>Click a station name</b>, or the passage near a station, for a card of its numbers: its trip and date, its elevation (and its real-world elevation when the drawing has a datum anchor), the depth of cover over it and the surface elevation that came from, how far in it is, the passage around it, and how far closure moved it. The card stays beside the station as you turn the cave. Click it, click empty space, or press Esc to put it away.</li>
+<li><b>Show</b> lists everything the view can draw, with a tick beside each: the passage itself, the centerline, a grey ghost of the survey as recorded before closure moved anything, a mark on every lead, captured cross sections stood beside the passage, scanned sketches laid onto it, the terrain and its contours, and the station names.</li>
+<li>The play button and scrub slider build the cave one shot at a time, in the order it was surveyed.</li>
+<li><b>Export</b> records whatever Fly or Spin is doing. The recording is named for the cave, the colouring on screen, the camera and the time &mdash; <i>Truitt Cave - Depth of cover - fly 20260925-1204</i> &mdash; so a folder of them says which view each one is.</li>
+<li><b>Terrain</b> puts the ground above the cave, with the aerial photograph draped over it. <b>Contours</b> shows the drawing's own surface contours on that ground &mdash; the same lines at the same interval the plan has &mdash; and the <b>Surface</b> slider sets how solid the hillside is — slide it down to see the passage through the hill, up to read the ground. Both need <a href="surface-data.html">Surface Data</a> to have been run on this drawing; they are greyed out otherwise.</li>
+</ol>
+<h2>Perspective or orthographic</h2>
+<p><b>View</b> holds the two projections. <b>Perspective</b> is what the passage looks like from inside it: near passage is drawn larger, which is how you tell a big chamber from a small one you happen to be close to. It is also the only one that means anything while flying down the centerline, so Fly uses it whatever this is set to.</p>
+<p><b>Orthographic</b> throws the convergence away and draws at one scale everywhere, so two passages of the same width come out the same width. That is the one you can <i>compare against the map</i>: orthographic plus <b>Plan</b> gives the same shape the plan has.</p>
+<p>Switching does not change how big the cave appears &mdash; the framing is matched where you are looking, so what changes is the convergence, not the zoom.</p>
+
+<h2>Where you drew a cross section, the tube is your outline</h2>
+<p>Four LRUD numbers make a four-sided prism, and no passage is one. At any station where you have captured a <a href="cross-section.html">cross section</a>, the 3D view builds the passage out of the outline you traced there as well as the numbers you measured there.</p>
+<p><b>The tube is the outer shell of everything measured.</b> In each direction the furthest of the three wins — the LRUD tick, the traced wall, or a splay. A tape reading poking out through a trace drawn a little tight is a measurement, not an error to clip off; a trace drawn wide of the ticks is you saying the wall is really out there. The same rule inside the trace means a line that wanders in — round a rock, along a ledge — cannot pull the wall in past itself.</p>
+<p>Only the <b>walls trace</b> counts as wall. Floor detail, breakdown and ceiling lines are drawings of things <i>inside</i> the passage, and building a tube out of them wraps it around a boulder.</p>
+<p>Sections are read as drawn <b>looking forward</b> along the survey, so the right of the page is the right of the passage as you walk it.</p>
+<p><b>Leave the outline open where the passage goes on.</b> Stop the trace at the opening and write <code>P</code> for that side in the Survey Notebook, and the tube stays open there instead of skinning across it. Both halves are needed, and each says something the other cannot: the trace says how wide the opening is, the P says you looked and found no wall. A gap with no P closes as it always did — an unfinished section should not read as a hole in the cave — and a wall you drew across a side written P is still a wall, because the drawing is the later and more specific word.</p>
+
+<h2>What it draws from</h2>
+<p>The surface is lofted from wall points actually measured — the four LRUD ticks and the tip of every splay at each station, sorted into a ring, consecutive rings joined with straight strips. Nothing is drawn <i>between</i> measured points: no smoothing, no inferred curvature. Junctions end a run rather than guessing a surface across them.</p>
+<p>Captured cross sections stand beside the passage they were drawn of, and your scanned sketches drape onto it. The panel draws no entity and writes no tag: a drawing that has been looked at in 3D is byte-identical to one that has not.</p>
+<p>The contour lines are the drawing's own, lifted to their elevations &mdash; so what you see in 3D is what the plan shows, at whatever interval you chose. A drawing with no contours drawn gets a generated set instead, at a coarse interval, and the status line says which you are looking at.</p>
+<p>The terrain is the elevation grid Surface Data left beside the drawing, at the resolution USGS 3DEP published it, with the same aerial photograph the plan view sits on. Nothing about the surface is invented here: every vertex is a real reading, and where 3DEP has no data there is a hole in the surface rather than a guess.</p>
+<h2>Depth of cover</h2>
+<p>Every other colouring is a fact about the survey. This one is about the rock: how much ground sits between the surface and the <i>top</i> of the passage — over the ceiling, not over the centreline, because that is what a dig from the surface has to come through. Thin cover is the hot end of the scale, because thin cover is the finding: a possible daylight lead, a dig worth trying, the breakdown overhead, the quarry above.</p>
+<p>The status line names the thinnest station and its figure, which is the number worth repeating to anyone else. Stations the surface has no reading over — outside the fetched window, or in a hole in the 3DEP data — are drawn in a flat grey that appears in the legend; they are not drawn as "no rock at all".</p>
+<p>If stations report as sitting <i>above</i> the ground, read that as a warning rather than a thin roof. One station doing it is the entrance under a foot of slope error. Many of them means the survey's elevations are not on the datum the drawing thinks they are, and the cover figures are meaningless until that is fixed.</p>
+<h2>How the cave meets the surface</h2>
+<p>A survey's elevations are on whatever datum it was run on — often the entrance called zero. Surface Data stores what 3DEP says the ground is at the entrance, and the 3D view uses that one number to stand the cave under its own hillside, with the entrance station about five feet below the surface. Every other station keeps its surveyed height above or below the entrance exactly: the cave is moved as one rigid piece, and nothing in the drawing is rewritten.</p>
+<p>The status line says how far it moved. A number far larger than you expect means the survey's elevations are not on the datum you think they are — worth knowing, and the reason the shift is reported rather than quietly applied. On a drawing with no stored ground elevation the surface is placed at its own true elevation and the status line says so; it may then sit well above or below the cave.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>The ghost overlay is absent by design when there is nothing to compare — adjustment off, or a solve that did not converge.</li>
+<li>Terrain and Contours are greyed out until Surface Data has fetched an elevation grid for this drawing, and the drawing has been saved — the grid lives beside the drawing file.</li>
+<li>Depth of cover needs both an elevation grid and a datum anchor from Surface Data. Without them the cave draws entirely in the unknown grey and the status line says which of the two is missing &mdash; it does not fall back to another colouring and look like it worked.</li>
+<li>Passage-size colouring is clamped to the 5th–95th percentile, and the legend says so: one big room otherwise puts every crawl at the bottom of the ramp.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="generate-profile.html">Generate Profile</a></li>
+<li><a href="cross-section.html">Cross Section</a></li>
+<li><a href="surface-under-the-cave.html">Put aerial imagery and contours under the cave</a></li>
+</ul>

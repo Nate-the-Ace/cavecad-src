@@ -1,0 +1,84 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-12-cave-3d-visualization.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: one pass over the legs, and a step table",
+      "status": "pending",
+      "description": "**Goal:** Centerline and shell emitted in one walk; cumulative vertex count per leg.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 1.\n\n**Verify:** node tests/cave3d_mesh_run.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"node tests/cave3d_mesh_run.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: the legend descriptor, trip and depth",
+      "status": "pending",
+      "description": "**Goal:** build returns {title,kind,note,stops}; unknown colorBy falls back to trip.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 2.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: distance, size and date ramps",
+      "status": "pending",
+      "description": "**Goal:** Three ramp modes; size clamped to the 5th-95th percentile and labelled so.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 3.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: closure shift and splay coverage",
+      "status": "pending",
+      "description": "**Goal:** Two banded modes over CsClosure.bandFor and splay presence.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 4.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: the raw ghost and the lead markers",
+      "status": "pending",
+      "description": "**Goal:** Ghost from resolved.raw (empty when absent); crosses at CsFrontier.openEnds.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/cave3d_mesh_run.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 5.\n\n**Verify:** node tests/cave3d_mesh_run.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/cave3d_mesh_run.js\"], \"verifyCommand\": \"node tests/cave3d_mesh_run.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: view draws buffers, clamps progress, paints legend",
+      "status": "pending",
+      "description": "**Goal:** Ghost/leads buffers, glDrawArrays clamp, QPainter legend overlay.\n\n**Files:**\n- src/gui/RCave3dView.cpp\n- src/gui/RCave3dView.h\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 6.\n\n**Verify:** ninja -j20 in BOTH trees\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dView.cpp\", \"src/gui/RCave3dView.h\"], \"verifyCommand\": \"ninja -j20 in BOTH trees\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        4
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: panel controls and the bridge",
+      "status": "pending",
+      "description": "**Goal:** Two-row toolbar, mode combo, four toggles, play and scrub slider.\n\n**Files:**\n- src/gui/RCave3dPanel.cpp\n- src/gui/RCave3dBridge.cpp\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 7.\n\n**Verify:** ninja -j20 in BOTH trees\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dPanel.cpp\", \"src/gui/RCave3dBridge.cpp\"], \"verifyCommand\": \"ninja -j20 in BOTH trees\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        5
+      ]
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: wire from script, remember the choice",
+      "status": "pending",
+      "description": "**Goal:** Mode list, rebuild on change, RSettings persistence, status text.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3D.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 8.\n\n**Verify:** python3 -m unittest tests.test_addon\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3D.js\"], \"verifyCommand\": \"python3 -m unittest tests.test_addon\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        6
+      ]
+    },
+    {
+      "id": 8,
+      "subject": "Task 9: verify live and release",
+      "status": "pending",
+      "description": "**Goal:** Every mode, overlay and the animation on Pitfall Cave; bump both versions.\n\n**Files:**\n- VERSION\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-visualization.md, Task 9.\n\n**Verify:** bash tests/run_all.sh\n\n```json:metadata\n{\"files\": [\"VERSION\"], \"verifyCommand\": \"bash tests/run_all.sh\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        7
+      ]
+    }
+  ],
+  "lastUpdated": "2026-09-12T11:27:48.511638"
+}

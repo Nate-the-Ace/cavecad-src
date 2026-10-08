@@ -1,0 +1,11 @@
+; Test Walls survey data -- dummy data for Import Cave Survey testing
+#Units Feet Order=DAV Decl=2.5
+#Fix W1 1000.00 2000.00 100.00
+
+W1 W2 15.00 90.00 0.00 <2.0,3.0,1.0,4.0> ;Entrance shot
+W2 W3 10.00 45.00 5.00 <1.0,1.0,0.5,0.5>
+W2 - 5.00 200.00 0.00 <0,0,0,0> ;Splay to wall point, should be skipped entirely
+W4 W2 12.00 150.00 2.00 <0,0,0,0> ;Loop closure shot, W4 not yet defined -- tests multi-pass
+W3 W4 8.00 300.00 -3.00 <1.5,2.5,0.5,1.0>
+W3 W5 6.00 80.00 0.00 <0,0,0,0> ;Branch off W3
+W5 W6 4.00 10.00 0.00 <--,2.0,0,0> ;Missing LEFT measurement, marked with --

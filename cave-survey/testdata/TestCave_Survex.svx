@@ -1,0 +1,22 @@
+; Test Survex survey data -- dummy data for Import Cave Survey testing
+
+*begin TestSurvey
+*units length metres
+*units compass degrees
+*fix S1 500 600 50
+*data normal from to tape compass clino
+
+S1 S2 4.50 90.00 0.00
+S2 S3 3.20 45.00 5.00
+S4 S2 3.60 250.00 -2.00  ; Loop closure shot, S4 not yet defined -- tests multi-pass
+S3 S4 2.80 300.00 -3.00
+S3 S5 2.10 80.00 0.00    ; Branch off S3
+
+*data passage station left right up down
+S2 0.5 0.8 1.0 0.3
+S3 0.4 0.4 1.2 0.5
+S4 0.3 0.6 0.9 0.4
+S5 0.2 0.2 0.8 0.3
+
+*data
+*end TestSurvey

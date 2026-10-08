@@ -1,0 +1,113 @@
+{
+  "planPath": "docs/superpowers/plans/2026-08-20-revision-framework.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: CsModel trips + serialization",
+      "status": "completed",
+      "description": "**Goal:** Model layer knows trips (records, fingerprints, match-or-append) and serializes Flags/StartLrud/shot rows.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/CsModel.js\n- Test: tests/js_unit.js\n\n**Acceptance Criteria:**\n- newTrip/ensureTrips/tripOf/tripFingerprint (date|decl.toFixed(4)|team)/tripIdFor per plan\n- flagsText/parseFlags PXLC round-trip\n- shotRowText/parseShotRow round-trips every newShot field except trip/splay\n- startLrudText/parseStartLrud with '-' nulls and '/' multi-readings\n- newShot gains trip:0; existing tests green\n\n**Verify:** node tests/js_unit.js -> ### UNIT OK\n\n**Steps:** TDD; full code in plan Task 1.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsModel.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"node tests/js_unit.js\", \"acceptanceCriteria\": [\"trip helpers per plan\", \"serialization round-trips\", \"existing tests green\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Trip-aware parsers/writers",
+      "status": "completed",
+      "blockedBy": [
+        1
+      ],
+      "description": "**Goal:** Parsers emit trips[] deduped by fingerprint; writers un-apply declination per shot's trip.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/Format/{CsCompass,CsSurvex,CsWalls,CsCsv}.js\n- Test: tests/js_unit.js\n\n**Acceptance Criteria:**\n- Compass: trip per \\f block, fingerprint-deduped, shot.trip set, per-block declination preserved, azimuths TRUE\n- Survex: trip keyed to effective (date, declination, team) at each leg\n- Walls/CSV single trip 0; all parsers call ensureTrips\n- write->parse of two-trip survey preserves both declinations + TRUE azimuths\n\n**Verify:** ./tests/run_all.sh -> ALL TESTS PASSED\n\n**Steps:** fixtures + assertions in plan Task 2; read each parser before editing. USE tests/fixtures/FingerprintCave.dat (committed 3a6ab8b) as the Compass multi-trip fixture: expect 3 trips (ENT and MID share date 1998-07-04 but differ by team; LOOP 2003-08-15 decl -3), 18 shots, shot.trip correct per block; loop error 4.21ft as-parsed, 0.74ft after azimuth+(-2.5) on trips 0-1 shots (see scratch verify script logic). Load in js_unit via readTextFile(repoRoot + \"/tests/fixtures/FingerprintCave.dat\").\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/Format/CsCompass.js\", \"scripts/CaveSurvey/Core/Format/CsSurvex.js\", \"scripts/CaveSurvey/Core/Format/CsWalls.js\", \"scripts/CaveSurvey/Core/Format/CsCsv.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"fingerprint-deduped trips in all parsers\", \"per-trip writer declination\", \"round-trip green\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: CTRL-HIDDEN layer",
+      "status": "completed",
+      "description": "**Goal:** Registered, template-pinned CTRL-HIDDEN layer (off by default) for excludeFromPlot legs.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/CsLayers.js, scripts/CaveSurvey/CaveTemplate/templates/NSS_Cave_Template_PLAN.dxf\n- Test: tests/test_addon.py (existing pins)\n\n**Acceptance Criteria:**\n- CsLayers.HIDDEN in registry + DEFAULTS + ensureSurveyLayers, gray/CONTINUOUS/Weight000, off by default\n- PLAN template LAYER entry added (copy CTRL-SPLAYS block shape)\n- structural tests green\n\n**Verify:** ./tests/run_all.sh (structural section)\n\n**Steps:** registry first (structural test fails = red), then template, then green.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsLayers.js\", \"scripts/CaveSurvey/CaveTemplate/templates/NSS_Cave_Template_PLAN.dxf\"], \"verifyCommand\": \"python3 -m unittest discover -s tests -v\", \"acceptanceCriteria\": [\"registry+template+off-by-default\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: CsDraw writes tag schema v3",
+      "status": "completed",
+      "blockedBy": [
+        1,
+        3
+      ],
+      "description": "**Goal:** CsDraw.survey output fully self-describing: leg tags, splay reading tags, per-trip anchors, Fixed, ExcludedShots/UnplacedShots rows, CTRL-HIDDEN legs.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/CsDraw.js\n- Test: tests/js_unit.js (QCAD-only doc block)\n\n**Acceptance Criteria:**\n- legs carry From,To,Trip,ShotSeq,Distance,Azimuth,Inclination,LRUD (+Back*/Flags/Note when set); Shot tag stays\n- ShotSeq = per-trip index in survey.shots order\n- excludeFromPlot legs drawn on CTRL-HIDDEN with tags\n- splays carry Trip,ShotSeq,Distance,Azimuth,Inclination,Note\n- per-trip anchor tags (Trip,TripName,TripDate,TripTeam,TripDeclination,TripDeclinationSource,TripDistanceUnit; StartNote/StartLrud trip 0; legacy Survey* block stays on trip 0)\n- ExcludedShots/UnplacedShots rows (tripId TAB shotRowText, newline-joined) on trip-0 anchor; Fixed tags\n- doc test with 2 trips, loop, backsight, P/X flags, splay, fixed station: >=15 tag assertions\n\n**Verify:** ./tests/run_all.sh -> ### UNIT OK (CaveCAD engine)\n\n**Steps:** plan Task 4; grep CsDraw.shotLine callers before changing signature.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsDraw.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"all v3 tags written\", \"hidden legs\", \"doc test green\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: CsRevise exact reconstruction",
+      "status": "completed",
+      "blockedBy": [
+        4
+      ],
+      "description": "**Goal:** THE gate: CsRevise.surveyFromDocument(draw(S)) deep-equals S.\n\n**Files:**\n- Create: scripts/CaveSurvey/Core/CsRevise.js\n- Modify: scripts/CaveSurvey/Core/CsAll.js, tests/js_unit.js (CORE_FILES + doc test)\n\n**Acceptance Criteria:**\n- returns {survey, anchorName, anchorPos, legacy}; shots from legs+splays+ExcludedShots+UnplacedShots sorted (trip, ShotSeq); trips sorted by id; fixed + geo + startNote/startLrud read\n- legacy fallback to CsTags.surveyFromDocument when no Distance-tagged legs, legacy:true\n- doc round-trip test deep-compares EVERY shot field, every trip record, fixed, startNote/startLrud (shotsEqual helper)\n- node-loadable (no file-scope R*)\n\n**Verify:** ./tests/run_all.sh -> ### UNIT OK both engines\n\n**Steps:** skeleton in plan Task 5.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsRevise.js\", \"scripts/CaveSurvey/Core/CsAll.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"exact round-trip\", \"legacy fallback\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Declination revision + similarity fit",
+      "status": "completed",
+      "blockedBy": [
+        5
+      ],
+      "description": "**Goal:** Pure revision math: per-trip declination rotation + numeric rigid-change detector.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/CsRevise.js\n- Test: tests/js_unit.js (node-safe)\n\n**Acceptance Criteria:**\n- reviseDeclination rotates azimuth+backAzimuth of the trip's shots (incl. splays/flagged), normalizes, updates trip record, returns {delta}\n- similarityFit closed-form Procrustes (theta, scale, tx, ty, maxResidual), no reflection\n- classifyChange: rigid iff maxResidual < 1e-6*extent and uniform z; moved list sorted desc\n- tests: single-trip change rigid with numerically-asserted theta sign; one-trip-of-two non-rigid; edited shot non-rigid with correct top mover; wraparound\n\n**Verify:** node tests/js_unit.js -> ### UNIT OK\n\n**Steps:** plan Task 6; TDD.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsRevise.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"node tests/js_unit.js\", \"acceptanceCriteria\": [\"revision math\", \"rigid detector\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: CsRevise.apply rigid/redraw + report",
+      "status": "completed",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** Apply revised model: rigid one-op whole-drawing transform (TB_* excluded) or eraseStations+redraw; report.\n\n**Files:**\n- Modify: scripts/CaveSurvey/Core/CsRevise.js, scripts/CaveSurvey/Core/CsReport.js\n- Test: tests/js_unit.js (doc block)\n\n**Acceptance Criteria:**\n- apply(doc, di, recon, newSurvey) resolves old+new anchored at recon.anchor; classifies; applies\n- rigid: ONE RModifyObjectsOperation, every non-TB_* entity transformed, tags updated (Azimuth, TripDeclination), RevisionLog appended; single undo restores\n- non-rigid: eraseStations all + CsDraw.survey redraw anchored\n- returns report {rigid, moved, before, after loop errors}; CsReport.revisionSummary renders\n- doc tests: (a) rigid rotation carries an untagged scratch line, tags updated, log appended; (b) two-trip revise trip 1: trip 0 static within 1e-6, movers reported\n\n**Verify:** ./tests/run_all.sh -> ### UNIT OK both engines\n\n**Steps:** plan Task 7; probe entity .rotate availability first.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsRevise.js\", \"scripts/CaveSurvey/Core/CsReport.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"rigid one-op transform\", \"non-rigid redraw+report\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Declination tool revision mode",
+      "status": "completed",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** Declination tool on tagged drawing lists trips, applies per-trip fixes (manual or IGRF).\n\n**Files:**\n- Modify: scripts/CaveSurvey/Declination/Declination.js\n\n**Acceptance Criteria:**\n- untagged/no doc: unchanged estimate flow\n- tagged: QGridLayout/QLineEdit trip table (NO QTableWidget), per-trip new-decl field + IGRF fill (needs GeoLat/GeoLon + TripDate)\n- Apply: reviseDeclination per changed trip, ONE CsRevise.apply, revisionSummary to command panel + dialog\n- legacy recon -> point to Rebuild Survey Data, no apply\n\n**Verify:** ./tests/run_all.sh green; manual GUI pass in CaveCAD\n\n**Steps:** read Declination.js + SurveyNotebook.js dialog patterns first.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Declination/Declination.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"trip dialog\", \"apply via CsRevise\", \"legacy guarded\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: GeoReference declination offer",
+      "status": "completed",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** After anchoring, offer per-trip IGRF declination revision where recorded values disagree >0.5 deg (source '' or 'user').\n\n**Files:**\n- Modify: scripts/CaveSurvey/GeoReference/GeoReference.js\n\n**Acceptance Criteria:**\n- per-trip QMessageBox.question naming trip, recorded, IGRF; yes -> reviseDeclination(source igrf); one apply after loop\n- untagged/legacy: current behavior exactly\n\n**Verify:** ./tests/run_all.sh green; manual GUI pass\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/GeoReference/GeoReference.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"offer flow\", \"single apply\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Notebook load-from-drawing",
+      "status": "completed",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** Ladder = shot-revision UI: load a trip from drawing, edit, redraw replaces that trip.\n\n**Files:**\n- Modify: scripts/CaveSurvey/SurveyNotebook/SurveyNotebook.js\n\n**Acceptance Criteria:**\n- Load from drawing button: reconstruct, trip chooser when >1, ladder filled with that trip only, azimuth cells MAGNETIC (reuse existing strip-on-fill), header filled\n- Draw fingerprint-matches header to drawing trips (tripIdFor); replaces matching trip, new fingerprint = new trip id\n- other trips untouched (wall runs across junctions regenerate - accepted)\n- moved-station revisionSummary to command panel after redraw\n- legacy -> Rebuild-first message\n\n**Verify:** ./tests/run_all.sh green; headless notebook harness green; manual GUI pass\n\n**Steps:** READ SurveyNotebook.js fully first.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/SurveyNotebook/SurveyNotebook.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"load button\", \"fingerprint-matched redraw\", \"report\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: RebuildSurveyData v3 upgrade",
+      "status": "completed",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** Legacy drawings upgrade to v3 in one shot; v3 rebuild idempotent.\n\n**Files:**\n- Modify: scripts/CaveSurvey/RebuildSurveyData/RebuildSurveyData.js\n- Test: tests/js_unit.js doc block\n\n**Acceptance Criteria:**\n- legacy: chain reconstruction, slope = plan/cos(inclination), erase+redraw as trip 0 -> passes CsRevise.surveyFromDocument with legacy false\n- report notes inferred distances\n- v3 drawing: run twice, coords stable within 1e-9, entity count stable\n\n**Verify:** ./tests/run_all.sh both engines\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/RebuildSurveyData/RebuildSurveyData.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"legacy upgrade\", \"idempotent\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Full gate + docs + publish",
+      "status": "pending",
+      "blockedBy": [
+        2,
+        8,
+        9,
+        10,
+        11
+      ],
+      "description": "**Goal:** Everything green everywhere; docs + memory current; optional publish.\n\n**Files:**\n- Modify: docs/, memory cave-survey-v2-state.md\n\n**Acceptance Criteria:**\n- ./tests/run_all.sh --publish -> ALL TESTS PASSED -- including publish checks\n- ASK user before tools/publish.sh\n- memory updated with revision-framework state + GUI-verify TODOs (Tasks 8-10 dialogs)\n\n**Verify:** ./tests/run_all.sh --publish exits 0\n\n```json:metadata\n{\"files\": [\"docs/\"], \"verifyCommand\": \"./tests/run_all.sh --publish\", \"acceptanceCriteria\": [\"publish gate green\", \"memory updated\"], \"modelTier\": \"mechanical\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-08-20"
+}

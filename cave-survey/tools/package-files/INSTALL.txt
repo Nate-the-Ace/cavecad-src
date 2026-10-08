@@ -1,0 +1,83 @@
+Cave Survey tools for CaveCAD -- version @VERSION@
+Installing
+==============================================================
+
+
+These tools are part of CaveCAD and target it exclusively: they rely
+on CaveCAD's native survey-data persistence. They are not supported
+in other QCAD-based applications.
+
+
+THE SHORT VERSION
+-----------------
+Copy the CaveSurvey folder that sits next to this file into CaveCAD's
+scripts folder, then restart CaveCAD. A "Cave Survey" menu and tool bar
+appear.
+
+CaveCAD's scripts folder, by platform:
+
+    macOS     ~/Library/Application Support/QCAD/CaveCAD/scripts
+    Windows   %APPDATA%\QCAD\CaveCAD\scripts
+    Linux     ~/.local/share/QCAD/CaveCAD/scripts
+
+(The QCAD path segment is the vendor folder the base build uses; the
+CaveCAD segment belongs to the application itself.)
+
+Create the "scripts" folder if it isn't there yet -- CaveCAD does not
+make it until something needs it. When you're done you should have:
+
+    ...CaveCAD/scripts/CaveSurvey/CaveSurvey.js
+    ...CaveCAD/scripts/CaveSurvey/SurveyNotebook/SurveyNotebook.js
+    ...and one folder per tool beside it
+
+Those paths are inside your own user folder, so installing needs no
+administrator rights, and -- the part that matters later -- it survives
+a CaveCAD update. Installing into the CaveCAD application folder itself
+also works, but an update replaces the whole application and takes the
+tools with it, silently.
+
+
+OR LET IT DO THE COPYING
+------------------------
+    macOS / Linux     ./install.sh
+    Windows           double-click install.cmd
+
+Either one copies the CaveSurvey folder to the right place for your
+platform and prints where it put it. Run it again any time to upgrade
+over an older copy. To remove the tools again:
+
+    ./install.sh --uninstall
+
+
+CHECKING IT WORKED
+------------------
+Restart CaveCAD. "Cave Survey" should be in the menu bar, with six tools
+in it. If it isn't there:
+
+  * Check the path. CaveSurvey.js must sit directly inside a folder
+    named exactly "CaveSurvey", which sits directly inside "scripts".
+    A nested CaveSurvey/CaveSurvey/ is the usual mistake.
+
+  * CaveCAD looks for add-ons only at startup, so it needs a full quit
+    and restart -- opening a new drawing is not enough.
+
+  * CaveCAD remembers which tool bars you have hidden. If the menu is
+    there but the tool bar isn't, right-click any tool bar and tick
+    "Cave Survey".
+
+
+WHAT ELSE IS IN HERE
+--------------------
+    README.txt    What each tool does, and the conventions they all
+                  share. Worth reading before you trust a plotted map.
+
+    templates/    NSS-style plan and profile drawings to start a map
+                  from. These are not installed by the scripts above --
+                  open one with File > Open, or keep it wherever you
+                  keep drawings.
+
+    examples/     Three small survey files, one in each format the
+                  importer reads, for trying the tools out before you
+                  point them at real data.
+
+    docs/         Longer notes on individual tools.

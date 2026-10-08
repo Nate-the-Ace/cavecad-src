@@ -1,0 +1,42 @@
+<h1>Sketch Scans</h1>
+<p>Browse the cave's scanned sketches, and put one under the drawing at the right size and angle. <code>ss</code></p>
+<p><img src="sketch-scans-panel.png" width="400"><br><i>The cave's scans as a tree, a preview beside it, and the tabs for Plan, Profile and Cross Section.</i></p>
+<p><img src="sketch-scans-demo.gif" width="440"><br><i>Pick scans in the tree and the preview follows; the tabs hold each view's buttons.</i></p>
+<h2>When you reach for it</h2>
+<p>Before any tracing. A scan that is not lined up with the survey is worse than no scan: every wall you trace off it is wrong by the same amount.</p>
+<h2>Steps</h2>
+<ol>
+<li>Pick the <b>tab</b> for the job — Plan, Profile or Cross Section. Each holds only the buttons that view uses, in the order they are used.</li>
+<li><b>Align on Scan</b> picks the stations on the scan <i>itself</i> in the zoomable viewer — wheel to zoom, middle-drag to pan, left-click a station and name it from the drawing's own list — then places the scan already fitted. No insert-then-hunt-then-align.</li>
+<li><b>Add a Scan and Fit by Hand...</b> file-picks any page — one whose station marks cannot be read, a photo still on a phone, a page scanned to the Desktop — drops it over the survey at a guessed size and fits it there: click a point on the image, click where it belongs. Two points for a plain fit; three or more also take out the scanner’s own stretch and skew, with a report of how far the worst point missed by. The dialog opens in this cave’s scans folder, and a page picked from there keeps its trim. <i>Double-clicking a row in the list does the same thing.</i></li>
+<li>Right-click a scan for <b>Mark Complete</b>. A tick appears beside it, and on a trip folder when every page in it is done.</li>
+</ol>
+<p>You can also drag image files straight onto the preview. They are <b>copied</b> into the cave's scans folder — into whichever trip folder is selected — never moved, and never over the top of a file already there.</p>
+<h2>Try it on Truitt</h2>
+<p>Put a scan under the drawing twice without touching the menu bar: once with <b>Align on Scan</b>, once with <b>Add a Scan and Fit by Hand...</b>.</p>
+<h2>Getting out of an assignment</h2>
+<p>While you are assigning stations, the view tabs are locked — a scan must not end up fitted to half a plan and half an elevation — and the assign button changes to <b>Place</b> as soon as the first station is picked. <b>Cancel Assignment</b>, beside it, abandons the whole thing: the picks are dropped, the tabs unlock, and nothing is placed. Nothing was drawn, so there is nothing to undo.</p>
+<p>Selecting a different scan abandons it the same way — those picks were points on the page you were looking at.</p>
+
+<h2>A page that arrived the wrong way round</h2>
+<p>Two buttons sit with the zoom controls. <b>&#8635;</b> turns the page a quarter turn clockwise; <b>&#8644;</b> mirrors it left-for-right, for a sheet photographed through its back or traced on the reverse of tracing paper. For a top-to-bottom flip, mirror it and then turn it twice.</p>
+<p>Both <b>rewrite the file on disk</b>, deliberately: the preview, the trim box, the two-point fit and the section bay all read the pixels off disk, so a correction carried alongside the file would have to be honoured by each of them separately. Trimmed crops of that page go with the old pixels, and any placement of it already in the drawing keeps its frame while the sketch inside it moves — re-align those.</p>
+
+<h2>Both panels stay on the same page</h2>
+<p>Sketch Scans and the Survey Notebook browse the same folder, and they now follow each other: select a page in one and the other moves to it. While tracing that is the point — one pane holds the page being read, the other the page being placed, and they are the same page.</p>
+<p>The page you are on is <b>remembered in the drawing</b>, so it comes back when you reopen the cave, on any machine and for anyone else you hand the file to. That means moving to another page marks the drawing as changed; close without saving and it keeps the page the file already named.</p>
+
+<h2>Clearing out the crops</h2>
+<p>Every time you trim a page, the cut-out is written as its own file under <code>scans/Trimmed/</code>. Move the box a little and trim again and that is another file. They never show up in the list — they are not field notes — so over a season they pile up unseen, fat PNGs by the hundred.</p>
+<p>Right-click anywhere in the scan tree and take <b>Delete N Trimmed Crops</b>, which tells you how much space they are using before you agree. Crops the open drawing is currently showing are left alone; the rest go.</p>
+<p>Nothing is lost by this. A crop is a derivative: the drawing remembers which page it came from and which box was cut, so <b>Repair Drawing</b> cuts any of them again when it is needed. The same entry is on the Survey Notebook's copy of the tree.</p>
+
+<h2>When it refuses</h2>
+<ul>
+<li>A scan whose file has moved is reported rather than silently blank — put it back with the relink path.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="feature-trace.html">Feature Trace</a></li>
+<li><a href="survey-notebook.html">Survey Notebook</a> — the same browser, the same ticks</li>
+</ul>

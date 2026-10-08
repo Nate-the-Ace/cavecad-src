@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The Expedition Planner's Start date field: Qt's own QDateEdit with its
+  built-in calendar dropdown. Built from this file by
+  WidgetFactory.createWidget because the script bridge has no QDateEdit
+  constructor. It is never unset: it starts on today (or the drawing's
+  saved date). Read/written only through
+  ExpeditionPlanner.startDateText / setStartDateText.
+
+  The styleSheet below restyles only the calendar popup (its descendants)
+  to match the app's dark palette and orange accent (#e8811a). Qt paints
+  Saturday and Sunday red from its own weekend format; a stylesheet
+  cannot override that.
+-->
+<ui version="4.0">
+ <class>ExpeditionPlannerDateRow</class>
+ <widget class="QWidget" name="ExpeditionPlannerDateRow">
+  <layout class="QHBoxLayout" name="ExpeditionPlannerDateLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QDateEdit" name="ExpeditionPlannerCalloutStart">
+     <property name="toolTip">
+      <string>First day of the trip. Click for the calendar, or type or scroll the date. Saved in stations.json.</string>
+     </property>
+     <property name="displayFormat">
+      <string>yyyy-MM-dd</string>
+     </property>
+     <property name="calendarPopup">
+      <bool>true</bool>
+     </property>
+     <property name="minimumDate">
+      <date>
+       <year>1970</year>
+       <month>1</month>
+       <day>1</day>
+      </date>
+     </property>
+     <property name="maximumDate">
+      <date>
+       <year>2100</year>
+       <month>12</month>
+       <day>31</day>
+      </date>
+     </property>
+     <property name="styleSheet">
+      <string>QCalendarWidget QWidget#qt_calendar_navigationbar { background-color: #2b2b2b; border: none; }
+QCalendarWidget QToolButton { color: #eeeeee; background-color: #383838; border: 1px solid #4a4a4a; border-radius: 4px; padding: 3px 8px; }
+QCalendarWidget QToolButton:hover { background-color: #4a4a4a; }
+QCalendarWidget QToolButton::menu-indicator { image: none; }
+QCalendarWidget QMenu { background-color: #2b2b2b; color: #eeeeee; }
+QCalendarWidget QSpinBox { background-color: #1a1a1a; color: #eeeeee; selection-background-color: #e8811a; border: 1px solid #4a4a4a; }
+QCalendarWidget QAbstractItemView:enabled { background-color: #1a1a1a; color: #eeeeee; selection-background-color: #e8811a; selection-color: #ffffff; outline: 0; }
+QCalendarWidget QAbstractItemView:disabled { color: #6a6a6a; }</string>
+     </property>
+     <property name="date">
+      <date>
+       <year>1970</year>
+       <month>1</month>
+       <day>1</day>
+      </date>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

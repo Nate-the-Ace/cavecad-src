@@ -1,0 +1,37 @@
+<h1>Entrance Location</h1>
+<p>Where the cave is: see, set, move or clear the entrance coordinate. <code>el</code></p>
+<h2>When you reach for it</h2>
+<p>Before anything that needs to know where the cave sits in the world — the aerial photograph, the surface contours, the terrain in the 3D view — and afterwards, when the photograph shows you that the coordinate you typed was a field away from the real entrance.</p>
+<h2>What it shows you</h2>
+<p>Opening it tells you what the drawing already carries: which station is anchored, its latitude and longitude, and the ground elevation there. A drawing with no location says so.</p>
+<h2>Setting one</h2>
+<ol>
+<li><b>Cave Survey &gt; Entrance Location</b>.</li>
+<li>Choose the station to anchor to. A1 is offered first — the entrance, by this project's convention.</li>
+<li><b>Set Location...</b> opens the coordinate entry. Type it (decimal like <code>40.5042, -90.2583</code>, or DMS), or press <b>Map...</b> to open a browser map: click the spot, the coordinate is copied, paste it back.</li>
+<li>The ground elevation at that point is looked up from USGS 3DEP and stored with it. That number is the drawing's datum anchor — it is what lets the 3D view stand the cave under its own hillside, and what relates a survey's elevations to real ones.</li>
+</ol>
+<h2>Moving the cave onto the real entrance</h2>
+<p>A coordinate read off a map is good to a few tens of feet. Once <a href="surface-data.html">Surface Data</a> has fetched the photograph, the real entrance is usually visible in it — a sink, a swallet, the foot of a bluff, typically the low point of the area.</p>
+<ol>
+<li>Run Entrance Location again and press <b>Pick on Drawing...</b>.</li>
+<li>Click the entrance where you can see it on the imagery.</li>
+<li>The whole cave slides so its entrance station lands there. Where surface contours are drawn, the click snaps to the lowest contour within a short reach, so it only has to be close.</li>
+<li>The coordinate and ground elevation are re-read from where the entrance ends up, and stored.</li>
+<li>It then offers to fetch the surface again for where the cave now sits. Say yes unless you are offline: the photograph and elevation grid you have were cut around the cave's old position, and the 3D terrain reads the window they were fetched for.</li>
+</ol>
+<p><b>The cave moves; the surface does not.</b> The photograph and contours are pinned to the world and the drawing's own origin is arbitrary, so the cave is the thing that was in the wrong place. Everything in the drawing moves together — linework, symbols, scans, the profile region, captured sections — so nothing changes its position relative to anything else in the cave. A symbol is carried by its insert; the symbol's own definition is never touched.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>A drawing with no survey stations has nothing to anchor to. Import or type a survey first.</li>
+<li><b>Pick on Drawing...</b> is greyed out until a location has been set, and on drawings georeferenced by an old build that never recorded where the coordinate was pinned. Set the location again and it pins afresh.</li>
+<li>The elevation lookup needs a network and United States coverage, which is what 3DEP publishes. If it fails the location is still stored, and the tool says so — run it again later to fill the elevation in.</li>
+</ul>
+<h2>Privacy</h2>
+<p>The coordinate and the ground elevation live as XDATA on one station point. Nothing is drawn. Both are stripped from a sanitized drawing and kept out of a sanitized package, along with the aerial photograph and the elevation grid.</p>
+<h2>See also</h2>
+<ul>
+<li><a href="surface-data.html">Surface Data</a></li>
+<li><a href="surface-under-the-cave.html">Put aerial imagery and contours under the cave</a></li>
+<li><a href="3d-view.html">3D View</a></li>
+</ul>

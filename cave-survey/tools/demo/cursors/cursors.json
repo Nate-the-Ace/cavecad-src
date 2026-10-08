@@ -1,0 +1,11 @@
+{
+  "note": "Rendered from the system NSCursor images by make_cursors.swift at 4x. w/h are the cursor's size in points (shadow padding included); hx/hy the hotspot in points -- the pixel that clicks.",
+  "scale": 4,
+  "cursors": {
+    "arrow":      { "file": "arrow.png",      "w": 28, "h": 40, "hx": 5,  "hy": 5  },
+    "hand":       { "file": "hand.png",       "w": 32, "h": 32, "hx": 12, "hy": 8  },
+    "ibeam":      { "file": "ibeam.png",      "w": 23, "h": 22, "hx": 12, "hy": 11 },
+    "cross":      { "file": "cross.png",      "w": 24, "h": 24, "hx": 11, "hy": 11 },
+    "closedhand": { "file": "closedhand.png", "w": 32, "h": 32, "hx": 15, "hy": 16 }
+  }
+}

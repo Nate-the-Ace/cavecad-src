@@ -1,0 +1,31 @@
+<h1>Import Cave Survey</h1>
+<p>Read a survey file into the drawing. Compass <code>.dat</code>, Walls <code>.srv</code>, Survex <code>.svx</code>, Therion <code>.th</code> or CSV. <code>ics</code></p>
+<h2>When you reach for it</h2>
+<p>When the shots already exist somewhere else — an old project, a teammate's file, or a phone. Therion is what TopoDroid and PocketTopo export, so a phone survey comes in through the same door.</p>
+<h2>Steps</h2>
+<ol>
+<li><b>Cave Survey &gt; Import Cave Survey</b> and pick the file. The format is detected for you.</li>
+<li>If Therion sketch pages (<code>.th2</code>) sit beside the file, you are asked whether to bring the drawing in too. See below.</li>
+<li>Check the trips that arrive in <a href="survey-notebook.html">Survey Notebook</a> — dates, teams, declination.</li>
+</ol>
+<h2>A Therion project split across files</h2>
+<p>A real Therion project is rarely one file: a main <code>.th</code> pulls the passages in with <code>input</code> and joins them with <code>equate</code>. Both are followed. An <code>input</code> is read as if its text stood where the line stands, relative to the file that names it, with or without the <code>.th</code> on the end. An <code>equate 3@entrance 3@lower</code> makes those two stations one place, so a loop that runs through the join closes and Loop Errors and the adjustment can see it.</p>
+<p>What cannot be followed is said, never skipped: an <code>input</code> that will not read is named, a file that includes itself is read once and reported, and an <code>equate</code> naming a station no shot uses is listed so you can spot a misspelling. A <code>.th2</code> sketch page is not read as survey data; it is offered separately, as above.</p>
+<h2>Pitches get labelled</h2>
+<p>Every drop the survey contains is found and labelled where it hangs from — <b>P 187 ft (62 + 125)</b> beside the entrance drop, <b>AVEN 20 ft</b> under a hole in the ceiling. In plan a pitch has no size at all: the station at the top and the station at the bottom are the same point, so without the label the deepest thing in the cave draws as a numbered dot.</p>
+<p>A drop that is rebelayed is <b>one pitch</b>, because that is what a caver calls it. The total comes first and the rope sections follow it in brackets — 187 ft of air, rigged as 62 then 125. A passage leading off the rebelay ledge does not split the drop in two; it is still 187 ft of air.</p>
+<p>An <b>aven</b> is a hole in the ceiling nobody has been up. Push it into passage and it stops being one and becomes a pitch down from that passage — which is right, and is decided by the cave rather than by which end of the rope the tape started at.</p>
+<p>Anything under 10 ft gets no label: a plumbed step is not a pitch, and a map with <i>P 3 ft</i> all over it is a map nobody can read. Turn the whole thing off with <code>CaveSurvey/PitchLabels</code> if you are lettering by hand.</p>
+<h2>The sketch, not just the numbers</h2>
+<p>A Therion project is two halves: the <code>.th</code> with the shots, and one <code>.th2</code> page per sketched scrap. TopoDroid writes both. Importing only the numbers left you re-tracing, by hand, a photograph of a drawing you already had in vector — so if <code>.th2</code> files sit beside the survey file, they are offered in the same gesture.</p>
+<p>What arrives is <b>real map ink</b>, not a tracing reference: walls land on <code>WALLS-SURVEYED</code>, a presumed wall on <code>WALLS-INFERRED</code>, ledges and pits arrive as <a href="shaped-lines.html">shaped lines</a> with their ornament, areas as real <a href="area-fill.html">areas</a> that regenerate, and symbols as catalogue blocks aimed and sized the way the sketch asked. You can extend, edit and plot every piece of it exactly as if you had traced it yourself.</p>
+<p>Each page is <b>fitted to its station markers and then bent onto them</b>, which is what Therion does and what makes the sketch follow a survey that has since been adjusted. The report quotes how far the worst station was out <i>before</i> the bending — that is the honest measure of whether the sketch and the survey agree, and a large number is a page worth going to look at.</p>
+<p>What is not imported is said out loud, every time and by name: a page drawn in a projection this suite does not carry, a page tied to stations this drawing has never heard of, and any Therion type not in the mapping (those are drawn where the sketch put them, on <code>NOTES-ANNOTATION</code>, so nothing is lost).</p>
+<p>Import the same sketch again and each page it already holds is <b>asked about, not overwritten</b>: by then you have probably worked on the ink it put here. A backup is taken before anything is replaced.</p>
+<h2>See also</h2>
+<ul>
+<li><a href="caves.html">Caves</a> — <b>Import Cave...</b> there builds the whole project folder, not just the shots</li>
+<li><a href="export-cave-survey.html">Export Cave Survey</a></li>
+<li><a href="sketch-scans.html">Sketch Scans</a> — for a sketch that is a photograph rather than a vector file</li>
+<li><a href="words-vertical.html">Vertical caves: how to tell CaveCAD</a> — what the notes have to say for the pitches to come out right</li>
+</ul>

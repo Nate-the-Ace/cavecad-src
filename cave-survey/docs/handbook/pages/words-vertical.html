@@ -1,0 +1,64 @@
+<h1>Vertical caves: how to tell CaveCAD</h1>
+<p>You don't. There is no switch marked <i>this cave is vertical</i> — the survey says so, and everything that follows reads it from the numbers.</p>
+<p>That is deliberate. A flag can be forgotten, or set on the wrong cave, or disagree with the data underneath it; and a cave is rarely all one thing. Most long horizontal caves have vertical in them, and a pit usually has a crawl at the bottom. What matters is that each <i>shot</i> is recorded honestly. Get the notes right and the pitches, the labels, the elevation and the adjustment all follow.</p>
+
+<h2>Recording a pitch</h2>
+<p>A plumbed drop is a shot with the clino at <b>90</b> — written <code>-90</code>, or <code>DOWN</code>, or <code>-V</code>, and <code>+90</code> / <code>UP</code> for one going up — and <b>no bearing at all</b>. Leave the compass column blank, or write a dash. That is not laziness, it is the measurement: hanging on a rope there is nothing to sight along, the needle swings, and a number written there would be a formality. CaveCAD records the absence, writes it back out as a dash, and refuses to let anything downstream read it as a bearing of north.</p>
+<p><b>If the shot is not plumb, it needs a bearing.</b> A dash on anything short of a true plumb is refused, and you are told which line — at 85° a 100 ft tape still swings nearly 9 ft across the map and there is no honest direction to swing it in. Record the clino as 90 if it really was plumb; otherwise read the compass.</p>
+
+<h2>The line: 85 degrees</h2>
+<p>At and past 85° from horizontal, a shot <i>is</i> a pitch. That one number decides everything: whether a bearing on that leg is treated as evidence of direction, whether the leg counts as a way out of its stations, how the walls at its foot are drawn, and whether the adjustment treats it as hanging from gravity or sighted with a compass. Under 85° it is steep passage and behaves like any other shot.</p>
+<p>A near-plumb shot is also flagged in <a href="check-map.html">Check Map</a> — not because it is wrong, but because it is a classic place for a sign to get flipped.</p>
+
+<h2>LRUD on a pitch</h2>
+<ul>
+<li><b>UP at the foot of a drop is open.</b> Write <code>P</code>. The ceiling there <i>is</i> the pitch, and there is nothing to measure. A blank means "nobody looked", which is a different claim.</li>
+<li><b>Left and right at a pit foot</b> are drawn across the passage you are about to walk, not perpendicular to a compass reading nobody took. Record them as you always would.</li>
+<li><b>Record the lip.</b> The station at the head of a drop is the one a map most wants a width for, and the easiest to skip with your hands full.</li>
+<li><b>The first station has no shot arriving at it</b>, so its walls live in the trip's own first row. At a sinkhole rim, fill it in — otherwise the entrance draws with no width at all.</li>
+</ul>
+
+<h2>Elevation</h2>
+<p>Give the entrance its real elevation, not zero. In a 380 ft pit the datum trap is not subtle: see <a href="words-datum.html">Elevation, and the datum trap</a>.</p>
+
+<h2>What CaveCAD does with all that</h2>
+<ul>
+<li><b>Finds every drop and aven</b> and labels it where it hangs from, in the plan and in the elevation — <b>P 187 ft (62 + 125)</b>. In plan a pitch has no size at all, so without the label the deepest thing in the cave draws as a numbered dot.</li>
+<li><b>A rebelayed drop is one pitch</b>, because that is what a caver calls it. The total comes first, the rope sections follow in brackets. A passage leading off the rebelay ledge does not split it — it is still 187 ft of air.</li>
+<li><b>An aven is decided by the cave</b>, not by which end you started the tape. If nothing carries on at the top, it is an aven; push it into passage and it becomes a pitch down from that passage.</li>
+<li><b>Anything under 10 ft gets no label.</b> A plumbed step is not a pitch.</li>
+<li><b>Nothing invents a bearing.</b> A pitch contributes no way out of its stations, a section on a pitch is not silently oriented north, and a wall is never drawn in a direction nobody sighted.</li>
+<li><b>A plumbed leg is weighted by gravity</b> in the loop adjustment rather than by a compass it never used — so misclosure is not poured into the one line on the drawing whose true attitude a reader already knows.</li>
+</ul>
+
+<h2>A cave is rarely all one thing</h2>
+<p>Most long horizontal caves have vertical in them and most pits have a crawl at the bottom, so the engine never asks which kind you have — it decides <i>per piece of cave</i>, from that piece's own geometry. A chunked elevation cuts the cave at its pitches, then measures each piece: one that would fold back behind itself if flattened onto a plane is unrolled so it reads end to end, and one that would not is left projected, at true position. A branch that unrolling cannot carry becomes a piece of its own rather than being dropped.</p>
+<p>So the same command, with nothing set differently, unrolls the 2400 ft trunk of a horizontal cave and stacks the ropes of a pit — in the same drawing if the cave has both.</p>
+<h2>Choosing the view</h2>
+<p><b>Cave Survey &gt; Generate Profile</b> asks which elevation to draw and remembers the answer.</p>
+<p><b>Chunked</b> is the one that handles a cave with both kinds of passage in it, because it is the only one that stops treating the cave as one thing. Take it unless you have a reason not to.</p>
+<p><b>Extended</b> unrolls the whole cave on one rule: right for a long horizontal cave that wanders, wrong for anything with rope in it, because the arrangement of the shafts — which in a pit <i>is</i> the cave — is the first thing it throws away, and the bands it stacks are pushed off true depth to stop them overprinting.</p>
+<p><b>Projected</b> keeps the whole cave in one piece at true position: right for a pit, and it draws passages on top of each other wherever the cave really does.</p>
+<p>See <a href="generate-profile.html">Generate Profile</a>.</p>
+
+<h2>Rigging</h2>
+<p>Bolts, Y-hangs, rebelays, deviations, natural anchors, rope, cable ladder and traverse lines are in the <b>Rigging</b> category of the <a href="symbol-palette.html">Symbol Palette</a>, all on one layer so a map printed for someone who is not rigging the cave turns the whole topo off in one click. Add your own there too.</p>
+<p>A pitch length belongs in a note beside the rope, not baked into the symbol: re-rig the pitch and the note changes while the symbol stays true.</p>
+
+<h2>Rock outside the walls</h2>
+<p><b>Toggle Wall Edging</b> dresses the elevation as well as the plan, which matters here because on a pit map the elevation is the view you read. It works on <i>traced</i> walls, so trace some with <a href="feature-trace.html">Feature Trace</a> first — on a freshly imported survey there is nothing for it to dress and it says so. See <a href="shaped-lines.html">Shaped Lines</a>.</p>
+<h2>Settings worth knowing</h2>
+<ul>
+<li><code>CaveSurvey/ProfileMode</code> — extended, projected or chunked. Set by Generate Profile.</li>
+<li><code>CaveSurvey/ProjectionAzimuth</code> — the plane a projected elevation is flattened onto, or blank for the cave's own longest direction.</li>
+<li><code>CaveSurvey/PitchLabels</code> — turn the generated depth labels off if you are lettering by hand.</li>
+</ul>
+
+<h2>See also</h2>
+<ul>
+<li><a href="generate-profile.html">Generate Profile</a></li>
+<li><a href="symbol-palette.html">Symbol Palette</a></li>
+<li><a href="words-datum.html">Elevation, and the datum trap</a></li>
+<li><a href="words-survey.html">Station, shot, splay, LRUD</a></li>
+<li><a href="words-closure.html">Loop closure and adjustment</a></li>
+</ul>

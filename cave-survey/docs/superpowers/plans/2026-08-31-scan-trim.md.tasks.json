@@ -1,0 +1,68 @@
+{
+  "planPath": "docs/superpowers/plans/2026-08-31-scan-trim.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: CsScanTrim pure vocabulary",
+      "status": "pending",
+      "description": "**Goal:** Core library: rect from two picked points, clamp/round, derivative filename build+parse, Trimmed-path predicate, ScanTrim tag serialize/parse.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsScanTrim.js\n- scripts/CaveSurvey/Core/CsAll.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\n- [ ] rectFromPicks flips model y-up to image row-down\n- [ ] normalise clamps, rounds, and rejects under 20px\n- [ ] fileName/parseName round-trip a rect\n- [ ] isTrimPath matches whole path segments only\n- [ ] serialize/parse round-trip the ScanTrim text\n- [ ] CsScanTrim.js is included by CsAll.js and listed in js_unit CORE_FILES\n\n**Verify:** `/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/js_unit.js \"$PWD\"`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsScanTrim.js\", \"scripts/CaveSurvey/Core/CsAll.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/js_unit.js \\\"$PWD\\\"\", \"acceptanceCriteria\": [\"rectFromPicks flips model y-up to image row-down\", \"normalise clamps, rounds, and rejects under 20px\", \"fileName/parseName round-trip a rect\", \"isTrimPath matches whole path segments only\", \"serialize/parse round-trip the ScanTrim text\", \"CsScanTrim.js is included by CsAll.js and listed in js_unit CORE_FILES\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Write the derivative file",
+      "status": "pending",
+      "description": "**Goal:** CsScanTrim.write crops the page with QImage and saves a PNG into <scans>/Trimmed/, reusing an identical existing derivative and reporting every failure by name.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsScanTrim.js\n- tests/scan_trim_run.js\n- tests/run_all.sh\n\n**Acceptance Criteria:**\n- [ ] the derivative is exactly the box's pixel size\n- [ ] the cropped PIXELS are the right ones (marker pixel at the box-relative offset)\n- [ ] a repeated identical box reuses the file without rewriting it\n- [ ] an unwritable folder or unreadable page returns an error, never a throw\n- [ ] run_all.sh gains a 14th section and its banners are renumbered\n\n**Verify:** `/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \"$PWD\"`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsScanTrim.js\", \"tests/scan_trim_run.js\", \"tests/run_all.sh\"], \"verifyCommand\": \"/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \\\"$PWD\\\"\", \"acceptanceCriteria\": [\"the derivative is exactly the box's pixel size\", \"the cropped PIXELS are the right ones (marker pixel at the box-relative offset)\", \"a repeated identical box reuses the file without rewriting it\", \"an unwritable folder or unreadable page returns an error, never a throw\", \"run_all.sh gains a 14th section and its banners are renumbered\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Keep derivatives out of the Scan Shelf",
+      "status": "pending",
+      "description": "**Goal:** SketchScans.imageFiles skips any relative path with a Trimmed path segment; the filter stays out of the shared CsCave.filesUnder.\n\n**Files:**\n- scripts/CaveSurvey/SketchScans/SketchScans.js\n\n**Acceptance Criteria:**\n- [ ] the shelf lists the page and never a derivative\n- [ ] the filter lives in SketchScans.imageFiles, not CsCave.filesUnder\n\n**Verify:** `/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \"$PWD\"`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/SketchScans/SketchScans.js\"], \"verifyCommand\": \"/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \\\"$PWD\\\"\", \"acceptanceCriteria\": [\"the shelf lists the page and never a derivative\", \"the filter lives in SketchScans.imageFiles, not CsCave.filesUnder\"], \"modelTier\": \"mechanical\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: ScanTrim tag on placed images",
+      "status": "pending",
+      "description": "**Goal:** insert and insertFitted take an optional trim rect and record it, while SketchScan keeps naming the ORIGINAL page so the shelf's ticks and placedScales still find it.\n\n**Files:**\n- scripts/CaveSurvey/SketchScans/SketchScans.js\n- tests/scan_trim_run.js\n\n**Acceptance Criteria:**\n- [ ] a trimmed placement carries ScanTrim = x,y,w,h\n- [ ] a whole-page placement carries no ScanTrim tag\n- [ ] SketchScan still names the page\n- [ ] the tag is written BEFORE the entity is added\n- [ ] scan_reanchor_run.js still passes\n\n**Verify:** `/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \"$PWD\" && /Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_reanchor_run.js \"$PWD\"`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/SketchScans/SketchScans.js\", \"tests/scan_trim_run.js\"], \"verifyCommand\": \"/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_trim_run.js \\\"$PWD\\\" && /Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/scan_reanchor_run.js \\\"$PWD\\\"\", \"acceptanceCriteria\": [\"a trimmed placement carries ScanTrim = x,y,w,h\", \"a whole-page placement carries no ScanTrim tag\", \"SketchScan still names the page\", \"the tag is written BEFORE the entity is added\", \"scan_reanchor_run.js still passes\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Rubber-band box in the preview",
+      "status": "pending",
+      "description": "**Goal:** Left-dragging in the Scan Shelf preview draws a live rectangle in the scratch document and hands the caller the two model points on release, without disturbing middle-drag pan, wheel zoom, or the station picker.\n\n**Files:**\n- scripts/CaveSurvey/SketchScans/ScanView.js\n\n**Acceptance Criteria:**\n- [ ] armBox arms and disarms boxing mode\n- [ ] a left drag draws a band that follows the cursor\n- [ ] release reports {a,b} model points\n- [ ] onScanPick does not fire while boxing\n- [ ] pan and wheel zoom still work\n- [ ] a bare click reports nothing\n- [ ] every mapping goes through CsScanView.viewPos (Retina)\n\n**Verify:** `/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/js_syntax.js \"$PWD\"`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/SketchScans/ScanView.js\"], \"verifyCommand\": \"/Applications/CaveCAD.app/Contents/MacOS/CaveCAD -no-dock-icon -no-gui -allow-multiple-instances -autostart tests/js_syntax.js \\\"$PWD\\\"\", \"acceptanceCriteria\": [\"armBox arms and disarms boxing mode\", \"a left drag draws a band that follows the cursor\", \"release reports {a,b} model points\", \"onScanPick does not fire while boxing\", \"pan and wheel zoom still work\", \"a bare click reports nothing\", \"every mapping goes through CsScanView.viewPos (Retina)\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Trim bar and the placement gate",
+      "status": "pending",
+      "description": "**Goal:** Selecting a scan arms trim; Insert, Insert & Align, Assign Stations to Scans and Sketch Section stay disabled until a box is drawn or Use whole page is pressed; every path reads SketchScans.effectivePath.\n\n**Files:**\n- scripts/CaveSurvey/SketchScans/SketchScans.js\n\n**Acceptance Criteria:**\n- [ ] the trim bar shows state, Use whole page, and Redo box\n- [ ] all four placement controls are gated on the choice\n- [ ] drawing a box writes the derivative and reloads the preview from it\n- [ ] Use whole page writes nothing\n- [ ] Redo box restores the page and re-disables the buttons\n- [ ] selecting another scan resets the trim state\n- [ ] a failed write shows the error and leaves the buttons disabled\n\n**Verify:** `./tests/run_all.sh`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/SketchScans/SketchScans.js\"], \"verifyCommand\": \"./tests/run_all.sh\", \"acceptanceCriteria\": [\"the trim bar shows state, Use whole page, and Redo box\", \"all four placement controls are gated on the choice\", \"drawing a box writes the derivative and reloads the preview from it\", \"Use whole page writes nothing\", \"Redo box restores the page and re-disables the buttons\", \"selecting another scan resets the trim state\", \"a failed write shows the error and leaves the buttons disabled\"], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Amend the spec to the as-built shape",
+      "status": "pending",
+      "description": "**Goal:** The spec's placement section names four paths, not two, and records the effectivePath accessor.\n\n**Files:**\n- docs/superpowers/specs/2026-08-31-scan-trim-design.md\n\n**Acceptance Criteria:**\n- [ ] the section lists Insert, Insert & Align, Assign Stations to Scans, Sketch Section\n- [ ] it names SketchScans.effectivePath\n- [ ] no other section contradicts it\n\n**Verify:** `grep -n \"effectivePath\" scripts/CaveSurvey/SketchScans/SketchScans.js`\n\n**Steps:** see the task's section in docs/superpowers/plans/2026-08-31-scan-trim.md \u2014 every step there carries the full code.\n\n```json:metadata\n{\"files\": [\"docs/superpowers/specs/2026-08-31-scan-trim-design.md\"], \"verifyCommand\": \"grep -n \\\"effectivePath\\\" scripts/CaveSurvey/SketchScans/SketchScans.js\", \"acceptanceCriteria\": [\"the section lists Insert, Insert & Align, Assign Stations to Scans, Sketch Section\", \"it names SketchScans.effectivePath\", \"no other section contradicts it\"], \"modelTier\": \"mechanical\"}\n```",
+      "blockedBy": [
+        5
+      ]
+    }
+  ],
+  "lastUpdated": "2026-08-31T06:44:06.737570"
+}

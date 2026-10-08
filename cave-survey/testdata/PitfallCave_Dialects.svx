@@ -1,0 +1,145 @@
+; PitfallCave_Dialects.svx -- parser dialect traps, hand-written.
+; Generated fixtures cannot carry these: a writer never emits them.
+; Every block is annotated with what a reader gets WRONG if it
+; mishandles the directive. Geometry is deliberately trivial (round
+; bearings, whole numbers) so a wrong answer is obvious by eye.
+;
+; The cave itself is nonsense -- this file is about the directives.
+; Note the SHAPE of the file: the unit and angle switches are FLAT
+; inside one *begin block, because in real Survex a nested block
+; renames its stations (prefix.name) and a leg written across the
+; boundary is two different stations, not a connection. The one
+; nested block below is deliberately a separate component with its
+; own *fix -- which is also the prefix-naming and flag-scope trap.
+
+*begin DIALECT
+*units length feet
+*units compass degrees
+*units clino degrees
+*fix E1 reference 0 0 812.40
+*date 2026-07-04
+*team "N. SCHONEGG" compass clino
+*team "R. WEBB" tape
+*data normal from to tape compass clino
+
+; --- 1. *calibrate declination is a ZERO ERROR. Survex computes
+; (reading - X), so the model declination is -X. A reader that ADDS
+; it rotates the whole survey by 2X -- 8.5 degrees here, invisible
+; unless something is georeferenced.
+*calibrate declination 4.25
+E1 E2 100.00 90.00 0.00
+
+; --- 2. the modern *declination has the CONVENTIONAL sign (added).
+; Same magnitude as above, opposite meaning: E2->E3 must end up 8.5
+; degrees away from E1->E2 in the model, not on top of it.
+*declination 4.25
+E2 E3 100.00 90.00 0.00
+
+; --- 3. plumbs. Compass omitted with "-" is legal on a plumbed leg;
+; UP/DOWN/U/D/+V/-V and LEVEL are keywords, not numbers. A reader
+; that parseFloats these gets 0 and flattens a pitch to level.
+E3 E4 40.00 - DOWN
+E4 E5 40.00 - UP
+E5 E6 25.00 - +V
+E6 E7 25.00 180.00 LEVEL
+
+; --- 4. anonymous stations are SPLAYS: "." ".." "..." and the
+; PocketTopo "-". A reader that treats these as real station names
+; builds a station called ".." that every later splay collides with.
+E7 .. 12.00 45.00 0.00
+E7 .. 14.00 135.00 0.00
+E7 . 9.00 225.00 -5.00
+E7 - 11.00 315.00 5.00
+
+; --- 5. *flags. duplicate excludes from LENGTH; surface excludes
+; from length AND plot; "not" clears; *flags splay makes a NAMED
+; station's shot a wall shot.
+*flags duplicate
+E7 E8 50.00 90.00 0.00
+*flags not duplicate
+*flags surface
+E8 E9 60.00 90.00 0.00
+*flags not surface
+*flags splay
+E9 E9S 15.00 0.00 0.00
+*flags not splay
+
+; --- 6. UNIT SWITCH MID-FILE. These legs are surveyed in METRES; the
+; survey's working unit is already feet, so every distance here must
+; be CONVERTED, not copied. A reader that copies refoots a metric
+; run and shrinks it by 3.28 -- the silent-refooting bug the CSV
+; rewrite existed to kill. 30.48 m is exactly 100 ft.
+*date 2026-07-05
+*team "K. AYERS" tape
+*units length metres
+E9 M1 30.48 90.00 0.00
+M1 M2 30.48 0.00 0.00
+*units length feet
+
+; --- 7. yards, and a unit FACTOR. 1 yd = 0.9144 m, so 33.33 yd is
+; ~100 ft; the factor form "*units length 2 feet" means every tape
+; reading counts double, so 50.00 is 100 ft.
+*units length yards
+M2 Y1 33.33 180.00 0.00
+*units length 2 feet
+Y1 Y2 50.00 180.00 0.00
+*units length feet
+
+; --- 8. grads and percent. 400 grads = 360 degrees; a clino in
+; percent is a TANGENT, not an angle (100 percent = 45 degrees).
+; Reading either as degrees is a wrong cave that still plots.
+*units compass grads
+Y2 G1 40.00 100.00 0.00
+*units compass degrees
+*units clino percent
+G1 G2 40.00 90.00 100.00
+*units clino degrees
+
+; --- 9. backsights, and the field-name aliases. length/bearing/
+; gradient are the long names for tape/compass/clino; backbearing
+; and backgradient carry the backsight. The first pair below
+; disagrees by 6 degrees in compass, the second by 4 in clino, and
+; both must reach the fs/bs check rather than being averaged away.
+*data normal from to length bearing gradient backbearing backgradient
+G2 K1 45.00 90.00 -5.00 276.00 5.00
+K1 K2 45.00 180.00 -5.00 0.00 -1.00
+*data normal from to tape compass clino
+
+; --- 10. *data passage LRUD is per STATION, associated with the TO
+; station, and "-" means NOT MEASURED (null), which is not zero.
+; The first station's reading has no arriving shot to carry it and
+; belongs in survey.startLrud.
+*data passage station left right up down
+E1 3.0 4.5 6.0 0.0
+E2 5.0 5.0 9.0 1.0
+E3 - - 12.0 -
+E4 0.0 0.0 30.0 2.0
+*data normal from to tape compass clino
+
+; --- 11. a NESTED block: its stations are renamed DIALECT.SIDE.*, so
+; a leg written to "E9" in here would NOT reach DIALECT.E9 -- it is a
+; separate component, which is why it carries its own *fix. The flag
+; set is saved at *begin and restored at *end: the surface flag below
+; must NOT leak out to the legs that follow this block, or real
+; passage silently drops out of the cave's total length.
+*begin SIDE
+*fix S1 300 300 1300
+*flags surface
+S1 S2 40.00 90.00 0.00
+*end SIDE
+
+; --- 12. two *date lines with NO leg between them, each with its own
+; *team. This used to credit T. FIRST with J. PARK's trip: the
+; previous crew was cleared only when a LEG had been recorded since
+; the last *date, and here there is none between them. A change of
+; DATE now clears the crew on its own, so the trip below must read
+; J. PARK alone. (The *team line between the two dates is what makes
+; this a real reproduction -- without it the earlier crew is already
+; cleared by the leg above and the trap never fires.)
+*date 2026-07-06
+*team "T. FIRST" notes
+*date 2026-07-07
+*team "J. PARK" notes
+K2 P1 20.00 270.00 0.00
+
+*end DIALECT

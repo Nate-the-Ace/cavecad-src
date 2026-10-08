@@ -1,0 +1,20 @@
+<h1>Correct a bad reading without forking a duplicate trip</h1>
+<p>A transposed azimuth, a tape read as 12.4 that was 42.4. Fixing it has one right door and several wrong ones.</p>
+<h2>Steps</h2>
+<ol>
+<li><b>Survey Notebook</b>, then <b>Load from drawing</b> and pick the trip.</li>
+<li>Fix the number in the ladder.</li>
+<li><b>Draw</b>. Because the page was loaded from the drawing, it revises <i>that</i> trip by identity.</li>
+</ol>
+<p>Loading from the drawing is what matters. Retyping the trip by hand and drawing it again matches on date and team, so a trip whose date you also corrected arrives as a second trip and the cave is drawn twice.</p>
+<h2>Correcting the trip itself</h2>
+<p>Name, date, team or instruments: <b>... &gt; Edit this trip...</b>. It edits by identity, moves nothing, needs no redraw, and is one undo step.</p>
+<h2>Declination is different</h2>
+<p>Changing declination rotates the plan, so it is not among those fields. It lives in <b>Declination</b>, and the drawing rotates around the fix.</p>
+<h2>Try it on Truitt</h2>
+<p>Correct a trip's date from <b>Edit this trip...</b>, then count the trips. The count must be unchanged.</p>
+<h2>See also</h2>
+<ul>
+<li><a href="survey-notebook.html">Survey Notebook</a></li>
+<li><a href="where-the-loop-error-is.html">See where a loop error happened</a></li>
+</ul>

@@ -1,0 +1,235 @@
+From 38d89afa27fdc8c4efb4c71330bed5b1a8d834ca Mon Sep 17 00:00:00 2001
+From: Nathan Schonegg <nschonegg@banning-eng.com>
+Date: Wed, 19 Aug 2026 18:56:26 -0400
+Subject: [PATCH 4/5] Add GPL compliance docs for CaveCAD distribution
+
+README, readme.txt and LICENSE.txt now state CaveCAD is a GPLv3
+modified version of QCAD 3.33 with public source on the cavecad
+branch. NOTICE.md records the modification summary GPLv3 5(a) asks
+for; PUBLISHING.md is the pre-release checklist (license files in
+every package, source pushed and tagged first, no Pro/DWG bits,
+distinct product name).
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ LICENSE.txt   |  5 ++++
+ NOTICE.md     | 39 +++++++++++++++++++++++++++++++
+ PUBLISHING.md | 36 +++++++++++++++++++++++++++++
+ README.md     | 64 +++++++++++++++++++++++++++++++++++++++++----------
+ readme.txt    | 21 +++++++++++------
+ 5 files changed, 146 insertions(+), 19 deletions(-)
+ create mode 100644 NOTICE.md
+ create mode 100644 PUBLISHING.md
+
+diff --git a/LICENSE.txt b/LICENSE.txt
+index 284db060..e50a398f 100644
+--- a/LICENSE.txt
++++ b/LICENSE.txt
+@@ -1,3 +1,8 @@
++CaveCAD is a modified version of QCAD Community Edition 3.33 by
++RibbonSoft GmbH. All modifications made for CaveCAD are licensed under
++GPL version 3. See NOTICE.md for a summary of modifications; complete
++source is available at https://github.com/ndschonegg/qcad (branch: cavecad).
++
+ The QCAD 3 source code is open source and distributed under GPL version 3
+ with optional exceptions.
+ 
+diff --git a/NOTICE.md b/NOTICE.md
+new file mode 100644
+index 00000000..2436da04
+--- /dev/null
++++ b/NOTICE.md
+@@ -0,0 +1,39 @@
++NOTICE — Modifications from upstream QCAD
++=========================================
++
++CaveCAD is a modified version of QCAD Community Edition 3.33
++(https://github.com/qcad/qcad), Copyright (c) 2011-2026 RibbonSoft GmbH.
++CaveCAD is not affiliated with or endorsed by RibbonSoft GmbH.
++
++This file summarizes the modifications, as required by GPLv3 section 5(a).
++The complete, authoritative record of every change (with dates and diffs) is
++the git history of the `cavecad` branch at:
++
++    https://github.com/ndschonegg/qcad
++
++Summary of modifications (August 2026 onward)
++---------------------------------------------
++- Rebranded the application as "CaveCAD": application name, macOS bundle
++  name/display name, and settings file (CaveCAD3.ini), giving it a per-user
++  data and scripts location separate from any QCAD install on the same
++  machine (src/run/main.cpp, src/run/Info.plist).
++- New CaveCAD logo, application icon, and splash screen, with a QCAD
++  attribution line on the splash screen.
++- Repackaged script resource lists to match the CaveCAD script set
++  (src/scripts/scripts.qrc, src/scripts/scripts_release.qrc).
++- Documentation updated for CaveCAD (README.md, readme.txt, this file).
++
++What is NOT included
++--------------------
++CaveCAD contains no QCAD Professional or QCAD/CAM components. In particular,
++the proprietary DWG plugin is not included; file exchange is DXF (via dxflib,
++GPL) only.
++
++Licensing of modifications
++--------------------------
++All CaveCAD modifications to the QCAD source tree are licensed under the
++GNU General Public License version 3 (see gpl-3.0.txt), consistent with the
++upstream license (see LICENSE.txt and gpl-3.0-exceptions.txt).
++
++The Cave Survey tool suite (script add-ons) is developed and distributed
++separately under its own license, as permitted by QCAD's GPL exceptions.
+diff --git a/PUBLISHING.md b/PUBLISHING.md
+new file mode 100644
+index 00000000..c34f53fc
+--- /dev/null
++++ b/PUBLISHING.md
+@@ -0,0 +1,36 @@
++Publishing checklist — GPL compliance
++=====================================
++
++Run through this before shipping any CaveCAD binary (DMG, zip, installer):
++
++1. **Ship the license files.** Every binary package must contain:
++   - LICENSE.txt
++   - gpl-3.0.txt
++   - gpl-3.0-exceptions.txt
++   - NOTICE.md
++   - readme.txt
++
++2. **Push first.** The exact source used for the build must be public on the
++   `cavecad` branch at https://github.com/ndschonegg/qcad *before* binaries
++   go out. Tag the release commit (e.g. `cavecad-v1.0`) so the binary can be
++   matched to its source.
++
++3. **Keep the name clean.** The app, package, and any web page say
++   "CaveCAD", never "QCAD", "QCAD Professional" or "QCAD/CAM" as the
++   product name. Attribution ("based on QCAD by RibbonSoft") is fine and
++   already on the splash screen.
++
++4. **No proprietary QCAD components.** Do not bundle the QCAD Professional
++   DWG plugin or any QCAD/CAM files. DXF only.
++
++5. **Update NOTICE.md** if the release adds notable modifications to the
++   QCAD core beyond what is already listed.
++
++6. **Preserve copyright headers.** Never strip RibbonSoft copyright notices
++   from source files. When modifying a core file substantially, keep the
++   original header and add a CaveCAD modification line below it.
++
++Cave Survey plugin suite: separate codebase, its own license (permitted by
++QCAD's GPL exceptions). Its packaging is handled by the suite's publish.sh
++and is not covered by this checklist, except: if a CaveCAD binary package
++bundles the suite, include the suite's license file too.
+diff --git a/README.md b/README.md
+index 663fb2fa..1f1aaf9a 100644
+--- a/README.md
++++ b/README.md
+@@ -1,22 +1,62 @@
+-QCAD - The Open Source 2D CAD
+-=============================
++CaveCAD - 2D CAD for Cave Mapping
++=================================
+ 
+-QCAD is a 2D CAD solution for Windows, macOS and Linux. Its core is developed in C++, based on the Qt tool kit.
+-QCAD can be extended through a C++ plugin interface as well as through its very powerful and complete scripting 
+-interface (ECMAScript/JavaScript).
++CaveCAD is a 2D CAD application for drawing cave surveys and maps, built as a
++modified version of [QCAD Community Edition](https://qcad.org) by RibbonSoft
++GmbH. It is not affiliated with or endorsed by RibbonSoft.
+ 
+-History
+--------
+-QCAD started as version 1 in October 1999 and has since evolved through version 2 (September 2003) 
+-and the current version 3 (July 2012 to present).
++CaveCAD keeps QCAD's full 2D drafting core and adds cave-specific branding,
++its own settings/data location (so it coexists with a regular QCAD install),
++and is designed to host the Cave Survey tool suite (traverse plotting, survey
++file import from Walls/Compass/Survex, LRUD passage walls, map fitting,
++breakdown symbols, and georeferencing).
+ 
+ License
+ -------
+-The QCAD 3 source code is released under the GPLv3 open source license. Script add-ons and C++ plugins 
+-are released under their respective licenses.
++CaveCAD's source code, like the QCAD 3 source code it is derived from, is
++released under the GNU General Public License version 3 (GPLv3) with QCAD's
++optional exceptions. See:
++
++- [LICENSE.txt](LICENSE.txt) — overview of all licenses in this tree
++- [gpl-3.0.txt](gpl-3.0.txt) — the GPLv3 license text
++- [gpl-3.0-exceptions.txt](gpl-3.0-exceptions.txt) — QCAD's exceptions, which
++  permit script add-ons and C++ plugins under their own licenses
++
++All modifications made for CaveCAD are themselves licensed under GPLv3. Script
++add-ons and C++ plugins are released under their respective licenses.
++
++Source availability
++-------------------
++The complete, buildable source code for CaveCAD — including every modification
++to upstream QCAD — is public at:
++
++    https://github.com/ndschonegg/qcad (branch: cavecad)
++
++Upstream QCAD source: https://github.com/qcad/qcad
++
++Modifications from QCAD
++-----------------------
++See [NOTICE.md](NOTICE.md) for a summary of changes made to upstream QCAD, as
++required by GPLv3 section 5(a). The authoritative record of every change is
++the git history of the `cavecad` branch.
++
++Trademarks
++----------
++"QCAD" is a product name of RibbonSoft GmbH. In accordance with QCAD's
++distribution terms, this modified version is distributed under the distinct
++name "CaveCAD" and is never distributed as "QCAD", "QCAD Professional" or
++"QCAD/CAM". CaveCAD does not include any QCAD Professional or QCAD/CAM
++components (no proprietary DWG plugin; DXF only).
++
++History
++-------
++QCAD started as version 1 in October 1999 and has since evolved through
++version 2 (September 2003) and the current version 3 (July 2012 to present).
++CaveCAD forked from QCAD 3.33 in August 2026.
+ 
+ Compilation
+ -----------
+-Detailed compilation instructions for Windows, macOS and Linux can be found on our web site at:
++Detailed compilation instructions for Windows, macOS and Linux can be found
++on the QCAD web site at:
+ 
+ http://www.qcad.org/en/component/content/article/78-qcad/111-qcad-compilation-from-sources
+diff --git a/readme.txt b/readme.txt
+index a88952e9..1bbf1858 100644
+--- a/readme.txt
++++ b/readme.txt
+@@ -1,11 +1,18 @@
+-QCAD
++CaveCAD
+ 
+-This is QCAD version 3.33.
++This is CaveCAD, based on QCAD version 3.33.
+ 
+-QCAD is an application for computer aided drafting (CAD) in two dimensions (2D).
++CaveCAD is an application for computer aided drafting (CAD) in two
++dimensions (2D), tailored for drawing cave surveys and maps.
+ 
+-With QCAD you can create technical drawings such as plans for buildings, 
+-interiors, mechanical parts or schematics and diagrams.
++CaveCAD is a modified version of QCAD Community Edition by RibbonSoft GmbH
++(https://qcad.org). It is not affiliated with or endorsed by RibbonSoft.
+ 
+-QCAD works on Windows, macOS and many Linux and Unix Systems. The source code 
+-of QCAD is distributed under the GPLv3 (see LICENSE.txt for details).
++The source code of CaveCAD is distributed under the GPLv3 with QCAD's
++optional exceptions (see LICENSE.txt, gpl-3.0.txt and gpl-3.0-exceptions.txt
++for details). Complete source code, including all modifications, is
++available at:
++
++    https://github.com/ndschonegg/qcad (branch: cavecad)
++
++A summary of modifications from upstream QCAD is in NOTICE.md.
+-- 
+2.54.0 (Apple Git-157)
+

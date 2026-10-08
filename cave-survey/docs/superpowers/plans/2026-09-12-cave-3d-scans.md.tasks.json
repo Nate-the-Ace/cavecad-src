@@ -1,0 +1,66 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-12-cave-3d-scans.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: CsDrape elevation sampling and grid",
+      "status": "pending",
+      "description": "**Goal:** Sample z for a plan point; subdivide a scan quad into a draped grid.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsDrape.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 1.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsDrape.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: read scans out of a drawing",
+      "status": "pending",
+      "description": "**Goal:** readScans finds images by layer, path from XDATA, pixel size from the file.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsDrape.js\n- tests/cave3d_drape_run.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 2.\n\n**Verify:** tests/cave3d_drape_run.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsDrape.js\", \"tests/cave3d_drape_run.js\"], \"verifyCommand\": \"tests/cave3d_drape_run.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: the texture pipeline in C++",
+      "status": "pending",
+      "description": "**Goal:** QOpenGLTexture per scan, luminance-keyed shader, blending, context rebuild.\n\n**Files:**\n- src/gui/RCave3dTexture.cpp\n- src/gui/RCave3dView.cpp\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 3.\n\n**Verify:** ninja -j20 in BOTH trees\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dTexture.cpp\", \"src/gui/RCave3dView.cpp\"], \"verifyCommand\": \"ninja -j20 in BOTH trees\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: wire the plan drape through",
+      "status": "pending",
+      "description": "**Goal:** scansBuffer, per-scan runs, toggle, persistence.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3D.js\n- src/gui/RCave3dBridge.cpp\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 4.\n\n**Verify:** ninja -j20 in BOTH trees\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3D.js\", \"src/gui/RCave3dBridge.cpp\"], \"verifyCommand\": \"ninja -j20 in BOTH trees\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        2
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: verify plan drape live, release 0.9.124.0",
+      "status": "pending",
+      "description": "**Goal:** Truitt's 28 plan scans lie on the passage; paper keys out.\n\n**Files:**\n- VERSION\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 5.\n\n**Verify:** bash tests/run_all.sh\n\n```json:metadata\n{\"files\": [\"VERSION\"], \"verifyCommand\": \"bash tests/run_all.sh\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        3
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: the profile inverse mapping",
+      "status": "pending",
+      "description": "**Goal:** Band-local x to a leg and t; band point to a real 3D position.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsDrape.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 6.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsDrape.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        4
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: profile strips, release 0.9.125.0",
+      "status": "pending",
+      "description": "**Goal:** One strip per leg so a scan follows the passage round a bend.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsDrape.js\n- VERSION\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-scans.md, Task 7.\n\n**Verify:** bash tests/run_all.sh\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsDrape.js\", \"VERSION\"], \"verifyCommand\": \"bash tests/run_all.sh\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        5
+      ]
+    }
+  ],
+  "lastUpdated": "2026-09-12T19:46:29.437672"
+}

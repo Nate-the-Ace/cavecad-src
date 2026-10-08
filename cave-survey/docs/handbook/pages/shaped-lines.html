@@ -1,0 +1,34 @@
+<h1>Shaped Lines</h1>
+<p>Cave-map line symbology as real, self-maintaining geometry. <code>shl</code></p>
+<p><img src="shaped-lines-demo.gif" width="440"><br><i>Drag along an edge: a floor ledge's hachures, then a rimstone dam. The drag is animated; the lines are real.</i></p>
+<h2>When you reach for it</h2>
+<p>For the six NSS line symbols: Floor Ledge (<code>lgf</code>), Ceiling Ledge (<code>lgc</code>), Pit (<code>pte</code>), Flowstone (<code>fst</code>), Rimstone Dam (<code>rst</code>), Slope (<code>slp</code>). They are drawn from the <b>Shaped Lines</b> group in the Feature Trace panel.</p>
+<h2>Steps</h2>
+<ol>
+<li>Arm the symbol, then drag along the edge.</li>
+<li>Release, and the feature follows your cursor until you <b>click the side the ornament goes on</b> — hachures on the down side, scallops bowing downslope, slope fans splaying downhill.</li>
+<li>Edit the line afterwards with QCAD's own tools; the ornament follows.</li>
+<li>A stroke continuing your last shaped line of the same style grows it, spine and ornament together, on one undo, with the side inherited.</li>
+</ol>
+<p>The same buttons work in both views: a stroke inside the elevation's band boxes lands on the <code>PROFILE-</code> twin layers automatically.</p>
+<h2>The other three commands</h2>
+<ul>
+<li><code>shl</code> itself is <b>Decorate Selection</b>: dress any existing line, polyline, arc, circle or spline the same way.</li>
+<li><b>Flip Shaped Side</b> (<code>shf</code>) mirrors the ornament on a line already drawn.</li>
+<li><b>Sync Shaped Lines</b> (<code>shs</code>) rebuilds the ornament by hand.</li>
+</ul>
+<h2>Rock outside the walls</h2>
+<p><b>Toggle Wall Edging</b> (<code>wed</code>) is a switch: stone glyphs outside every surveyed wall, or take them all away again. It rides the drawing, so it survives a save.</p>
+<p><b>Which side is outside is not a guess.</b> The direction from a point on a wall to the nearest survey station is the direction of the cave, so outside is the other way — decided per glyph, not per wall, because one wall can run out of open passage into a fin between two passages and the answer changes along it. A wall with cave on <i>both</i> faces has no outside and is left bare rather than having stone drawn into the passage next door.</p>
+<p>Where the nearest station lies nearly <i>along</i> the wall it says almost nothing about across, and that glyph takes the answer of the nearest confident one either side of it. On long wandering passage a quarter of the positions are in that state, so it is worth knowing they follow the wall rather than a single vote for the whole polyline.</p>
+<p><b>It dresses the plan and the elevation.</b> On a pit map the elevation is the view you actually read, so it edges <code>PROFILE-WALLS-SURVEYED</code> against the elevation's own stations. Section bays stay hand-dressed with <b>Decorate Selection</b>: a bay is one station's worth of cave seen end-on, so there is no station cloud to reason against and no outside that geometry can find.</p>
+<p>It dresses <b>traced</b> walls — what you drew with <a href="feature-trace.html">Feature Trace</a> — not the generated wall runs on the <code>CTRL-</code> layers, which are redrawn from the survey every time the cave is drawn and would lose their stone with each redraw. Import a survey and turn the switch on before tracing anything and it will tell you it found nothing to dress.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>Flowstone, rimstone and slope spines live on <code>CTRL-SHAPE-SPINE</code>, off by default. Switch it on to reshape those edges.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="feature-trace.html">Feature Trace</a></li>
+<li><a href="check-map.html">Check Map</a> — it flags a ledge whose hachures face the wrong way</li>
+</ul>

@@ -1,0 +1,29 @@
+; PLUMBLINE PIT -- vertical dialect traps, hand-written.
+; None of these come out of any writer in this suite; they are what
+; a caver's own notes and other people's files look like.
+*units length feet
+*data normal from to tape compass clino
+*fix V1 0 0 1742.00
+; 1. the dash: no bearing sighted on a plumb. LEGAL, and the leg must
+;    survive with the omission recorded rather than a bearing of 000.
+V1	V2	62.00	-	-90
+; 2. the same thing said with a keyword instead of a number.
+V2	V3	40.00	-	DOWN
+V3	V4	18.00	-	-V
+; 3. an AVEN said the same way.
+V4	V5	22.00	-	UP
+; 4. a plumb with a backsight: the backsight of -90 is +90, and the
+;    sign of that is the classic vertical blunder.
+*data normal from to tape compass clino backcompass backclino
+V5	V6	35.00	-	-90	-	90
+*data normal from to tape compass clino
+; 5. THE REFUSAL. A bearing may not be omitted on a leg that is not
+;    plumb -- at -86.5 a 43 ft tape still swings 2.7 ft across the
+;    map, and there is no honest direction to swing it in. Survex
+;    refuses this too. What must NOT happen is the old behaviour:
+;    the leg silently vanishing and everything past it going
+;    unconnected with nothing said.
+V6	V7	43.50	-	-86.5
+; 6. ...so V7 onward is deliberately orphaned, and the reader has to
+;    say so rather than leaving a cave that just stops.
+V7	V8	20.00	145	-4

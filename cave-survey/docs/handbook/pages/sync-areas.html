@@ -1,0 +1,9 @@
+<h1>Sync Areas</h1>
+<p>Rebuild every area's fill by hand. <code>sya</code></p>
+<h2>When you reach for it</h2>
+<p>The manual fallback: a drawing edited elsewhere, one where the live listener never installed, or a boundary moved by a script. Normally the fill follows its boundary on its own and you never need this.</p>
+<h2>What else it does</h2>
+<p>It adopts every old <code>BREAKDOWN-BOUNDARY</code> polyline Scatter Breakdown drew that has no <code>AreaId</code> yet: tags it, keeps its existing pile's seed so the look does not change, and rebuilds it as a real area. Run once per boundary; harmless to run again.</p>
+<p>It is also the one place a custom area pattern's missing block is fetched into the drawing on your behalf — the live listener deliberately never does that on its own.</p>
+<h2>See also</h2>
+<ul><li><a href="area-fill.html">Area Fill</a></li></ul>

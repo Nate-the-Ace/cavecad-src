@@ -1,0 +1,40 @@
+<h1>Symbol Palette</h1>
+<p>Every cave symbol the template carries, grouped by category, each tile showing the symbol itself rather than its name. <code>symbolpalette</code></p>
+<p><img src="symbol-palette-demo.gif" width="440"><br><i>Search the tiles: only matching symbols stay, under their categories.</i></p>
+<h2>When you reach for it</h2>
+<p>For everything that is a mark rather than a line: entrances, pits, domes, formations, flow arrows.</p>
+<h2>Biology, Archaeology, Hazards and Passage ends</h2>
+<p>Four categories for what a cave map has to warn about. <b>Biology</b>: bat, root, tree trunk, vegetable debris, seed germination. <b>Archaeology</b>: excavation, artefact, fossil, bones, human bones, masonry, altar, ex-voto. <b>Hazards</b>: danger, dig, air draught. <b>Passage ends</b>: continuation, low end, narrow end, and breakdown, clay and flowstone chokes.</p>
+<p>Two of these ask for care. Mark a <b>bat roost</b> for your own group's use and leave it off any map that leaves the group, because a published roost is a disturbed one. <b>Human bones</b> are a burial: mark them, leave them, and report them to the landowner and the authorities instead of publicising them.</p>
+<p>A <b>continuation</b> is a lead. It places a question mark on NOTES-DIG; give the reason it stopped in a callout beside it.</p>
+<h2>More formations, geology and equipment</h2>
+<p><b>Formations</b> gains helictite, soda straw, pendant, cave pearls, crystal, aragonite, gypsum, gypsum flower, volcano and clay tree. <b>Geology</b> gains scallops, flutes, karren and anastomosis. The <b>Rigging</b> category gains bridge, walkway, handrail, steps, fixed ladder, gate, camp and name plate. A fixed ladder has straight rails; a hanging cable ladder keeps its wavy ones.</p>
+<p>The Therion sketch importer places these too: every Therion point type that means something on a cave map now lands as a symbol, an area fill or a callout. The full table is <code>docs/symbol-coverage-audit.md</code> in the tools repository.</p>
+<h2>Rigging</h2>
+<p>The <b>Rigging</b> category is for how you get down the cave rather than what the cave is: <b>Bolt</b>, <b>Y-hang</b>, <b>Rebelay</b>, <b>Deviation</b>, <b>Natural anchor</b>, <b>Rope</b>, <b>Cable ladder</b> and <b>Traverse line</b>. Each one places at the point you click — the bolt itself for an anchor, the hang point for a Y, the rope head for a drop, the left-hand anchor for a traverse.</p>
+<p>They all land on one layer, <code>ANCHORS-BOLTS</code>, so a map printed for someone who is not rigging the cave turns the whole rigging topo off in one click.</p>
+<p>A pitch length belongs in a note beside the rope, not in the symbol: re-rig the pitch and the note changes while the symbol stays true.</p>
+<p><b>New Symbol...</b> files under <b>Rigging</b> like any other category — a maillon, a knot, a hanger your club draws differently. Pick <b>Rigging</b> in the category box and <code>ANCHORS-BOLTS</code> as the layer, and it lands beside the shipped rigging symbols and turns off with them.</p>
+<p>Two of them wave on purpose. <b>Rope</b> and <b>Cable ladder</b> carry the wave that says <i>this hangs</i>; straight rails would mean a fixed ladder bolted to the rock, which is a different piece of equipment. Nothing crosses a rope with a stroke — a line with ticks across it reads as a break.</p>
+<h2>Steps</h2>
+<ol>
+<li>Pick a symbol and <b>click</b> in the drawing to place it.</li>
+<li>Or <b>press and drag</b> instead: the symbol turns to face the cursor and takes its size from how far you dragged — the distance from the press point is its radius. Aimed and sized in one gesture.</li>
+<li>The next plain click repeats what the last drag asked for, so a row of six identical flow arrows is one drag and five clicks.</li>
+<li>Where you click decides the view, exactly as it does for Feature Trace. The readout above the tiles names the layer under the cursor before you press.</li>
+<li><b>Return</b> with one symbol left showing arms it. The <b>Recent</b> strip holds the last five.</li>
+</ol>
+<p>There are no size or angle boxes to type into: the drag sets both.</p>
+<h2>Your own symbols</h2>
+<p><b>New Symbol...</b> opens a drawing to draw one in, centred on its origin with a 10 ft working square — the biggest a symbol is meant to be. Give it a name, a category and a home layer, and it is written into your own library at <code>~/Documents/Cave/symbols/CaveCustomSymbols.dxf</code>, beside your caves, where it syncs and gets backed up with them and no CaveCAD update can reach it.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>The symbols the suite ships cannot be edited or deleted — the next update would take the change back. Use <b>Duplicate as New Symbol...</b> and edit the copy.</li>
+<li>A drawing that does not have a symbol — an old cave, or one never started from the template — gets the block fetched from the template as the symbol is placed.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="words-vertical.html">Vertical caves: how to tell CaveCAD</a></li>
+<li><a href="build-legend.html">Build Legend</a></li>
+<li><a href="feature-trace.html">Feature Trace</a></li>
+</ul>

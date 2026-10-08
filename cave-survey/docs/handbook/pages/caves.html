@@ -1,0 +1,43 @@
+<h1>Caves</h1>
+<p>The window CaveCAD opens on: every cave registered on this machine, and what has been surveyed in it. <code>caves</code></p>
+<h2>When you reach for it</h2>
+<p>At the start of a session. It is the door into an existing cave, and the way a survey file from someone else becomes a cave project.</p>
+<h2>Steps</h2>
+<ol>
+<li>Pick a cave in the left rail. Its trips appear with date, declination, team, shot count, the stations each trip ran from and to, and the stations each one stopped at.</li>
+<li>Read the health line: depth, stations, loops, UIS grade, and warnings worth acting on — a bad loop closure, a declination IGRF disagrees with, unbound linework.</li>
+<li><b>Open drawing</b>, or start a trip tied into an open end, or package the project, or open its folder on disk.</li>
+<li><b>Import Cave...</b> reads a Compass, Survex, Walls or CSV file and builds the whole project from it — folder, <code>scans/</code>, <code>PDF/</code>, <code>images/</code>, <code>backup/</code>, and a drawing on the NSS template with the survey already drawn. It also takes a <code>.zip</code> made by <a href="package-cave-project.html">Package Cave</a>, sanitized or FULL: the cave folder is unpacked where you choose and put on the shelf, and a cave of the same name already there is never overwritten — the new one arrives as <i>Name (2)</i>. <b>Import Folder...</b> takes a cave folder, or a folder of them.</li>
+</ol>
+<h2>Try it on Truitt</h2>
+<h2>From and To</h2>
+<p>Where that day's survey tied in, and where it stopped — the first leg's <i>from</i> station and the last leg's <i>to</i> station, in the order the trip was walked. Splays are skipped: a wall measurement is not a step along the survey.</p>
+<p>This is not the same question as <b>Ends at</b>, which lists what is still <i>open</i>. A trip that tied back into known cave leaves no open end at all and still went from somewhere to somewhere. Both columns are read from the shots and cannot be typed.</p>
+<h2>Writing off an end: EOS</h2>
+<p><b>Ends at</b> lists stations the survey line simply stops at, and geometry cannot tell a lead from a choke — both are one leg and nothing more. So a cave that has been pushed to its limits still reads as a list of leads, and the one list you want at the trip-planning stage is the one you cannot trust.</p>
+<p>Write <b>EOS</b> — end of survey — in the note column of the row you turned round on, and that station stops being offered as a lead. It is read as a word, so <code>EOS, chokes solid</code> counts and a station named <code>REOS4</code> does not; <code>E.O.S.</code> and <code>end of survey</code> count too, in any case. The note belongs to the row's <i>to</i> station, the one you had just reached.</p>
+<p>A branch off the same shot's <i>from</i> station is untouched, and an EOS written on a <i>splay</i> closes nothing: a wall shot describes the passage at a station, not the end of the line.</p>
+
+<h2>Editing a trip from the table</h2>
+<p>Double-click a <b>Trip</b>, <b>Date</b> or <b>Team</b> cell and type. These are the same fields Survey Notebook's <b>Edit this trip…</b> writes, and they land the same way — by trip id, so correcting a date is a correction and not a second trip beside the first.</p>
+<p>Dates can be typed as <code>9/6/2026</code>; they are stored as <code>2026-09-06</code>, which is the form the drift check and the IGRF estimate read. An impossible date is refused and nothing changes.</p>
+<p><b>Where the edit goes.</b> If the cave is open in a tab, the change lands in that drawing — one undo step, and the cave is left with unsaved changes for you to save. If it is not open, the shelf writes the cave's file directly and says so: no drawing is opened, nothing to confirm, the trip list is simply correct afterwards.</p>
+<p>The new drawing is written beside the cave and moved into place only once it is whole, so an interrupted edit cannot leave you holding half a file. A refused edit — an impossible date, say — rewrites nothing at all.</p>
+<p><b>Shots</b>, <b>From</b>, <b>To</b> and <b>Ends at</b> are read from the survey and cannot be typed over. They are <b>shaded, under a dimmed heading</b>, so a column that will not take your typing says so before you click into it. <b>Decl</b> is read-only too: changing a declination re-rotates every azimuth in the trip and moves the plan, so it belongs to Survey Notebook's declination editor, where <b>Infer</b> and the redraw live. Double-click the cell and the shelf offers to take you there.</p>
+<h2>Arranging the columns</h2>
+<p><b>Drag</b> a column heading sideways to move it. <b>Right-click</b> any heading for the list of columns, and tick the ones you want to see. <b>Reset Columns</b> in that menu puts everything back the way it shipped.</p>
+<p>What you leave it as is what you get next time, in every cave. The arrangement is remembered by column, not by position, so a column added to the shelf in a later release turns up in your table instead of shuffling the order you set. The last visible column will not switch off — an empty table looks broken, and its heading is where the others come back from.</p>
+<h2>The Decl column</h2>
+<p>Each trip's declination, said the way a compass says it — <code>3.2° E</code>, <code>1.4° W</code>. A trip that has none reads <b>not set</b>, in grey.</p>
+<p><b>Zero is not a measurement.</b> It is what a trip nobody has told already reads as, so the column refuses to dress it up as a number. A survey full of "not set" is a magnetic survey calling itself true: the azimuths were never corrected, the map is out by however many degrees the place is out by, and <a href="sheet-setup.html">Sheet Setup</a> can draw no magnetic north on the sheet. Fix it on the trip, in the Survey Notebook's <b>Decl</b> field — <b>Infer</b> fills it from the cave's location and the trip's date.</p>
+<p>Open the shelf and read Truitt's trip table top to bottom. Every trip is a real day underground; the stations named in the last column are where the cave is still going.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>A cave whose map is a DWG is listed with a convert badge rather than opened — CaveCAD reads DXF.</li>
+<li>A teammate's new cave does not appear until it is added: registration is manual, deliberately, so nothing scans your Drive.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="import-cave-survey.html">Import Cave Survey</a></li>
+<li><a href="package-cave-project.html">Package Cave Project</a></li>
+</ul>

@@ -1,0 +1,26 @@
+<h1>Linetype Maker</h1>
+<p>Make, edit and import your own linetypes. <code>ltm</code></p>
+<p><img src="linetype-maker-demo.gif" width="440"><br><i>New linetype: name it, add a text row, set a dash length; the preview follows.</i></p>
+<h2>When you reach for it</h2>
+<p>When a line on your map needs to say what it is along its whole length: a stream that repeats <code>W</code>, a boundary that repeats <code>LIMIT</code>, or a dash pattern the template does not have.</p>
+<h2>How it works</h2>
+<ol>
+<li>Pick a linetype from the list, or press <b>New</b>.</li>
+<li>Give it a name: letters, digits, <code>_ - $</code>, no spaces. Pick or type a <b>Category</b> — the Draw panel's <b>Custom Linetypes</b> section groups your linetypes by it.</li>
+<li>Edit the rows. A positive <b>Length</b> draws a dash, a negative one leaves a gap, 0 is a dot. Type in <b>Text</b> and it is drawn in that row. <b>Font</b> is a list drawn in each font, exactly as it prints; <b>Size</b> is its height; <b>Rot°</b> turns it. Lengths and sizes are in the drawing's own units: on a map in feet, a <b>Length</b> of 2 is a two-foot dash and a <b>Size</b> of 1 is text a foot tall. A pattern much smaller than the lines it is used on draws solid, so size it to the map.</li>
+<li>A text row is a gap sized to its text. Make the text bigger, longer or another font and the gap grows by the same amount, so the text never runs into the dashes; type a longer <b>Length</b> for more room around it.</li>
+<li><b>Anchor</b> places the text: Left, Center or Right in its own row, and Top, Middle or Bottom against the line. New text starts at <b>Middle center</b>. A linetype imported with its own placement shows <b>Custom</b> until you pick an anchor.</li>
+<li><b>+ Dash</b>, <b>+ Gap</b> and <b>+ Text</b> add the new row just below the selected rows, or at the bottom when nothing is selected.</li>
+<li>To change several rows at once, Shift- or Cmd-click their row numbers, then change a value in any one of them. <b>Remove</b>, <b>↑</b> and <b>↓</b> act on every selected row.</li>
+<li>Watch the preview. Anything wrong is listed under it.</li>
+<li><b>Save to Library</b> to keep it; <b>Apply to Drawing</b> to use it in the open drawing; <b>Test</b> to start the Line tool with it straight away. Press Escape when done and your previous linetype comes back.</li>
+</ol>
+<h2>Bringing your own</h2>
+<p><b>Import…</b> reads an AutoCAD <code>.lin</code> file, or the linetypes inside another drawing. Tick the ones you want; a name you already have says so, and ticking it replaces yours.</p>
+<h2>Good to know</h2>
+<p>Your library is one file beside your caves, <code>Documents/Cave/linetypes/CaveCustomLinetypes.lin</code>. It syncs with them and no CaveCAD update ever replaces it. Every new cave map gets the whole library.</p>
+<p>Text inside a linetype cannot contain spaces or commas.</p>
+<p>Text linetypes are saved as real DXF linetypes, so other CAD programs draw them too.</p>
+<p>Symbols drawn into a line (ticks, chevrons) are coming next; until then use <a href="shaped-lines.html">Shaped Lines</a>.</p>
+<h2>See also</h2>
+<ul><li><a href="shaped-lines.html">Shaped Lines</a></li><li><a href="words-layers.html">What the words mean: layers</a></li></ul>

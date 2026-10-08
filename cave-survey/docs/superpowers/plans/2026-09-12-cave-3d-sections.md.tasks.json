@@ -1,0 +1,48 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-12-cave-3d-sections.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: CsSection3d, the pure mapping",
+      "status": "pending",
+      "description": "**Goal:** Block-local geometry plus frame, station, scale and offset into world-space segments and a leader.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsSection3d.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-sections.md, Task 1.\n\n**Verify:** engine suite js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsSection3d.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"engine suite js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: read the blocks out of a drawing",
+      "status": "pending",
+      "description": "**Goal:** CsSection3d.readAll finds section block refs and their geometry via CsArea.vertsOf.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsSection3d.js\n- tests/cave3d_sections_run.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-sections.md, Task 2.\n\n**Verify:** CaveCAD -no-gui -autostart tests/cave3d_sections_run.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsSection3d.js\", \"tests/cave3d_sections_run.js\"], \"verifyCommand\": \"CaveCAD -no-gui -autostart tests/cave3d_sections_run.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Cave3D builds the sections buffer",
+      "status": "pending",
+      "description": "**Goal:** Placed sections plus leaders as one line buffer, offset by the passage's own width.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3D.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-sections.md, Task 3.\n\n**Verify:** python3 -m unittest tests.test_addon\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3D.js\"], \"verifyCommand\": \"python3 -m unittest tests.test_addon\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: view draws them, panel toggles them",
+      "status": "pending",
+      "description": "**Goal:** Sections line buffer, unclamped by progress, with a toggle that greys when absent.\n\n**Files:**\n- src/gui/RCave3dView.cpp\n- src/gui/RCave3dBridge.cpp\n- src/gui/RCave3dPanel.cpp\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-sections.md, Task 4.\n\n**Verify:** ninja -j20 in BOTH trees\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dView.cpp\", \"src/gui/RCave3dBridge.cpp\", \"src/gui/RCave3dPanel.cpp\"], \"verifyCommand\": \"ninja -j20 in BOTH trees\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        2
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: persist, verify live, release",
+      "status": "pending",
+      "description": "**Goal:** Toggle persists; a section on a pitch does not spin; bump to 0.9.122.0 / 0.5.0.0.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3D.js\n- VERSION\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-sections.md, Task 5.\n\n**Verify:** bash tests/run_all.sh\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3D.js\", \"VERSION\"], \"verifyCommand\": \"bash tests/run_all.sh\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        3
+      ]
+    }
+  ],
+  "lastUpdated": "2026-09-12T19:01:58.888103"
+}

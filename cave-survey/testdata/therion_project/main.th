@@ -1,0 +1,12 @@
+# A split Therion project, the way a real one is laid out: the main file
+# only pulls the passages in and joins them where they meet.
+survey splitcave -title "Split Cave"
+  input passages/entrance
+  input passages/lower.th
+  centreline
+    # the two passages are one loop: the lower one comes back to the
+    # entrance series at its station 3
+    equate 3@entrance 3@lower
+  endcentreline
+  input sketch.th2
+endsurvey

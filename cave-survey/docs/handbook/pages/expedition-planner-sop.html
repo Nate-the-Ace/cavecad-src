@@ -1,0 +1,152 @@
+<h1>Planning a trip with the Expedition Planner: the standard way</h1>
+<p>The Expedition Planner is the most abstract tool in CaveCAD: it does not draw anything, it helps you make decisions. This page is the routine that works. Follow it in order the first few trips, then bend it to suit your group.</p>
+
+<h2>Think in five questions</h2>
+<p>Every part of the planner answers one of these. If you are ever lost in the panel, ask which question you are on.</p>
+<ol>
+<li><b>Where are we going?</b> The objectives (stops). <i>What's left to push</i> and <a href="station-table.html">Station Table</a> help you choose.</li>
+<li><b>Who is going?</b> The people directory, the <b>Going</b> ticks and the teams. <i>Who fits where</i> and <i>Suggest split</i> help.</li>
+<li><b>When and for how long?</b> The start date and each team's schedule: entry time, work hours, and whether the night is out or camp.</li>
+<li><b>What could go wrong?</b> The warnings: same-day overlaps, squeezes, missing vertical or first-aid skills, water and rain, overrunning the schedule.</li>
+<li><b>What goes on paper?</b> The topside sheet and the team files, built by <b>Build cards</b>.</li>
+</ol>
+<p>The panel reads top to bottom in the same order as the printed sheet, so working down the panel is working through the questions.</p>
+
+<h2>What it can and cannot do</h2>
+<ul>
+<li>It <b>estimates</b> from your survey: walking time, pitch time, passage widths, callout times. An estimate is a starting point for your own judgment, not a promise.</li>
+<li>The route follows the <b>survey line</b>. It is not a guarantee that the way is safe or easy: crawls, water and loose ground are only known where someone wrote them down.</li>
+<li>It does not know the cave's current conditions, your group's fitness, who gets along, or what gear you actually own.</li>
+<li>It never replaces your group's own rescue plan and callout agreement. It writes that agreement down clearly so that topside can act on it.</li>
+</ul>
+
+<h2>Once: set up your people</h2>
+<p>Do this once, and update it when something changes. It saves retyping on every trip.</p>
+<ol>
+<li>In <b>Roster</b>, press <b>Add person</b> for each caver. Fill in every required field: name, medical notes (type <code>None</code> if none, a blank is not an answer) and emergency contact (name and phone).</li>
+<li>Tick their real <b>skills</b>: Vertical, Rigging, First aid, CPR, Wilderness first responder, Cave rescue, Trip leader, the survey roles. The planner uses these to check teams, so an honest list matters more than a flattering one.</li>
+<li>Enter the <b>squeeze limit</b> in inches, the tightest passage height the person is comfortable with. Leave it blank if unknown: the planner then shows <code>?</code> and never guesses.</li>
+<li>Back the directory up: <b>Show file</b> opens the folder with <code>people.json</code>. Copy that file somewhere safe. It holds medical notes and phone numbers, so it stays on this computer and never goes into the cave's Drive folder.</li>
+</ol>
+
+<h2>Phase 1: choose the objectives (a week or two out)</h2>
+<ol>
+<li>Open the drawing for the cave. Make sure the latest trips are in and the map is up to date (<a href="add-a-trip.html">Add a trip to a cave you already have</a>).</li>
+<li>Open <b>What's left to push</b>. Start on <b>Balanced</b>. Each lead has a score and the reasons in plain words: the cost to reach it, whether nothing is surveyed ahead of it, whether it points at another passage, how old the last survey there is, and what the notes say.</li>
+<li>Switch presets to see how the order changes. <b>Quick wins</b> favours cheap trips. <b>Big potential</b> favours blank ground and connections. If two leads keep trading places, they are close: pick by what your group wants from the trip.</li>
+<li>Add the words your group uses to <b>Worth more</b> and <b>Worth less</b> (for example <i>draft</i>, <i>booming</i>, <i>choked</i>) so the notes count the way you read them.</li>
+<li>Choose your shortlist. You do not need to decide the final split yet.</li>
+<li>Open <b>Who fits where</b> to see which of your people can reach which stops. A red <code>NO</code> means that person's limit is above the tightest passage on the way. Plan around it now, before you build teams.</li>
+</ol>
+
+<h2>Phase 2: build the trip (a week out)</h2>
+<ol>
+<li><b>Trip</b>: set the start date (<b>Today</b> puts today back) and the forecast place, a nearby town. The forecast covers about two weeks ahead, so check it again close to the trip.</li>
+<li><b>Roster</b>: tick <b>Going</b> for exactly the people on this trip.</li>
+<li>Decide how many teams. One team is right for a small group with one objective. Use several teams when the objectives are far apart, when a stretch needs a different skill mix, or when people can only do part of the trip. More than three or four teams is hard to keep track of underground.</li>
+<li><b>One team:</b> tick its members under <b>Members</b>, add its stops with the station picker, set its schedule.</li>
+<li><b>Several teams:</b> press <b>Add team</b> for each, or let the planner propose the split:
+<ol>
+<li>Press <b>Suggest split...</b>. Anything already on a team starts <b>locked</b>: leave locks on for what you are sure of (your leader on the deep team, a stop you must do). Untick, or press <b>Free everything</b>, for what the planner may move.</li>
+<li>Add any extra objectives with the station picker, and set the number of teams.</li>
+<li>Press <b>Suggest</b> and read the preview. Nothing has changed yet. Lines starting with <code>!</code> are hard limits it could not meet; lines starting with <code>-</code> are preferences.</li>
+<li>If the split looks wrong, change a lock or the count and press Suggest again. When it is acceptable, press <b>Apply</b>. If you regret it, <b>Undo suggestion</b> restores exactly what you had.</li>
+<li>Treat the result as a first draft. Move people and stops by hand until it fits what you know about your group.</li>
+</ol></li>
+<li>Give each team a <b>name</b> and a <b>goal</b> (for example "Survey the B passage"). The goal prints on the sheets and stops two teams being confused for each other.</li>
+<li><b>Schedule</b> for each team: entry time, work hours, and <b>out</b> (back on the surface that night) or <b>camp</b> (stay underground). A team can start later than the trip with <b>Starts on trip day</b>.</li>
+<li>Write each team's <b>packing list</b>: the rope team and the survey team carry different things.</li>
+</ol>
+
+<h2>Phase 3: check before you print (a few days out)</h2>
+<p>Read every warning. Most are the planner doing its job.</p>
+<ul>
+<li><b>Same-day overlap</b> (red mark on the team headers): a person is on two teams on the same date. Allowed on different days, but on one day they cannot be in two places. Move them, or shift a team with <b>Starts on trip day</b>.</li>
+<li><b>Squeeze</b> (red line in the team, and <code>NO</code> in Who fits where): a member's limit is above the tightest passage on the team's route. Move the person, choose another stop, or accept it knowingly and say so to the team. <code>?</code> means unknown, not fine: measure the passage or ask the person.</li>
+<li><b>Nobody vertical</b> on a route with a pitch: a hard limit. Put a vertical-trained person on that team.</li>
+<li><b>No first aid or no trip leader</b> on a team: a preference. Fix it if you can. If you cannot, decide who fills the gap and tell the team.</li>
+<li><b>Balance</b>: one team's estimate is much longer than the others. Rebalance the stops, or accept it because that team has the long objective.</li>
+<li><b>Schedule fit</b>: a team's stops need more work time than its days allow. Add a day, add work hours, or drop a stop.</li>
+<li><b>Rain plus water</b> on the sheet: rain is forecast and a note on the route mentions water. It says <i>check</i>, never <i>safe</i>. Decide with local knowledge.</li>
+</ul>
+<p>Then press <b>Plan trip</b> and read the plan text for each team. Read the intersection directions as a caver: do the counts and turns match what you remember of the cave? The direction signals depend on the survey, so if they look wrong the survey may be.</p>
+
+<h2>Phase 4: build and hand out the sheets (two days out)</h2>
+<ol>
+<li>Fill in the escalation contacts: the topside contact's name and phone, the "if no word" line (who is called next, and their number), and the callout buffer. Agree these with the person before you write them down.</li>
+<li>Press <b>Build cards</b>. If anything is missing it lists everything at once, per team, and builds nothing until it is complete.</li>
+<li>Open the files, which are written beside the drawing:
+<ul>
+<li><code>callout-card.html</code> is the <b>topside sheet</b> for the person staying on the surface: the next callouts in time order, every team's roster with medical notes and emergency contacts, each team's schedule with its callout time, the escalation box and the forecast.</li>
+<li><code>team-1-...html</code>, <code>team-2-...html</code>: one <b>team file</b> each, for that team's own members. It has their schedule, the topside contact, the forecast, the route with the intersection directions, hazards, rope and the packing list. It does not carry anyone's emergency contact.</li>
+<li>With one team you get just <code>callout-card.html</code>, with the route on page 2.</li>
+</ul></li>
+<li>Print. Give the topside sheet to the topside contact and each team its own file. Keep the digital copies.</li>
+<li>Copies that leave your hands (posted, emailed, left with someone outside the group): untick <b>Include roster on the card</b> first and rebuild. The roster carries medical notes and phone numbers.</li>
+<li>If you change anything after building, <b>rebuild and reprint</b>. Old team files stay on disk after a team is removed: the status line names them, and you can delete them yourself.</li>
+</ol>
+
+<h2>Trip day: what topside does</h2>
+<ul>
+<li>Keep the topside sheet with you. The <b>Next callouts</b> strip is the list of times to watch, earliest first.</li>
+<li>The <b>callout time</b> is the team's expected time out plus the buffer you agreed. It is the time to start acting, not the time the team is expected out.</li>
+<li>A camp night has no callout until the team surfaces. Note the team's turnaround time instead.</li>
+<li>If a team has not surfaced or checked in by its callout time, follow the escalation line on the sheet, the one you agreed in advance. The sheet has each person's medical notes and emergency contact so you do not have to look them up.</li>
+</ul>
+
+<h2>After the trip</h2>
+<ol>
+<li>Note who came out and when. Tell the topside contact so the sheet is no longer live.</li>
+<li>In <a href="station-table.html">Station Table</a>, mark the leads that were pushed or are done, so they stop ranking and the next trip starts from the truth.</li>
+<li>Enter the new survey as a trip, so the next ranking sees the new ground.</li>
+<li>Update anyone's details that changed (a new phone number, a new skill, a squeeze limit that turned out wrong).</li>
+<li>Do not keep printed sheets with medical notes and phone numbers any longer than you need to.</li>
+</ol>
+
+<h2>Rules of thumb</h2>
+<ul>
+<li>Every team should have someone vertical when its route has a pitch, someone with first aid, and a leader.</li>
+<li>Do not overlap the same person on two teams on the same day.</li>
+<li>Stagger callouts a little when several teams are underground, so topside is never handling two at once.</li>
+<li>Use a callout buffer that gives real time to get out without waking the rescue plan for nothing, and that you would be comfortable defending. Two hours is the default.</li>
+<li>Work down the panel. If a later section looks wrong, an earlier answer usually changed.</li>
+<li>Lock what you know before you ask for a suggestion.</li>
+</ul>
+
+<h2>Common mistakes</h2>
+<ul>
+<li><b>Forgetting to tick Going.</b> People who are not ticked cannot be put on a team.</li>
+<li><b>Treating <code>?</code> as fine.</b> It means the planner could not check. A passage recorded as 0 wide is unmeasured, never a squeeze, and never proof of fit either.</li>
+<li><b>Stops that are not on the survey line.</b> A stop must be a surveyed station. The picker rejects anything else.</li>
+<li><b>No forecast.</b> With no forecast place typed and no location saved with the drawing there is nothing to look up. Type a nearby town.</li>
+<li><b>Old files.</b> A removed team's file is not deleted. Check the status line after building.</li>
+<li><b>Trusting a suggestion blindly.</b> It is an estimate that ignores everything the planner cannot know.</li>
+<li><b>Sending the roster out.</b> See phase 4.</li>
+</ul>
+
+<h2>One-page checklist</h2>
+<p>Print this and tick it off.</p>
+<ul>
+<li>People directory current (skills, squeeze limits, medical, emergency contact); backed up</li>
+<li>Survey up to date; new trips entered</li>
+<li>Leads ranked; shortlist chosen</li>
+<li>Who fits where checked for the shortlist</li>
+<li>Start date and forecast place set; forecast checked again within a few days</li>
+<li>Going ticked for exactly the people on the trip</li>
+<li>Teams made; each has a name, goal, members, stops, schedule and packing list</li>
+<li>Every warning read; hard limits (vertical, squeeze) resolved or knowingly accepted</li>
+<li>Plan trip read for each team; directions match the cave you know</li>
+<li>Escalation contacts agreed with the person named, callout buffer chosen</li>
+<li>Build cards run; topside sheet and team files opened and read</li>
+<li>Sheets printed and handed out; roster off on any copy that leaves the group</li>
+<li>Topside knows: the callout times, the escalation line, where the sheet is</li>
+<li>After the trip: leads marked, survey entered, details updated, sheets shredded</li>
+</ul>
+
+<h2>See also</h2>
+<ul>
+<li><a href="expedition-planner.html">Expedition Planner</a>, the reference for every control</li>
+<li><a href="station-table.html">Station Table</a></li>
+<li><a href="add-a-trip.html">Add a trip to a cave you already have</a></li>
+<li><a href="privacy.html">Privacy</a></li>
+</ul>

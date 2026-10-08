@@ -1,0 +1,28 @@
+<h1>Feature Trace</h1>
+<p>Trace walls and other features freehand: hold the button and drag along the sketch, and a smooth line follows. <code>featuretrace</code></p>
+<p><img src="feature-trace-demo.gif" width="440"><br><i>Search by any of a feature's names: "gour" finds the rimstone dam, "shaft" the pit.</i></p>
+<h2>When you reach for it</h2>
+<p>For every line on the map that is not survey. Walls, ceiling, floor, breakdown outlines — all of it.</p>
+<h2>Steps</h2>
+<ol>
+<li>Pick the feature from the panel. One tile per feature, not one per view.</li>
+<li>Drag along the scan. The line follows at one control point per foot of cave.</li>
+<li><b>Where you drag decides the view.</b> A stroke in the plan lands on the plan layer; one inside a profile band's box lands on that band's run layer; one inside an open section bay lands on the section layer, carrying the station the bay was opened at. The readout above the tiles names the layer under the cursor before you press.</li>
+<li>Carry on where you stopped and the stroke <b>grows that line</b> instead of making a second one — trace a long wall in six passes and it is one line, with one end to warp and one row in a revision. One undo takes the extension back.</li>
+<li>Hold <b>Shift</b> as you press to continue any line end within a foot on that layer, including one traced weeks ago.</li>
+</ol>
+<h2>Finding a feature</h2>
+<p>The search box filters tiles by name and by the other words for the same thing — "gour" finds the rimstone dam, "shaft" finds the pit, "boulders" finds breakdown. Press <b>Return</b> with one tile left showing and that feature is armed and drawing. <b>Escape</b> puts the tool down. The <b>Recent</b> strip holds the last five features you armed, as pictures; it survives a restart.</p>
+<p>Each tile carries a count of that feature in the view you are in, so a passage whose walls are traced and whose floor is not says so where you are already looking.</p>
+<h2>Try it on Truitt</h2>
+<p>Trace one long wall in three passes without lifting anything but the mouse. Select it afterwards: it must be one line, not three.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>A plain drag continues only your own last stroke on that exact layer. At a corner where two walls meet it must <i>not</i> join — fusing them would round the corner off. Use Shift only when you mean it.</li>
+<li><b>Delete Last</b> refuses after a stroke that grew an earlier line. Use Ctrl+Z.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="shaped-lines.html">Shaped Lines</a></li>
+<li><a href="sketch-scans.html">Sketch Scans</a></li>
+</ul>

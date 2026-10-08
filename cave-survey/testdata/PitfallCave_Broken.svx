@@ -1,0 +1,16 @@
+; PITFALL CAVE -- BROKEN DATA (TEST)
+*units length feet
+*fix X1 0.00 0.00 812.40
+*data normal from to tape compass clino
+*date 2026-06-06
+*team "N. SCHONEGG"
+*team "R. WEBB"
+*declination -4.67 degrees
+X1	X2	30.00	94.67	0.00
+X2	X3	0.00	124.67	0.00	; TAPE NEVER READ, ZERO WRITTEN
+X3	X3	18.00	144.67	0.00	; FROM AND TO THE SAME STATION
+X3	X4	25.00	164.67	95.00	; CLINO 95, WROTE THE COMPLEMENT
+X4	X5	22.00	16.67	0.00	; COMPASS WRITTEN 372
+Z1	Z2	40.00	49.67	0.00	; ORPHAN PAIR -- NAME TYPO SOMEWHERE
+*data passage station left right up down
+X2	3.00	3.00	6.00	1.00

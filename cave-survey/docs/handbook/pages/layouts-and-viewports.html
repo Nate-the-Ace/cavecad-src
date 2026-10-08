@@ -1,0 +1,38 @@
+<h1>Sheets, layouts and viewports</h1>
+<p>A sheet is a tab of your drawing: paper with windows onto the cave.</p>
+<h2>The tabs</h2>
+<p>Along the bottom of the drawing: <b>Model</b>, then one tab per sheet, then <b>+</b>. Click a tab to show that sheet; a sheet shows a grey surround, the white paper with its shadow, and a dashed line for the printable margin. Right-click a tab for <b>Page setup</b>, <b>Rename</b>, <b>Duplicate</b>, <b>Move</b>, <b>Delete</b> and, for a sheet Sheet Setup made, <b>Revert to automatic</b>. A star after a name means the sheet is yours (made by hand, or changed by hand since it was generated); the tooltip says which.</p>
+<h2>Viewports</h2>
+<p>A viewport is a window on the paper showing the cave at a scale of its own. <b>Layout &gt; New Viewport</b> (or type <code>viewport</code>) on a sheet: click two corners. It opens showing the whole cave at the first standard scale that fits, with raster images left out. A sheet can hold several viewports (a plan and a close-up at a different scale).</p>
+<h2>Scale and lock</h2>
+<p>Select a viewport and the tab strip shows its <b>scale</b> and a <b>Locked</b> box.</p>
+<ul>
+<li>The scale is a dropdown of the standard scales: <code>1" = 10 ft</code> to <code>1" = 500 ft</code>, then the metric ratios.</li>
+<li><b>Add a scale...</b> at the bottom of the list adds a scale of your own (feet of cave per inch of paper; for a ratio <code>1:N</code> use N divided by 12). Your scales join the list, marked <i>(mine)</i>, and are kept. <b>Remove one of my scales...</b> takes one out.</li>
+<li>A scale that is on no list (you zoomed, or typed one in the property editor) is shown first as <i>(current)</i>.</li>
+<li><b>Locked</b> freezes the scale and what the viewport shows. The scale list greys out, the contents grip and the property editor refuse, and zooming through it is refused. The same lock is in the property editor as <b>Locked</b>. Sheets Sheet Setup makes are locked.</li>
+</ul>
+<h2>Edit through a viewport</h2>
+<p><b>Double-click inside a viewport</b>. The model appears exactly as the sheet shows it &mdash; same scale, same place on the screen &mdash; with the viewport's frame fixed in place and the rest dimmed. Every tool works on the real cave: draw, trace, move, select, snap. <b>Pan and zoom</b> to slide the cave under the frame. Then <b>Back to layout</b> (the button in the tab strip, any tab, or a double-click on empty ground outside the frame): the viewport takes the new view in one undoable step, and the scale bar follows. If the viewport is <b>locked</b> you can still edit the cave, but its view is left exactly as it was. A <b>twisted</b> viewport is shown untwisted while you edit and its view is not changed.</p>
+<h2>The scale bar follows its viewport</h2>
+<p>Any change to a viewport's scale, by any means, redraws its scale bar at that scale where the bar sits now. This happens on automatic and manual sheets, and through undo and redo.</p>
+<h2>Plot</h2>
+<p><b>Sheet Setup &gt; Export PDF</b> plots every sheet into one PDF. <b>File &gt; Print</b> and Print Preview on a sheet tab print that sheet at its paper size, 1:1. Viewports are clipped and scaled by the program; nothing is cut or masked.</p>
+<h2>Good to know</h2>
+<ul>
+<li>Sheets are saved inside the drawing. Nothing is written beside it.</li>
+<li>A sheet is paper: tools that draw the cave refuse while a sheet is showing, and tell you to use the Model tab.</li>
+<li>Paper coordinates are in the drawing's own unit, so a letter sheet in a feet drawing is 0.917 &times; 0.708 ft. You rarely see this; the scale list speaks in inches and feet.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="sheet-setup.html">Sheet Setup</a></li>
+<li><a href="build-a-sheet.html">Put a sheet together at a scale that fits</a></li>
+</ul>
+
+<h2>Turning a viewport's contents</h2>
+<p>Select a viewport and a blue <b>diamond</b> appears above it. Click it, then move the mouse round the viewport's centre: the contents turn live. A bullseye shows where the snaps are. The <b>farther</b> the mouse is from the centre, the finer the steps: 45&deg;, 15&deg;, 5&deg;, 1&deg;, then half degrees. The bright line is the angle now, the dashed one is where it started. <b>Type an angle</b> (degrees, counter-clockwise) to set it exactly; the digits show beside the mouse. Click or Enter applies it as one undo step; Esc or the right button puts it back. A locked viewport will not turn.</p>
+<p>North arrows on the sheet turn with the viewport: the arrow Sheet Setup draws, and any north-arrow symbol you place on the layout (it follows the viewport it sits over).</p>
+
+<h2>Polygon viewports and trimming</h2>
+<p><b>New viewport</b> is a menu: <b>Rectangle</b> (two corners), <b>Polygon</b> (click the corners, then click the first corner, press Enter or right-click to finish; Backspace takes the last corner back) or <b>Circle</b> (the centre, then a point on the circle). <b>Trim</b> (with a viewport selected) is a menu too: it cuts a polygon or a circle out of the viewport, leaving a hole the map does not show through. A circle is stored as a 128-sided shape, smooth at any plot size. Select a polygon viewport and a small <b>orange square</b> appears on each corner (up to 40 corners): click one, move the mouse and click again to put it down, or Esc to put it back. The map does not slide while you move a corner. <b>Rectangle</b> puts a shaped viewport back to the box around its outline. The outline is drawn and plotted as the shape, and the sheet clips to it. Shapes are saved in the drawing file.</p>

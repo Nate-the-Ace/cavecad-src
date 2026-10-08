@@ -1,0 +1,163 @@
+<h1>Expedition Planner</h1>
+<p>Plan a trip into the cave: pick the stations you want to reach, get a route, a time budget and a gear list, split the trip into one or more teams, and build the callout cards that stay with your topside contact and go with each team. <code>epl</code></p>
+<h2>When you reach for it</h2>
+<p>Before a trip, once you know which leads or stations the team is going for. <a href="station-table.html">Station Table</a> is where to find them; this panel is where the trip itself is put together.</p>
+<h2>Opening it</h2>
+<p><b>Cave Survey &gt; Expedition Planner</b>. The panel is one scrolling page, with no tabs, laid out top to bottom: <b>Trip</b> (start date with a <b>Today</b> button beside it, forecast place), <b>Roster</b> (everyone in your people directory, with the <b>Going</b> ticks), <b>Teams</b> (one collapsible section per team), <b>Escalation</b> (topside contact and what to do if there is no word) and <b>Card</b> (Build cards, with the plan's text underneath). Scroll down through it; fill it in as you go and nothing important gets skipped. Fields marked with a red <b>*</b> are required to build the cards. It reads the drawing when it opens; after switching to another cave's tab, or after editing the survey, press <b>Refresh</b> at the bottom. The line beside it says how many stations the drawing has, or that it holds no survey.</p>
+<h2>Roster: the people directory</h2>
+<p>People go on many trips, so you enter each person once and tick who is going on this one. The <b>Roster</b> table lists everyone in your people directory: <b>Going</b>, name, role, squeeze limit, skills, medical notes and emergency contact. The table itself is read-only; only the <b>Going</b> tick changes there. Tick <b>Going</b> for each person on this trip. The ticks are saved straight away with the trip, in <code>stations.json</code>, so they are still there next time even if you never built the card.</p>
+<ul>
+<li><b>Add person</b> opens a small window: name, role, squeeze limit (inches, optional), medical notes, emergency contact (name and phone in one line), the skills checklist, and <b>Other skills / details</b> for anything the list does not cover. <b>Name</b>, <b>Medical notes</b> and <b>Emergency contact</b> are required: OK stays put and names every missing one in red until they are filled in. For someone with nothing to declare, type <code>None</code> in medical notes: a blank is not an answer. A squeeze limit must be a number above 0, or left blank. Someone you add is ticked Going for this trip. <b>Cancel</b> changes nothing.</li>
+<li><b>Skills</b> are a checklist in collapsible categories: <b>Leadership and comms</b> (trip leader, cave radio / comms), <b>Vertical</b> (SRT / rope, rigging and bolting), <b>Rescue and medical</b> (cave rescue, first aid, CPR, wilderness first responder or higher), <b>Survey</b> (survey lead, survey instruments: compass, clinometer, tape or laser; survey book / data recording; cave sketching) and <b>Water and digging</b> (sump / cave diving, digging). Click a category's header to open or fold it; the header counts what is ticked in it, for example "Survey (2)". A category opens by itself when the person already has one of its skills. The free-text line takes the rest.</li>
+<li><b>Edit person</b>, or a double-click on a row, opens the same window for the selected person.</li>
+<li><b>Remove person</b> asks first, then deletes that person's saved details from this computer and unticks them from this trip.</li>
+<li><b>Show file</b> opens the folder holding <code>people.json</code>, the file the directory lives in. Copy that file to back your directory up or move it to another computer.</li>
+</ul>
+<p><b>The directory stays on this computer.</b> It holds medical notes and phone numbers, so it is kept in CaveCAD's own settings folder and never in the cave's folder: Google Drive does not carry it. The trip remembers only the names of who is going. A teammate who opens the drawing sees those names, but needs their own directory for the details; a name this computer has no details for is listed grey at the bottom of the table as "details not on this computer", and prints that way on the card. Add them with <b>Add person</b> if you want their details here. If <code>people.json</code> is damaged (a bad hand edit), the table goes read-only, the line under it says why, and the file is never written over: fix or move it with <b>Show file</b>, then press <b>Refresh</b>.</p>
+<h2>Teams</h2>
+<p>A trip can send more than one team underground, each with its own people, goal, days, stops and gear. The <b>Teams</b> section holds one collapsible section per team. Click a team's header to open or fold it. The header shows the team's name and a live summary such as "2 people &middot; 1 stop &middot; 1 day", and a red <b>same-day overlap</b> mark when one of its members is also on another team on the same date.</p>
+<ul>
+<li><b>Add team</b> adds a team. It starts with a copy of the previous team's schedule but no members and no stops. <b>Remove team</b> asks Yes or No (the default is No) and removes the team you last opened, added or edited. The last remaining team cannot be removed.</li>
+<li><b>Suggest split...</b> proposes who goes on which team and which stops each takes; see the next section.</li>
+<li>An older trip that was planned before teams existed opens as <b>Team 1</b>, with its schedule, party and packing list carried over.</li>
+</ul>
+<p>Each team has:</p>
+<ul>
+<li><b>Name</b> and <b>Goal</b>.</li>
+<li><b>Starts on trip day</b>, counted from 1. Team 1 usually starts on day 1; a second team can start on day 2, and its dates follow from the trip's start date.</li>
+<li><b>Members</b>: a checkbox for each person ticked <b>Going</b> on the roster. Someone who is no longer going stays listed, greyed, so you can see the team had them.</li>
+<li>Its own <b>Schedule</b>: the days, each with an entry time, work hours, and a night, <code>out</code> (back on the surface) or <code>camp</code> (stay underground).</li>
+<li>Its own <b>Stops</b> and its own <b>Packing list</b>.</li>
+</ul>
+<p>The same person can be on several teams, on different days. If they are on two teams on the same date, the panel and both sheets warn you, naming the person and the date. The warning does not stop the build: it is up to you to decide whether it is a mistake.</p>
+<p>Teams you make by hand get the same squeeze check as <b>Suggest split</b>. When a member's squeeze limit is wider than the tightest measured passage on the team's route, a red line under the team's members names them, for example "Ana Ruiz (limit 12 in) may not fit the tightest passage on the route (10 in near A6).", and the team's header turns red with a <b>squeeze</b> mark. When no width is known anywhere on the route, a grey line says squeeze limits were not checked. Both follow the team's members and stops as you change them. See <b>Who fits where</b> below.</p>
+<h2>Who fits where</h2>
+<p>A folded section between <b>Teams</b> and <b>Escalation</b>. Click its header to open it. It shows a table of stops by people: one row for every stop on any team (in team order, each stop once), and one column for each person ticked <b>Going</b>, headed with their name and squeeze limit ("Ana Ruiz (14 in)", or "(no limit)" when none is saved).</p>
+<ul>
+<li><b>Tightest passage</b>, the second column, is the narrowest measured passage on the way from the survey's first station to that stop and back: "10 in near A6", <b>not measured</b> when no width is known on that way, or <b>not on the surveyed line</b> when the stop cannot be reached along the survey.</li>
+<li>Each person's cell says <b>fits</b>, <b>NO</b> (in red: their limit is wider than that passage, so they may not fit), <b>?</b> (grey: their limit or the passage width is unknown), or <b>-</b> (grey: the stop is not on the surveyed line).</li>
+<li>To check a stop no team has yet, pick or type a station under the table and press <b>Add stop</b>. It is added to this table only, not to a team. A name that is not a station of this drawing, or a stop already listed, is refused with a note under the box. Extra stops are forgotten when you switch to another drawing.</li>
+<li>The table is worked out when you open the section, when you press <b>Refresh</b>, and, while it is open, whenever the people going, a team's stops, a squeeze limit or the drawing changes. While it is folded nothing is worked out, so it costs nothing.</li>
+</ul>
+<p>The warnings also go on the cards. <b>Build cards</b> adds them to the status line ("Squeeze: Team 2: Ana Ruiz (limit 12 in) may not fit ..."), and still builds. The topside sheet prints each team's warnings under its roster, a team file prints them under its members, and a team whose route has no known width gets the grey note. A one-team card prints a warning under the roster only when there is one. With <b>Include roster</b> unticked the warnings, which name people, are left off.</p>
+<h3>What it cannot know</h3>
+<ul>
+<li>It uses only the passage widths recorded in the survey (left plus right, from the LRUD). A passage nobody measured is never called a squeeze, and a width recorded as 0 counts as unmeasured.</li>
+<li>Someone with no squeeze limit saved (or no details on this computer) shows <b>?</b>: edit the person to add their limit.</li>
+<li>It only shows who may not fit. It does not move anyone or any stop: <b>Suggest split</b> does that.</li>
+</ul>
+<h2>What's left to push</h2>
+<p>A folded section below <b>Who fits where</b>. Click its header to open it. It lists every lead in the drawing, best first, and says in plain words why each one ranks where it does. While it is folded nothing is worked out, so it costs nothing.</p>
+<p>A <b>lead</b> is a station whose note has the lead keyword (as in the <b>Station Table</b>), or an open end of the survey. Its <b>Status</b> is its Station Table mark: <b>open</b> when unmarked, or <b>assigned</b>, <b>pushed</b>, <b>done</b> or <b>skip</b>. Leads marked <b>done</b> or <b>skip</b> are hidden until you tick <b>Show done and skipped</b>; assigned and pushed leads always show, with their status.</p>
+<h3>The six signals</h3>
+<p>Each lead is scored 0 to 100 on six signals. A signal that cannot be worked out for a lead is left out of its score, never guessed, and the score is the weighted average of the signals it has.</p>
+<ul>
+<li><b>Cost</b>: the time to walk in from the survey's first station, work the lead and walk out, as <b>Plan trip</b> works it out. Quicker is better; a pitch on the way costs extra. The reason reads, for example, "14 min in, 1 pitch, 50 ft of rope". A lead not joined to the surveyed line has no cost and is listed last.</li>
+<li><b>Blank ground</b>: how far the lead's heading runs before it meets surveyed passage, looking up to 500 ft ahead. "nothing surveyed for 340 ft ahead" scores higher than passage just ahead.</li>
+<li><b>Connection</b>: the heading points at surveyed passage within 150 ft that is much further away by the surveyed way, so pushing the lead might close a loop or join two passages: "points at B12, 60 ft away (240 ft by the surveyed way)".</li>
+<li><b>Elevation edge</b>: how near the lead is to the highest or the deepest surveyed station. The edges of a cave are where it may go on.</li>
+<li><b>Time since visited</b>: how long since the lead's last survey trip, from the trip dates ("last surveyed 2025-03, 19 months ago"). When the trips have no dates it goes by trip order instead: the oldest trip scores highest.</li>
+<li><b>Note hints</b>: words in the lead's notes (and its Station Table team note). Words like <i>draft</i>, <i>going</i> or <i>big</i> make it worth more; <i>tight</i>, <i>sump</i> or <i>choked</i> worth less. Whole words only: "tightly" is not "tight".</li>
+</ul>
+<h3>Presets and weights</h3>
+<p>Three buttons set how much each signal counts: <b>Quick wins</b> (mostly cost), <b>Big potential</b> (blank ground, connections and edges) and <b>Balanced</b> (a bit of everything, the default). The one in use is shown in bold and named beside them. The six boxes below show its weights, 0 to 100; change any of them and the preset reads <b>Custom</b>. A weight of 0 leaves that signal out. Pressing a preset puts its weights back.</p>
+<h3>Hint words</h3>
+<p><b>Worth more</b> and <b>Worth less</b> hold the words the notes are searched for, separated by commas. Each distinct word found adds or takes away a quarter of the scale. Empty a field to go back to the default words.</p>
+<h3>The table</h3>
+<p>Columns: <b>Rank</b>, <b>Station</b>, <b>Score</b>, <b>Status</b> and <b>Why</b>, the strongest reasons joined by dots, always including what the lead costs to reach. Any note about the ranking (a lead that is not on the surveyed line, or one with nothing to rank it by) shows in grey under the table. The table is worked out when you open the section, when you press <b>Refresh</b>, when you change a preset, a weight, the hint words or the tick, and, while it is open, when the drawing or its Station Table marks change. Your settings last until you close CaveCAD; they are not saved.</p>
+<h3>Add selected to team</h3>
+<p>Select a lead, choose a team in the dropdown below the table, and press <b>Add selected to team</b>. The lead goes on that team's stops, just as if you had added it in the team's own section, and the line under the button says so ("B20 added to Team 2"). A lead already on that team, or one that is not a station of this drawing, is refused there with the reason.</p>
+<h3>What it cannot know</h3>
+<ul>
+<li>It estimates from the survey and its notes only. It cannot know what is actually beyond the end of the survey.</li>
+<li>Blank ground and Connection need a surveyed heading: the direction of the last leg into the lead, as a straight line. They are left out for a lead at the foot or head of a pitch (a vertical leg has no heading), for a lead the survey reaches only backwards (no leg arrives at it), and for stations with no position. The heading knows nothing about bends: the passage may turn just past the lead.</li>
+<li>Elevation edge needs a surveyed height range of at least 20 ft; Time since visited needs the lead's trip, and more than one trip when the trips have no dates.</li>
+<li>It does not change any lead's status: mark leads in the <b>Station Table</b>.</li>
+</ul>
+<h2>Suggest split</h2>
+<p>Not sure who should go with whom, or which stops each team should take? <b>Suggest split...</b>, beside <b>Add team</b>, <b>Remove team</b> and <b>Undo suggestion</b> in the Teams section, proposes a split you can look over before anything changes.</p>
+<p>It opens a window with three parts:</p>
+<ul>
+<li><b>Teams</b>: how many teams you want, from your current number up to 8.</li>
+<li><b>Objectives</b>: a list with <b>Lock</b>, <b>Stop</b> and <b>Currently</b> columns. Each row has a real check box for the lock. Add more objectives with the station dropdown and <b>Add stop</b>.</li>
+<li><b>People going</b>: a list with <b>Lock</b>, <b>Person</b>, <b>Skills</b>, <b>Squeeze</b> and <b>Currently</b> columns, with a check box for the lock in each row.</li>
+</ul>
+<p>A stop or person already on a team starts <b>locked</b>, which keeps it on that team; free ones are shared out. <b>Free everything</b> unticks every lock. Asking for more teams than you have adds teams named "Team N", each with a schedule copied from the last team; when everything else is locked, a new team starts empty.</p>
+<ul>
+<li><b>Suggest</b> shows a preview and changes nothing.</li>
+<li><b>Apply</b> writes the preview into the team sections. It is enabled only after a preview, and goes disabled again if you change anything in the window.</li>
+<li><b>Undo suggestion</b>, in the Teams section, puts the teams back exactly as they were, until your next edit or drawing change.</li>
+</ul>
+<h3>What it decides</h3>
+<p>It decides which people go on each team and which stops each team takes. To estimate a team's time it plans that team's route with the trip planner (the walk in, the work at each stop, pitch time and the walk out), groups stops that are near each other, and balances the teams so the busiest team is as short as it can make it. It is deterministic: the same input gives the same answer. It is a good split, not a proven best one.</p>
+<h3>Limits and warnings</h3>
+<p>The preview marks problems in two ways. <b>Hard limits</b> are shown in red with a "!"; <b>Apply</b> is still allowed, the decision is yours.</p>
+<ul>
+<li>A team whose route has a pitch needs someone with the <b>Vertical</b> skill.</li>
+<li>Every member must fit the tightest passage on their team's route: the person's squeeze limit is checked against the survey's passage widths. A width recorded as 0 counts as unmeasured, not as a squeeze. When no width is known along a route, the preview only notes that squeeze limits were not checked.</li>
+</ul>
+<p><b>Preferences</b> are warned about and never block anything:</p>
+<ul>
+<li>Each team has someone with First aid, CPR or Wilderness first responder.</li>
+<li>Each team has a <b>Trip leader</b>.</li>
+<li>Balance: a team more than 30% above or below the average of the teams that have stops.</li>
+<li>Schedule fit: a team's stops need more work time than its own days schedule allows.</li>
+</ul>
+<h3>What it cannot know</h3>
+<ul>
+<li>It estimates from the survey. It cannot know who works well together, who has a car, or the conditions on the day.</li>
+<li>People are placed after the stops are fixed, so a squeeze or vertical problem produces a warning; it does not move a stop.</li>
+<li>A person with no saved details counts as having no skills and no squeeze limit.</li>
+</ul>
+<h2>Plan a trip</h2>
+<p>A team's <b>Stops</b> turn a few stations into a route, a time budget and a gear list.</p>
+<ol>
+<li>In a team's section, pick a station from the dropdown, or type its name (the box finishes a name you start), and press <b>Add stop</b>. Do the same for every stop that team is going for. A name that is not a station of this drawing is refused, with a note under the box saying so; adding a stop twice does nothing. <b>Remove</b> takes the selected stop off the list; <b>Clear</b> empties it.</li>
+<li>Press <b>Plan trip</b>. Every team is planned. Each route starts at the survey's first station, visits that team's stops in the shortest order it can find, and comes back to where it started. The text box at the bottom of the panel shows the plan with a heading per team: the directions leg by leg, the time in, at work and out, the distance, the rope for each pitch, and any warnings.</li>
+<li>Press <b>Save packet</b> to write <code>trip-plan.html</code> in the cave's folder, beside the drawing. Open it in a browser to read or print it. Save the drawing once first: an unsaved drawing has no folder to put it in. <b>Save packet</b> works for a one-team trip only; with two or more teams, use <b>Build cards</b>, because each team file already holds that team's route.</li>
+</ol>
+<p>The packet holds the objectives, the time budget, a sketch of the route over the cave's shape, the directions, what to watch for, the gear list and the team's packing list. It has no coordinates and no entrance location, so it can go to a team that has not been there before.</p>
+<h3>Highway-style directions</h3>
+<p>Underground you cannot tell which survey station you are standing at, but you can count the intersections you pass and judge how far you have walked. So on the callout card and the packet the directions count intersections. Under each leg's heading one line gives the whole leg: how many intersections, how far, and about how long (a leg with none says "straight through"). Then each intersection is a road sign, in the order you meet it: the small grey figure at the left is the walk to reach it (distance and time; only the distance when it takes under a minute), the arrow is which way to go, the large type says which intersection it is ("Intersection 3") and the small line under it says "of 7", how many passages meet there ("3-way") when the survey shows it, and a map ref. The map ref is the station's name, there only to find the spot on the route sketch: do not count on reading it in the cave. The last row is your stop. Junctions only a few feet apart are really one wiggle, so they count as one intersection, showing the net turn. Turns are drawn relative to the way you were already going (straight, slight, left or right, sharp, or back the way you came); a pitch out of an intersection shows a vertical arrow, and after a pitch the sign shows the compass heading instead. A leg with no intersections is one line: follow the passage to the station. Pitches are covered by the rope list, not the signs. The plan text in the panel follows the same structure: each leg's totals, then one numbered line per intersection ("Walk 251 ft, then at the 1st intersection (3-way, map ref A11) go slight left"), then where you arrive.</p>
+<h3>Pace</h3>
+<p>Walking time is worked out at 264 feet a minute, a 3 mph hiking pace, plus time on rope for each pitch and 20 minutes of work at each stop. Cave passage is usually slower than a trail: type your own pace in feet per minute in <b>Walking pace</b> and press <b>Plan trip</b> again. Leave it blank to go back to 264. The pace and each team's <b>packing list</b> are saved in <code>stations.json</code>, so everyone plans with the same numbers.</p>
+<h3>What it cannot tell you</h3>
+<ul>
+<li>The route follows the survey line. It is not a guarantee that the way is safe or easy: crawls, water, climbs and loose ground are only known where someone wrote them in the survey notes.</li>
+<li>Rigging is not read from the map yet. Every pitch says "rig not on map, confirm": count the anchors and hangers from what you know of the cave before you pack.</li>
+<li>A stop that cannot be reached along the surveyed line is listed as a warning and left out of the route. A shot whose walls say the passage is under 3 feet high or wide is flagged as tight.</li>
+</ul>
+<h2>Callout cards</h2>
+<p><b>Build cards</b>, in the <b>Card</b> section at the bottom, writes the printed sheets beside the drawing. It builds nothing until every required item is there, and then says <b>Missing:</b> with all of the gaps at once, listed team by team, not just the first. Required:</p>
+<ul>
+<li>the <b>start date</b>, in the <b>Trip</b> section. It always holds a date: it starts on today's date, or on the date saved with the drawing. Click the arrow for the calendar and click a day (click anywhere else to dismiss it), or type the date or scroll it with the arrow keys or mouse wheel. It is always <code>yyyy-mm-dd</code> (for example <code>2026-10-03</code>). The <b>Today</b> button beside the field puts today's date back in (Qt's calendar dropdown has no Today button of its own). The calendar follows the app's dark colours; weekends appear in red, which is Qt's own convention;</li>
+<li>the <b>topside contact</b>'s name, the <b>contact phone</b>, and the <b>if no word by callout</b> line, in <b>Escalation</b>;</li>
+<li>for every team: a <b>name</b>, at least one person, at least one <b>day</b> in its schedule and at least one <b>stop</b>.</li>
+</ul>
+<p>The forecast place and the callout buffer are optional (the buffer defaults to 120 minutes). A field holding only spaces counts as empty.</p>
+<h3>What gets written</h3>
+<ul>
+<li><b>One team:</b> <code>callout-card.html</code>, two printed sheets exactly as before, and no team files. Sheet 1 is for topside (the roster with medical notes and emergency contacts, the schedule, who to call if there is no word, and the forecast); sheet 2 is for the team (the route sketch, turn-by-turn directions, hazard notes and the rope list).</li>
+<li><b>Two or more teams:</b> <code>callout-card.html</code> becomes the <b>topside sheet</b>, and each team gets its own file, <code>team-&lt;n&gt;-&lt;name&gt;.html</code>, beside the drawing.</li>
+</ul>
+<p>The status line under <b>Build cards</b> lists the files written and any same-day warnings. Building never deletes a file. If <code>team-*.html</code> files from an earlier build are still there (for example after you removed a team), the status line names them: "Left in place from an earlier build: ...". Delete them yourself so nobody prints a stale sheet.</p>
+<h3>The topside sheet</h3>
+<p>For the person waiting on the surface. It has the trip header; a <b>Next callouts</b> strip sorted by time, with every team's callout; the roster grouped by team, with role, squeeze limit, skills, medical notes and emergency contact (a person on several teams appears under each); any same-day warnings; one schedule table per team (turnaround, expected out and callout, and the name of that team's file); the escalation box; and the forecast with weather icons. It has no route drawing and no directions: those are in the team files.</p>
+<h3>A team file</h3>
+<p>For the team to carry. It has the team's name, goal and dates; its members with role, squeeze limit, skills and medical notes; its schedule; the topside contact and the escalation line; the forecast for its dates; and then its route with the intersection directions, hazards, rope list and its own packing list. <b>Emergency contacts are not in a team file</b>: they stay on the topside sheet, so the sheet that goes underground does not carry them.</p>
+<h3>Schedule and forecast</h3>
+<ul>
+<li><b>Schedule:</b> each team's days start on its <b>Starts on trip day</b>. Turnaround is entry plus the way in (on days that start from the surface) plus work hours. Callout is the expected time out plus your buffer. Camp nights have no callout. Only a team's first way in and last way out use the route's times; moves between camps are not timed.</li>
+<li><b>Forecast:</b> looked up when you build, from the drawing's location rounded to about 10 km, or from a town you type. The exact entrance is never sent and never printed. With no network the cards say so and still build. Each forecast day has an icon and a one-word label so you can see the topside weather at a glance.</li>
+<li><b>Rain plus water:</b> if a day's forecast is wet and a station note on a route mentions water, the card carries a bold warning. It says "check", never "safe".</li>
+<li><b>Privacy:</b> the people directory and phone numbers are saved on this computer only, not in the cave's folder, so Drive does not carry them. Untick <b>Include roster</b> for a copy that leaves your hands.</li>
+</ul>
+<h2>Where it is saved</h2>
+<p>Pace, the teams (each with its name, goal, start day, members, days, stops and packing list), the forecast place and the trip's start date are saved in <code>stations.json</code> in the cave's folder, the same file Station Table keeps its marks in, so Google Drive carries them to the team and they come back after a restart. For members only the names are saved: no medical notes or contact details. Every save reads the file again first and changes only these settings, so a teammate's marks are never written over. The packet and the cards are written beside the drawing as <code>trip-plan.html</code>, <code>callout-card.html</code> and, for two or more teams, the <code>team-*.html</code> files. The people directory (<code>people.json</code>, in CaveCAD's settings folder) and the topside phone numbers stay on this computer. Save the drawing once first: an unsaved drawing has no folder to keep any of this in.</p>
+<p>The panel follows the drawing it was opened on. Each drawing keeps its own teams, stops and schedule in its own <code>stations.json</code>, so when you switch to another cave the panel loads that cave's teams (or starts a fresh Team 1 if it has none).</p>
+<h2>See also</h2>
+<ul>
+<li><a href="expedition-planner-sop.html">Plan a trip with the Expedition Planner (the standard way)</a>: the step-by-step routine</li>
+<li><a href="station-table.html">Station Table</a></li>
+<li><a href="survey-notebook.html">Survey Notebook</a></li>
+</ul>

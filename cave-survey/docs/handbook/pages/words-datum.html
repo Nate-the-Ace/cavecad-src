@@ -1,0 +1,18 @@
+<h1>Elevation, and the datum trap</h1>
+<p>A cave's depths are measured against something. Which something is a decision, and forgetting it silently ruins every number on the map.</p>
+<h2>Two ways to hold elevation</h2>
+<ul>
+<li><b>Relative</b> — the entrance is 0, and everything is depth below it. What most sketches assume.</li>
+<li><b>Absolute</b> — the entrance is its real elevation, say 780 ft, and every station is measured against sea level. What you need to compare the cave to the surface, to contours, or to another cave.</li>
+</ul>
+<h2>The trap</h2>
+<p>Anything that treats a missing elevation as <b>zero</b> rebases an absolute-datum cave to sea level. The map still looks right. Every depth on it is wrong by 780 ft, and nothing warns you.</p>
+<p>So when a tool asks for an elevation, give the real one. A blank is not a neutral answer — it is the answer "zero".</p>
+<h2>Where it shows up</h2>
+<p>Profile bands, cross sections, callout floor elevations, the 3D view, and surface contours all read elevation. The suite positions the passage through the drawing's own anchor, datum and adjustment settings, so a cave surveyed to an absolute datum stays at its elevation rather than dropping to zero.</p>
+<h2>See also</h2>
+<ul>
+<li><a href="words-vertical.html">Vertical caves: how to tell CaveCAD</a></li>
+<li><a href="set-the-location.html">Set the cave's location</a></li>
+<li><a href="callout.html">Callout</a></li>
+</ul>

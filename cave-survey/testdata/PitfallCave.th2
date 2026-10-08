@@ -1,0 +1,119 @@
+encoding  utf-8
+# PITFALL CAVE (TEST) -- the drawing half, for tests/js_unit.js.
+#
+# Synthetic, like the rest of the Pitfall Cave fixture: the station
+# names tie to testdata/PitfallCave.svx, and the scrap coordinates are
+# a made-up sketching grid at roughly 2 scrap units to the foot.
+#
+# It is written to exercise the reader rather than to look like a cave:
+# every construct CsTherion2 claims to read appears once, and so does
+# every construct it claims to refuse.
+##XTHERION## xth_me_area_adjust 0 -900 1300 0
+##XTHERION## xth_me_area_zoom_to 100
+##XTHERION## xth_me_image_insert {0 1 1.0} {0 {}} pitfall-page-3.jpg 0 {}
+
+input other-half.th2
+
+scrap plan1 -projection plan -scale [0 0 100 0 0.0 0.0 50.0 0.0 ft]
+
+	point 0 0 station -name A1
+	point -28 -50 station -name A2
+	point -74 -97 station -name A3
+	point -112 -128 station -name A5
+
+	point -40 -30 stalactite -orientation 45 -scale l
+	point -60 -70 stalagmite
+	point -20 -18 entrance
+	point -95 -110 altitude -value 684.6
+	point -130 -150 continuation -text "GOES, TOO TIGHT FOR DAVE"
+	point -50 -95 label -text "THE PINCH"
+	point -70 -20 u:bolt-hanger
+	point -80 -100 section -scrap xs1
+
+	line wall -id leftwall
+		10 -6
+		-18 -44
+		-30 -58 -46 -74 -64 -90
+		-100 -120
+	endline
+
+	line wall -subtype presumed
+		-100 -120
+		-140 -170
+	endline
+
+	line wall -subtype invisible
+		-140 -170
+		-150 -180
+	endline
+
+	line pit
+		-70 -92
+		-82 -104
+		-90 -118
+		-close on
+	endline
+
+	line border -id pool
+		-30 -60
+		-46 -64
+		-50 -80
+		-34 -78
+		-close on
+	endline
+
+	line survey
+		0 0
+		-28 -50
+	endline
+
+	line u:handline
+		-12 -8
+		-20 -30
+	endline
+
+	area water
+		line pool
+	endarea
+
+endscrap
+
+scrap ext1 -projection extended -scale [0 0 100 0 0.0 0.0 50.0 0.0 ft]
+	point 0 0 station -name A1
+	point 60 -12 station -name A2
+	point 128 -30 station -name A3
+	line wall
+		0 20
+		60 14
+		128 8
+	endline
+	line floor-step
+		60 -20
+		128 -34
+	endline
+endscrap
+
+scrap xs1 -projection none -scale [0 0 40 0 0.0 0.0 10.0 0.0 ft]
+	line wall
+		-20 -30
+		-22 10
+		0 24
+		22 8
+		18 -30
+		-close on
+	endline
+endscrap
+
+scrap elev1 -projection [elevation 90]
+	line wall
+		0 0
+		40 0
+	endline
+endscrap
+
+scrap odd1 -projection sideways
+	line wall
+		0 0
+		10 10
+	endline
+endscrap

@@ -1,0 +1,40 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-22-chunk-sheet-boxes.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Thread resolved through Sheet Setup's state",
+      "status": "pending",
+      "description": "See plan Task 1: readSurvey/state/build thread `resolved` alongside `survey`."
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Generalize drag/offset identity to per-item keys",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "See plan Task 2: isMovable/anyMoved accept band:<key> kinds."
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: One box per chunk in the preview, labelled and styled",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "See plan Task 3: preview()/state.bands/style fallback/label drawing."
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Build Sheet regenerates dragged chunks",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "See plan Task 4: SheetSetup.buildChunkedElevation + draw() call site."
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Version bump, handbook note, publish",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "See plan Task 5: VERSION 0.9.178.0, handbook, tools/publish.sh."
+    }
+  ],
+  "lastUpdated": "2026-09-22T00:00:00Z"
+}

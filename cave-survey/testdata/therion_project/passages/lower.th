@@ -1,0 +1,10 @@
+survey lower
+  centreline
+    date 2025.03.02
+    units length metres
+    units compass clino degrees
+    data normal from to length compass clino
+    1 2 10.0 90 0
+    2 3 10.0 180 0
+  endcentreline
+endsurvey

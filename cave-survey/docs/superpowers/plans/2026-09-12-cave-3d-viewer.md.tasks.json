@@ -1,0 +1,75 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-12-cave-3d-viewer.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: lidar folder in the standard structure",
+      "status": "pending",
+      "description": "**Goal:** CsCave.LIDAR joins SUBFOLDERS; PackageCave gains an opt-in lidar group.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsCave.js\n- scripts/CaveSurvey/PackageCave/PackageCave.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 1.\n\n**Verify:** node tests/js_unit.js && node tests/package_cave.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsCave.js\", \"scripts/CaveSurvey/PackageCave/PackageCave.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"node tests/js_unit.js && node tests/package_cave.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: CsMesh3d frame and ring",
+      "status": "pending",
+      "description": "**Goal:** Per-station orthonormal frame and the radial ring of measured wall points.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- scripts/CaveSurvey/Core/CsAll.js\n- tests/js_unit.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 2.\n\n**Verify:** node tests/js_unit.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"scripts/CaveSurvey/Core/CsAll.js\", \"tests/js_unit.js\"], \"verifyCommand\": \"node tests/js_unit.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: CsMesh3d.build, lofting the rings",
+      "status": "pending",
+      "description": "**Goal:** Whole-survey triangle and line buffers plus bounds; junctions end a run; a missing z throws.\n\n**Files:**\n- scripts/CaveSurvey/Core/CsMesh3d.js\n- tests/cave3d_mesh_run.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 3.\n\n**Verify:** node tests/js_unit.js && node tests/cave3d_mesh_run.js\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Core/CsMesh3d.js\", \"tests/cave3d_mesh_run.js\"], \"verifyCommand\": \"node tests/js_unit.js && node tests/cave3d_mesh_run.js\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: the GL widget",
+      "status": "pending",
+      "description": "**Goal:** RCave3dView QOpenGLWidget with orbit camera, plus RCave3dWindow host.\n\n**Files:**\n- src/gui/RCave3dView.cpp\n- src/gui/RCave3dWindow.cpp\n- src/gui/CMakeLists.txt\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 4.\n\n**Verify:** ninja -j20\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dView.cpp\", \"src/gui/RCave3dWindow.cpp\", \"src/gui/CMakeLists.txt\"], \"verifyCommand\": \"ninja -j20\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        2
+      ]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: the bridge, and measuring transfer",
+      "status": "pending",
+      "description": "**Goal:** RCave3dBridge exposed as the global cave3d; transfer timing measured, blob fallback if needed.\n\n**Files:**\n- src/gui/RCave3dBridge.cpp\n- qcadjsapi/RScriptHandlerJs.cpp\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 5.\n\n**Verify:** ninja -j20\n\n```json:metadata\n{\"files\": [\"src/gui/RCave3dBridge.cpp\", \"qcadjsapi/RScriptHandlerJs.cpp\"], \"verifyCommand\": \"ninja -j20\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        3
+      ]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: the Cave3D tool",
+      "status": "pending",
+      "description": "**Goal:** Cave Survey > 3D View opens the window on the drawing's survey.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3D.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 6.\n\n**Verify:** tools/publish.sh, then manual in CaveCAD\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3D.js\"], \"verifyCommand\": \"tools/publish.sh, then manual in CaveCAD\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        4
+      ]
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: the listener",
+      "status": "pending",
+      "description": "**Goal:** Debounced transaction listener; nothing depends on it, Refresh is the guarantee.\n\n**Files:**\n- scripts/CaveSurvey/Cave3D/Cave3DListener.js\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 7.\n\n**Verify:** manual in CaveCAD\n\n```json:metadata\n{\"files\": [\"scripts/CaveSurvey/Cave3D/Cave3DListener.js\"], \"verifyCommand\": \"manual in CaveCAD\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        5
+      ]
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: verify live and release",
+      "status": "pending",
+      "description": "**Goal:** Full test run, genuine restart, Pitfall Cave walkthrough, bump to 0.9.117.0.\n\n**Files:**\n- VERSION\n\n**Acceptance Criteria:**\nSee docs/superpowers/plans/2026-09-12-cave-3d-viewer.md, Task 8.\n\n**Verify:** node tests/js_unit.js && node tests/cave3d_mesh_run.js && node tests/package_cave.js && python3 -m pytest tests/test_addon.py -q\n\n```json:metadata\n{\"files\": [\"VERSION\"], \"verifyCommand\": \"node tests/js_unit.js && node tests/cave3d_mesh_run.js && node tests/package_cave.js && python3 -m pytest tests/test_addon.py -q\", \"acceptanceCriteria\": [], \"modelTier\": \"standard\"}\n```",
+      "blockedBy": [
+        6
+      ]
+    }
+  ],
+  "lastUpdated": "2026-09-12T08:49:41.593165"
+}

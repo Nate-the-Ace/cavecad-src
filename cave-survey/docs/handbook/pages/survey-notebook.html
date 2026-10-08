@@ -1,0 +1,42 @@
+<h1>Survey Notebook</h1>
+<p>A docked notes page for typing a trip's shots in, with the scanned field book beside it. <code>snb</code></p>
+<p><img src="survey-notebook-panel.png" width="400"><br><i>The shot ladder, with the trip's date, team and declination above it.</i></p>
+<p><img src="survey-notebook-demo.gif" width="440"><br><i>Type the trip's header and shots; the status line keeps count as you go.</i></p>
+<h2>When you reach for it</h2>
+<p>Every time shots come out of a cave. This is where survey data enters a drawing, and where a trip is corrected afterwards.</p>
+<h2>Steps</h2>
+<ol>
+<li>Open the panel and type the shot ladder: station names, distance, azimuth, inclination, LRUD, and the note in the margin.</li>
+<li>Press <b>Scan</b> to put the page you are typing off <i>under</i> the ladder in the same dock, on a splitter you drag. Under rather than beside, because a shot row is wide and squeezing it is what costs you a wrong number.</li>
+<li>Watch closures, stats and warnings update as you type.</li>
+<li><b>Draw</b> writes it into the drawing in one undo step. Adding a trip redraws only that trip; anything that moves existing stations — a corrected declination, a re-closed loop — takes the full redraw. <b>Redraw All</b> in the <b>...</b> menu forces it.</li>
+</ol>
+<h2>Watching the page draw itself</h2>
+<p>As you type, the page is drawn over the map as a <b>ghost</b>: orange shot lines, blue dashed walls from the LRUD, and a grey dashed line wherever loop closure has moved a leg appreciably. Nothing is added to the drawing — no entity, no undo step, nothing to save. <b>Draw</b> is still the only thing that commits.</p>
+<p>It is there because the status line's numbers are a poor way to catch a typing mistake: a transposed azimuth is a plausible bearing and a metric distance on a page of feet is a plausible distance. Both are obvious the moment the passage is drawn.</p>
+<p>The ghost lands exactly where Draw will put the shots — same tie-in, same anchor, same adjustment — because both ask the same code where the page goes. Only the stations on <i>this page</i> are ghosted; the cave already drawn around them is left alone.</p>
+<p>The <b>Preview</b> button turns it off, for typing over a dense part of a finished map. What you leave it as is what you get next time.</p>
+
+<h2>LRUD: blank is not the same as P</h2>
+<p>Leave an LRUD cell <b>blank</b> and you are saying nobody measured it: the wall on that side is unknown, and the map breaks its wall line at that station rather than guessing across the gap.</p>
+<p>Type <b>P</b> and you are saying the party looked and found <i>no wall that way</i> — open passage. That is a reading, not a gap, so the wall either side carries straight through, and the 3D passage tube keeps its shape instead of pinching shut at the station.</p>
+<p>This matters most at tie-ins, where the shot cuts across the passage rather than running down it and both side readings come back open. Write P on those and the passage stays continuous through the tie-in.</p>
+
+<h2>Declination</h2>
+<p>The Notebook owns it: estimate declination from the survey date and the cave's location (IGRF), pin that location to a station as the drawing's geo anchor, and correct a trip's declination after the fact — the drawing rotates around the fix.</p>
+<h2>Correcting a trip</h2>
+<p><b>Load from drawing</b> revises <i>that</i> trip by identity, so fixing its date or team does not fork a duplicate. <b>Edit this trip...</b> in the <b>...</b> menu is the narrower correction: name, date, team, instruments, with nothing moved and no redraw. Declination is not among them — changing it rotates the plan, so it stays in Declination.</p>
+<h2>Try it on Truitt</h2>
+<p>Open the <b>...</b> menu, <b>Edit this trip...</b>, and correct a trip's date. Then check the trip count is unchanged: not forking a duplicate is the whole reason that path exists.</p>
+<h2>When it refuses</h2>
+<ul>
+<li><b>Delete...</b> refuses outright when a later trip ties into a station only this one reaches — that trip would be left with nowhere to start.</li>
+<li>Deleting asks separately what to do with linework bound to the trip, and leaves it unbound by default.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="import-cave-survey.html">Import Cave Survey</a></li>
+<li><a href="loop-errors.html">Loop Errors</a></li>
+<li><a href="words-vertical.html">Vertical caves: how to tell CaveCAD</a> — how to type a pitch in</li>
+<li><a href="sketch-scans.html">Sketch Scans</a></li>
+</ul>

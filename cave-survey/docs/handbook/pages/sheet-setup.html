@@ -1,0 +1,53 @@
+<h1>Sheet Setup</h1>
+<p>A docked palette that turns the map into <b>sheets</b>: layouts of your own drawing, each with a viewport onto the cave and the furniture round it. <code>sheet</code></p>
+<p><img src="sheet-setup-panel.png" width="400"><br><i>The preview, redrawn as you tick: paper, the cave's footprint, the furniture, and the elevation on its own sheet.</i></p>
+<p><img src="sheet-setup-demo.gif" width="420"><br><i>Paper, orientation and furniture changing; the preview redraws each time.</i></p>
+<h2>When you reach for it</h2>
+<p>When the map is drawn and has to become paper.</p>
+<h2>What a sheet is now</h2>
+<p>A sheet is a <b>layout</b>: a tab along the bottom of the drawing, next to <b>Model</b>. Nothing is copied. Each sheet holds <b>one viewport</b>, a live window onto the cave at the plot scale, and the sheet's furniture drawn on the paper. Change the cave and every sheet shows it at once; there is no sheets folder, nothing to go stale, and no file to rebuild. See <a href="layouts-and-viewports.html">Sheets, layouts and viewports</a> for the tabs, the scale list, the lock and editing through a viewport.</p>
+<h2>Steps</h2>
+<ol>
+<li>Pick the paper. ANSI and ARCH first, ISO A4 to A0 after. It is used <b>the way up it is listed</b> (landscape), always; tick <b>Portrait</b>, beside the paper and scale, to turn it. The sheet size never changes by itself, whatever the scale or wherever you slide the viewport.</li>
+<li>Take the proposed scale or change it. It offers the most detailed standard plot scale the plan fits at. Scales run <code>1" = 10 ft</code> up to <code>1" = 500 ft</code>, then the metric ratios <code>1:100</code> to <code>1:2000</code>. A metric sheet gets a bar counted in <b>metres</b> and captioned with its ratio.</li>
+<li>Tick what goes on the sheet: border, scale bar, north arrow, title block, and the extended elevation on a second sheet. The preview redraws as you tick.</li>
+<li>Arrange the page, if the default does not suit it. <b>Drag</b> the title block, the scale bar, the north arrow or the cave itself around the preview. Edges snap to the dashed margin, to the paper and to each other; middles snap to middles. A magenta line shows an edge snap and a blue one a centring. <b>Reset Layout</b> puts everything back.</li>
+<li><b>Build Sheet</b> makes the sheets as layouts of this drawing. You do not need to save first. Run it again after the cave has grown and the sheets you have not touched are rewritten in place.</li>
+<li><b>Put the sheets in</b> chooses where they go. <b>All sheets in this file</b> (the default) makes tabs under this drawing. <b>All sheets in a new file</b> writes <code>&lt;Cave&gt; Sheets.dxf</code> into the cave's <code>Sheets</code> folder and opens it. <b>A new file for each sheet</b> writes <code>&lt;Cave&gt; - &lt;Sheet&gt;.dxf</code> for every sheet there. Each new file is a copy of the drawing with the sheets in it, because a viewport needs the cave to look at; this drawing is left as it was. A drawing with no cave folder asks where to save.</li>
+<li><b>Export PDF</b> plots <b>every sheet into one PDF</b>, a page per sheet in tab order, in the cave's PDF folder, and opens it.</li>
+</ol>
+<h2>Automatic sheets and sheets that are yours</h2>
+<p>A sheet Sheet Setup made is <b>automatic</b>: it owns the sheet and rewrites it on every build. The moment you change one by hand &mdash; move a piece, add a note, unlock or rescale its viewport, change its paper &mdash; it becomes <b>manual</b>, marked with a star on its tab, and Sheet Setup <b>leaves it alone</b>. The build message names the sheets it skipped. Undoing your change makes the sheet automatic again by itself.</p>
+<p><b>Revert to automatic</b> (right-click the sheet's tab) throws away everything done by hand and draws the sheet again from the settings it was made with. It is one undo step.</p>
+<p>The title block's words are read back from the sheets before a rebuild, so wording you typed over is never replaced by a computed value.</p>
+<h2>Two norths on one arrow</h2>
+<p>The map is drawn in <b>true north</b> &mdash; every azimuth was rotated by its trip's declination as it was drawn. The compass in your hand underground is not, so the arrow carries a second arm at <b>magnetic north</b> from the same origin: the angle between the arms <i>is</i> the declination. It is drawn shorter and in grey, labelled <code>mN</code> against the true arrow's <code>N</code>.</p>
+<p>The arm uses the declination of the <b>latest trip in the survey</b>, and the caption says which and when &mdash; <code>MAGNETIC NORTH 3.2&deg; E (2024-11-03)</code>. A drawing with no survey in it gets the true arrow and no magnetic claim &mdash; and neither does one whose trips all record a declination of <b>0.0</b>, the suite's default for a trip nobody has told. It is one piece of furniture: drag the north arrow and both arms, both labels and the caption move together.</p>
+<h2>The scale bar follows the viewport</h2>
+<p>The bar on a sheet is <b>linked to its viewport</b>. Pick another scale from the list, zoom inside the viewport, type a scale in the property editor, undo or redo: the bar is redrawn at the viewport's scale, in the place you put it. It does this on automatic and manual sheets alike.</p>
+<h2>Dragging, and what moves</h2>
+<p>A drag is remembered in <b>inches of paper</b>, so a bar nudged two inches to the right stays two inches to the right when you step the scale or change the paper. Dragging the <b>cave</b> is the odd one out: the cave does not move. Its coordinates are survey data, so the <i>paper</i> slides under it instead &mdash; which looks the same on screen and leaves the survey alone.</p>
+<p>The dashed rectangle is the <b>margin</b>: half an inch of paper at every edge, kept clear so the sheet can be bound, trimmed and held. On a sheet that has a band under the map the border is drawn just outside the margin.</p>
+<h2>No raster ever reaches a plot</h2>
+<p>Not a checkbox, a rule. A scanned page is a tracing reference, and an aerial photograph is the cave's location baked into a picture. Every viewport Sheet Setup makes leaves raster images out, whatever layer they are on. (The property <b>CaveCAD / NoRaster</b> on the viewport is what does it; a viewport you draw yourself has it on too.)</p>
+<h2>Plot it to PDF</h2>
+<p>The page is the sheet's paper at the sheet's scale. Each sheet's paper size, orientation and 1:1 print settings are kept on the sheet, so <b>File &gt; Print</b> and Print Preview on a sheet tab plot it correctly with no trip through Page Setup. <b>Export PDF</b> in the panel plots them all into one file; a drawing that has no file yet asks where to put it.</p>
+<h2>A cave bigger than one sheet</h2>
+<p>Pick a scale the cave will not fit on one sheet at, and the preview does not complain: it lays out <b>more sheets</b>. The blue box is the <b>viewport</b>, the map at this scale: <b>drag it</b> over the sheet, and wherever it runs past the sheet's margin, adjacent sheets appear beside it to carry the rest, and go again when it slides back. Change the scale or the paper and the grid is laid out again.</p>
+<p>Sheets are <b>numbered by grid</b>: rows lettered from the north, columns numbered from the west. <code>A1</code> is the north-west sheet, <code>A2</code> is east of it, <code>B1</code> is south of it. A square of the grid the cave never touches is not built, but keeps its place in the numbering.</p>
+<p>Neighbouring sheets meet along a <b>match line</b>, drawn dashed on both: <code>MATCH LINE - SEE SHEET B2</code> names the sheet that continues it, and each sheet says its own name, <code>SHEET A1</code>, at the top left. Each sheet repeats half an inch of its neighbour past the line, so a passage that crosses it reads continuously.</p>
+<p><b>Every tile is map right out to the page margin.</b> <b>Sheet A1 carries the title block</b>; every sheet carries a scale bar and a north arrow. Each element has a <b>white backing</b> (a wipeout in the paper's colour), so wherever the map runs under one the element reads clean.</p>
+<h2>The elevation</h2>
+<p>The extended elevation lives below the plan in your drawing, as always. Its sheet is a viewport onto that region, and the plan sheets' viewports hide the elevation's layers (and the elevation's hides the plan's), so each sheet shows only its own view. A <b>chunked</b> elevation is shown as drawn; its per-chunk arrangement offsets are not part of sheets yet.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>It says plainly when something is off the paper, and <i>which</i> thing.</li>
+<li>Sheets you have changed by hand are left alone, and named.</li>
+<li>Tools that draw (Survey Notebook, Feature Trace, ...) refuse while a sheet is showing: click the Model tab, or double-click a viewport to edit through it.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="layouts-and-viewports.html">Sheets, layouts and viewports</a></li>
+<li><a href="build-legend.html">Build Legend</a></li>
+<li><a href="check-map.html">Check Map</a> &mdash; run it before you build the sheet</li>
+</ul>

@@ -1,0 +1,19 @@
+<h1>Scatter Breakdown</h1>
+<p>Fill closed <code>BREAKDOWN-BOUNDARY</code> polylines with breakdown symbols, per boundary. <code>scb</code></p>
+<h2>When you reach for it</h2>
+<p>For breakdown drawn the old way, as a boundary polyline. New work is easier through <a href="area-fill.html">Area Fill</a>, which draws the boundary and the fill in one gesture.</p>
+<h2>Steps</h2>
+<ol>
+<li>Draw or select the closed boundary.</li>
+<li>Run the tool. Re-running clears and refills only the boundaries it processes, in one undo step.</li>
+</ol>
+<p>Each boundary's seed is rolled once and kept, so its pile looks the same across re-runs, an edit or a reload.</p>
+<h2>When it refuses</h2>
+<ul>
+<li>An <b>open</b> boundary is skipped. Check Map flags that one.</li>
+</ul>
+<h2>See also</h2>
+<ul>
+<li><a href="area-fill.html">Area Fill</a></li>
+<li><a href="sync-areas.html">Sync Areas</a> — adopts an old boundary this tool drew into a real area</li>
+</ul>

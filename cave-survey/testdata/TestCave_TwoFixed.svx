@@ -1,0 +1,43 @@
+; TestCave_TwoFixed.svx -- dummy data for CsNetwork/CsAdjust testing:
+; two fixed stations on ONE connected ring, plus a THIRD fixed station
+; that anchors a separate, otherwise-disconnected component joined to
+; the ring by exactly one leg. See Task 1d, docs/superpowers/plans/
+; 2026-08-21-loop-closure-adjustment.md, for why three *fix stations
+; are needed to realize the two required shapes (two fixed stations
+; forming a two-root ring is one shape; a SEPARATELY fixed component
+; tied on by a single bridge leg is the other, and that second
+; component needs its own control to anchor itself before the tie is
+; even meaningful to classify).
+;
+; All bearings are 0/90/180/270 and all lengths are integers so every
+; expected number in tests/js_unit.js is exact arithmetic, not a
+; calculator result.
+
+*units length metres
+*units compass degrees
+*fix RA 0 0 0
+*fix RC 10 10 0
+*fix SB1 20 3 0
+*data normal from to tape compass clino
+
+; --- component A: a 4-leg ring, fixed at two opposite corners RA/RC.
+; Surveyed exactly consistent with both fixed corners -- deliberately
+; ZERO misclosure here, so the two arc-loops this produces (see the
+; hand computation in tests/js_unit.js) are as clean as the existing
+; synthetic "ring" fixture they mirror.
+RA RB 10.00 0.00 0.00
+RB RC 10.00 90.00 0.00
+RC RD 10.00 180.00 0.00
+RD RA 10.00 270.00 0.00
+
+; --- the single bridge leg joining component A to component B. Walked
+; from RD (10,0,0) east 10m lands at (20,0,0); SB1's own control is
+; (20,3,0) -- a deliberate, exact 3m misclosure, so this leg is a
+; control TIE, not a loop.
+RD SB1 10.00 90.00 0.00
+
+; --- component B: SB1 (fixed) plus one ordinary traversed station.
+; Without the RD-SB1 leg above, this is a wholly separate component
+; with its own anchor (SB1) -- exactly the "genuinely disconnected
+; fixed component" shape Task 1d asks for.
+SB1 SB2 10.00 0.00 0.00

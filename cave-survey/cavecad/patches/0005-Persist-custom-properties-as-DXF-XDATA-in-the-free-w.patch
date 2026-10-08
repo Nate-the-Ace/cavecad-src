@@ -1,0 +1,247 @@
+From 254c43643667445a88361f504b43b64dfc8226f1 Mon Sep 17 00:00:00 2001
+From: Nathan Schonegg <nschonegg@banning-eng.com>
+Date: Wed, 19 Aug 2026 19:51:55 -0400
+Subject: [PATCH 5/5] Persist custom properties as DXF XDATA in the free writer
+
+The free dxflib exporter never serialized custom properties -- the
+'Custom properties will not be saved' warning marks the feature as
+Pro-writer-only upstream -- and the importer collected XDATA per
+entity but only ever consumed ACAD blocks (importXData was a TODO).
+
+Export: writeCustomProperties emits each property title as a 1001
+application block of 1000 'key=value' strings, with APPIDs registered
+from a document scan. Import: the importEntity TODO now maps foreign
+XDATA blocks back to custom properties, consuming records so a later
+entity cannot inherit them. RSettings::xDataEnabled defaults to true.
+Save paths prefer the dxflib DXF writer (new files and the SaveAs
+preselection); explicitly chosen formats are honored.
+
+Round-trip verified headless: properties written as standard XDATA,
+recovered natively on reopen.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ scripts/File/Save/Save.js     | 14 +++++++++
+ scripts/File/SaveAs/SaveAs.js | 15 +++++++--
+ src/core/RSettings.cpp        |  4 ++-
+ src/io/dxf/RDxfExporter.cpp   | 59 ++++++++++++++++++++++++++++++++++-
+ src/io/dxf/RDxfExporter.h     |  1 +
+ src/io/dxf/RDxfImporter.cpp   | 37 ++++++++++++++++++++--
+ 6 files changed, 123 insertions(+), 7 deletions(-)
+
+diff --git a/scripts/File/Save/Save.js b/scripts/File/Save/Save.js
+index 52fc27be..4054b0e4 100644
+--- a/scripts/File/Save/Save.js
++++ b/scripts/File/Save/Save.js
+@@ -87,6 +87,20 @@ Save.prototype.save = function(fileName, fileVersion, overwriteWarning) {
+ 
+     fileVersion = isNull(fileVersion) ? "" : fileVersion;
+ 
++    // CaveCAD: a document with no stored format saves through the
++    // dxflib writer, which persists custom properties (survey data)
++    // as XDATA. An explicitly chosen format (Save As) is honored --
++    // the survey data store inside the drawing covers those files.
++    if (fileVersion.length===0 && fileName.toLowerCase().endsWith(".dxf")) {
++        var vFilters = RFileExporterRegistry.getFilterStrings();
++        for (var vfi=0; vfi<vFilters.length; ++vfi) {
++            if (vFilters[vfi].contains("dxflib") && vFilters[vfi].contains("*.dxf")) {
++                fileVersion = vFilters[vfi];
++                break;
++            }
++        }
++    }
++
+     fileName = di.getCorrectedFileName(fileName, fileVersion);
+ 
+     var saveAs = false;
+diff --git a/scripts/File/SaveAs/SaveAs.js b/scripts/File/SaveAs/SaveAs.js
+index a1b63f8c..2e1852ca 100644
+--- a/scripts/File/SaveAs/SaveAs.js
++++ b/scripts/File/SaveAs/SaveAs.js
+@@ -115,7 +115,15 @@ SaveAs.prototype.beginEvent = function() {
+             for (i=0; i<filterStrings.length; ++i) {
+                 // for DXF, DWG:
+                 if (suffix==="dxf" || suffix==="dwg") {
+-                    if (filterStrings[i].contains("R27") && filterStrings[i].contains("*." + suffix)) {
++                    // CaveCAD: prefer the dxflib writer for DXF -- it is
++                    // the one that persists custom properties (survey
++                    // data) as XDATA; fall through to R27 for DWG.
++                    if (suffix==="dxf" && filterStrings[i].contains("dxflib")) {
++                        fileDialog.selectNameFilter(filterStrings[i]);
++                        found = true;
++                        break;
++                    }
++                    if (suffix==="dwg" && filterStrings[i].contains("R27") && filterStrings[i].contains("*.dwg")) {
+                         fileDialog.selectNameFilter(filterStrings[i]);
+                         found = true;
+                         break;
+@@ -139,9 +147,10 @@ SaveAs.prototype.beginEvent = function() {
+         else {
+             // preselect configured name filter:
+             if (defaultNameFilter.length===0) {
+-                // preselect default name filter DXF R27:
++                // CaveCAD: preselect the dxflib DXF writer -- the one
++                // that persists custom properties (survey data):
+                 for (i=0; i<filterStrings.length; ++i) {
+-                    if (filterStrings[i].contains("R27") && filterStrings[i].contains("*.dxf")) {
++                    if (filterStrings[i].contains("dxflib") && filterStrings[i].contains("*.dxf")) {
+                         fileDialog.selectNameFilter(filterStrings[i]);
+                         break;
+                     }
+diff --git a/src/core/RSettings.cpp b/src/core/RSettings.cpp
+index 8360abf3..b3fe439c 100644
+--- a/src/core/RSettings.cpp
++++ b/src/core/RSettings.cpp
+@@ -132,7 +132,9 @@ QSettings* RSettings::qSettings = NULL;
+ QStringList RSettings::originalArguments;
+ 
+ bool RSettings::quitFlag = false;
+-bool RSettings::xDataEnabled = false;
++// CaveCAD: XDATA on by default -- the survey suite persists its
++// custom properties through it (see RDxfImporter/RDxfExporter).
++bool RSettings::xDataEnabled = true;
+ bool RSettings::nextVersionEnabled = false;
+ 
+ bool RSettings::firstStart = false;
+diff --git a/src/io/dxf/RDxfExporter.cpp b/src/io/dxf/RDxfExporter.cpp
+index 43a2c310..e2036f93 100644
+--- a/src/io/dxf/RDxfExporter.cpp
++++ b/src/io/dxf/RDxfExporter.cpp
+@@ -264,9 +264,36 @@ bool RDxfExporter::exportFile(const QString& fileName, const QString& nameFilter
+     // Appid:
+     if (!minimalistic) {
+         //qDebug() << "writing appid...";
+-        dw->tableAppid(1);
++        // CaveCAD: custom properties are exported as XDATA (see
++        // writeEntity), one application id per property title, so
++        // every title used anywhere in the document is registered
++        // here first.
++        QSet<QString> xdataAppids;
++        {
++            QSet<REntity::Id> ids = document->queryAllEntities(false, true);
++            QSet<REntity::Id>::iterator it;
++            for (it = ids.begin(); it != ids.end(); ++it) {
++                QSharedPointer<REntity> en = document->queryEntityDirect(*it);
++                if (en.isNull()) {
++                    continue;
++                }
++                QStringList titles = en->getCustomPropertyTitles();
++                for (int ti = 0; ti < titles.length(); ti++) {
++                    QString title = titles[ti];
++                    if (title.isEmpty() || title == "ACAD" || title == "QCAD") {
++                        continue;
++                    }
++                    xdataAppids.insert(title);
++                }
++            }
++        }
++        dw->tableAppid(2 + xdataAppids.size());
+         dxf.writeAppid(*dw, "ACAD");
+         dxf.writeAppid(*dw, "QCAD");
++        QSet<QString>::iterator ai;
++        for (ai = xdataAppids.begin(); ai != xdataAppids.end(); ++ai) {
++            dxf.writeAppid(*dw, (const char*)RDxfExporter::escapeUnicode(*ai));
++        }
+         dw->tableEnd();
+     }
+ 
+@@ -753,6 +780,36 @@ void RDxfExporter::writeEntity(const REntity& e) {
+     default:
+         break;
+     }
++
++    // CaveCAD: persist the entity's custom properties as standard
++    // XDATA -- one 1001 block per property title, one 1000 string
++    // "key=value" per property. Stock QCAD's free DXF writer never
++    // implemented this, which silently discarded every custom
++    // property on save; the closed OpenDesign plugin drops them too.
++    writeCustomProperties(e);
++}
++
++/**
++ * Writes the given entity's custom properties as XDATA.
++ */
++void RDxfExporter::writeCustomProperties(const REntity& e) {
++    QMap<QString, QVariantMap> props = e.getCustomProperties();
++    QMap<QString, QVariantMap>::iterator it;
++    for (it = props.begin(); it != props.end(); ++it) {
++        QString title = it.key();
++        if (title.isEmpty() || title == "ACAD" || title == "QCAD") {
++            // "" carries importer-internal hints (e.g. "block");
++            // ACAD/QCAD groups are not ours to serialize
++            continue;
++        }
++        dw->dxfString(1001, (const char*)RDxfExporter::escapeUnicode(title));
++        QVariantMap& map = it.value();
++        QVariantMap::iterator pit;
++        for (pit = map.begin(); pit != map.end(); ++pit) {
++            QString record = pit.key() + "=" + pit.value().toString();
++            dw->dxfString(1000, (const char*)RDxfExporter::escapeUnicode(record));
++        }
++    }
+ }
+ 
+ /**
+diff --git a/src/io/dxf/RDxfExporter.h b/src/io/dxf/RDxfExporter.h
+index 40ac773a..92f78dea 100644
+--- a/src/io/dxf/RDxfExporter.h
++++ b/src/io/dxf/RDxfExporter.h
+@@ -79,6 +79,7 @@ public:
+ 
+     void writeEntity(RObject::Id id);
+     void writeEntity(const REntity& e);
++    void writeCustomProperties(const REntity& e);
+     void writePoint(const RPointEntity& p);
+     void writeLine(const RLineEntity& l);
+     void writeXLine(const RXLineEntity& l);
+diff --git a/src/io/dxf/RDxfImporter.cpp b/src/io/dxf/RDxfImporter.cpp
+index 436d6046..b416283f 100644
+--- a/src/io/dxf/RDxfImporter.cpp
++++ b/src/io/dxf/RDxfImporter.cpp
+@@ -530,8 +530,41 @@ void RDxfImporter::importEntity(QSharedPointer<REntity> entity) {
+     }
+ 
+     if (RSettings::isXDataEnabled()) {
+-        // TODO:
+-        //importXData(odEntity, entity);
++        // CaveCAD: turn foreign XDATA blocks into custom properties --
++        // the counterpart of RDxfExporter::writeCustomProperties. Each
++        // 1001 application id becomes a property title; its 1000
++        // strings are "key=value" records. Consumed entries are
++        // removed so a later entity without its own XDATA cannot
++        // inherit them; ACAD/QCAD blocks stay for the stock handlers.
++        QStringList consumedAppIds;
++        QMap<QString, QList<QPair<int, QVariant> > >::iterator xit;
++        for (xit = xData.begin(); xit != xData.end(); ++xit) {
++            QString appId = xit.key();
++            if (appId.isEmpty() || appId == "ACAD" || appId == "QCAD") {
++                continue;
++            }
++            QList<QPair<int, QVariant> >& list = xit.value();
++            bool used = false;
++            for (int xi = 0; xi < list.length(); xi++) {
++                if (list[xi].first != 1000) {
++                    continue;
++                }
++                QString record = list[xi].second.toString();
++                int eq = record.indexOf('=');
++                if (eq <= 0) {
++                    continue;
++                }
++                entity->setCustomProperty(appId, record.left(eq),
++                    record.mid(eq + 1));
++                used = true;
++            }
++            if (used) {
++                consumedAppIds.append(appId);
++            }
++        }
++        for (int ci = 0; ci < consumedAppIds.length(); ci++) {
++            xData.remove(consumedAppIds[ci]);
++        }
+     }
+ 
+     //qDebug() << "RDxfImporter::importEntity" << *entity;
+-- 
+2.54.0 (Apple Git-157)
+

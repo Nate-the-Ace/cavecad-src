@@ -1,0 +1,107 @@
+<h1>Find, switch and restyle layers in the Layer Manager</h1>
+<p>A worked cave carries three hundred layers. The Layer Manager is the panel for living with that. <b>View &gt; Layer Manager</b>, or type <code>gm</code>.</p>
+<p>It sits beside CaveCAD's plain <b>Layer List</b>, which is untouched and still there — the flat alphabetical view is one click away when you want it.</p>
+
+<h2>The table</h2>
+<p>Eight columns, in the order a CAD layer table conventionally uses, because that is the table most cavers already know:</p>
+<ul>
+<li><b>Layer</b> — the name, and the group tree</li>
+<li><b>On</b> — shown or hidden</li>
+<li><b>Freeze</b> — frozen out of regeneration</li>
+<li><b>Lock</b> — visible but not editable</li>
+<li><b>Plot</b> — whether it prints</li>
+<li><b>Color</b> — swatch and hex</li>
+<li><b>Linetype</b> — solid, dashed, and the rest</li>
+<li><b>Lineweight</b> — printed thickness</li>
+</ul>
+<p><b>On and Freeze are separate</b>, which they are not in the plain Layer List. Switching a layer off hides it; freezing it also takes it out of regeneration, which is what you want for the hundred-odd generated layers while you work.</p>
+<p>Eight columns will not fit a narrow palette. <b>Right-click the header</b> to tick the ones you want, and CaveCAD remembers.</p>
+
+<h2>Changing things</h2>
+<ol>
+<li>Click a switch — On, Freeze, Lock, Plot — to toggle it.</li>
+<li>Click <b>Color</b>, <b>Linetype</b> or <b>Lineweight</b> for a picker. It opens at the cell, hanging below it, or above it when the row is near the bottom of the screen. Click anywhere else to dismiss it having changed nothing.</li>
+</ol>
+<p><b>Select several layers and the edit applies to all of them.</b> That is the point of the table: pick eight layers, click one Freeze box, all eight freeze. Clicking a row that is <i>not</i> in the selection moves the highlight there and edits only that one — so what is highlighted is always what you are about to change, and the picker names it across its top.</p>
+<p>A group row counts as everything under it. The whole edit is one undo, however many layers it touched.</p>
+<p>A mixed set is decided once rather than flipped row by row: if any of them is on, they all go off. Otherwise a mixed selection would only ever become a differently mixed one.</p>
+
+<h3>The pickers</h3>
+<ul>
+<li><b>Color</b> — a grid: the everyday eight, a column per hue and a row per shade, the greys, the last colour you mixed by hand, and <b>Custom…</b> for the full picker.</li>
+<li><b>Linetype</b> and <b>Lineweight</b> — a list that <i>draws</i> what it is offering, so you pick a dash pattern or a thickness by looking at it rather than by reading its name.</li>
+</ul>
+
+<h3>Isolating a layer</h3>
+<p>Right-click a layer and pick <b>Isolate</b> to hide everything else. Right-click a multi-selection to isolate the lot, or a group row to isolate the group.</p>
+<p><b>While something is isolated, the only entry is Unisolate</b>, named after whatever is isolated — not after the row you right-clicked. You cannot isolate a second time. That is on purpose: isolating again would take its picture of a cave that is already hidden and write it over the only record of how the cave really looked, and your arrangement would be gone with nothing to undo.</p>
+<p>Unisolate does not mean "show all layers", which would invent an arrangement you never chose. Every layer goes back to the colour, linetype, lineweight and four switches it actually had — so a layer that was hidden before you isolated is hidden again afterwards.</p>
+<p>The isolated row is shown in bold, so a cave down to one layer says why.</p>
+<p>The isolated layer is shown even if it was switched off, and becomes the current layer. A layer you create while isolated stays visible: you just made it, so you are looking at it. Applying a layer state ends the isolation — the state is the arrangement you have just asked for, and an Unisolate left armed would undo your choice later on its own.</p>
+<p>It is remembered <b>in the drawing</b>. Save while isolated and the file itself has every layer hidden, so the way back has to travel with it: reopen and Unisolate is waiting. An older CaveCAD will not know about it and can only fall back to Show All Layers.</p>
+
+<h2>Groups</h2>
+<p>Layers are filed into groups, and groups nest one level:</p>
+<ul>
+<li><b>Plan</b> — Passage, Floor, Formations, Water, Geology &amp; Finds, Notes</li>
+<li><b>Profile</b>, <b>Cross Sections</b> — each view's own hand-traced ink, its notes and water included</li>
+<li><b>Scans &amp; Basemap</b> — sketch scans, aerial imagery, surface contours</li>
+<li><b>Control</b> — everything the suite generates, in all three views at once</li>
+<li><b>Sheet</b> — border, title block, legend, scale bar, north arrow, and layer 0</li>
+<li><b>Trips</b> — a row per survey trip, holding the layers of the runs it surveyed</li>
+</ul>
+<p>Six rows at the top level, so the panel opens as a short list you can read rather than a wall. A group's eye and lock act on everything under it and show <i>mixed</i> when its members disagree.</p>
+<p><b>A new cave map arrives already filed</b> — the template carries the arrangement. An older drawing gets it from <a href="repair-drawing.html">Repair Drawing</a>, whose layer-groups pass files anything unfiled. That pass only ever adds: a group you made and a layer you filed by hand are both left alone.</p>
+<p>Right-click for <b>New Group</b>, <b>New Group Inside</b>, <b>Rename</b>, <b>Move to Top Level</b>, <b>Delete Group</b>, and <b>Add to Group</b> for the selected layers. Deleting a group never deletes a layer, and never deletes the groups nested inside it — they move up.</p>
+<p><b>A layer can be in more than one group.</b> <b>Add to Group</b> on a layer that is already filed adds a second home rather than moving it, and the layer then appears under both — useful for a group like <i>Trip 3</i> or <i>Check before plotting</i> that cuts across the standard six. Switching it in one place switches the layer, so both rows change together; <b>Remove from</b> takes away that one membership and leaves the others. The default filing never does this: it puts each layer in exactly one group, and the second one is yours to make.</p>
+<h3>Trip groups</h3>
+<p><b>Trips</b> is a group of its own, with a row per survey trip, filled in for you.</p>
+<p>A trip owns no layers — provenance rides on the entities themselves, and splitting layers by trip would cut a wall in half the moment it was continued on a later trip. What a trip <i>does</i> own is survey runs, and a run has real layers: the per-run profile layers. So <b>Trip 3</b> means the layers of the runs surveyed on trip 3, which is what you mean when you say it — show me what I drew that day.</p>
+<p>It is an extra membership, never a move: a layer stays in Profile and gains its trip. A run continued the following weekend appears under both trips, because that is the truth about the layer.</p>
+<p>The group is derived, not assigned once, so a trip drawn before anything was traced in its band starts empty and fills in. <a href="repair-drawing.html">Repair Drawing</a> re-derives them all; drawing a page, importing a survey, and correcting a trip's name each keep them current on their own. A trip with no name is listed by its number alone.</p>
+
+<p><b>Expand All</b> and <b>Collapse All</b> are at the top of the same menu, and what you leave open is remembered.</p>
+<p><b>Ungrouped</b> is last and holds whatever is in no group — layers that appeared after the filing. You can rename that row to whatever it actually means in your cave.</p>
+
+<h2>The filter</h2>
+<p>The box at the top narrows the list as you type. Plain text matches anywhere in a name, so <code>scan</code> finds the scan layers.</p>
+<p>Type a wildcard and it becomes a pattern, anchored to the whole name:</p>
+<ul>
+<li><code>CTRL-*</code> — everything generated</li>
+<li><code>*scan*</code> — anywhere in the name</li>
+<li><code>CTRL-LRUD-WALL-?????</code> — <code>?</code> is exactly one character, so this finds RIGHT and not LEFT</li>
+<li><code>WATER-*,FORMATIONS-*</code> — a comma separates alternatives</li>
+</ul>
+<p><b>A search flattens the list.</b> While the box has something in it the groups go away and you get a plain list of the layers that matched, so you can select the lot and work on them rather than hunting them down eleven groups. A layer filed in two groups still appears once. Clear the box and the groups come back, collapsed exactly as you left them.</p>
+<p>Typing a group's name brings in everything filed in it, so <code>passage</code> lists the passage layers.</p>
+
+<h2>Layer states</h2>
+<p>A state is a saved picture of <b>every layer setting</b>: on, frozen, locked, plottable, colour, linetype and lineweight. Not just what is visible.</p>
+<p>The button at the foot of the panel picks one. Two come with every drawing:</p>
+<ul>
+<li><b>Tracing</b> — scans and survey control on, page furniture out of the way</li>
+<li><b>Plot ready</b> — scans and control off, the page back</li>
+</ul>
+<p>Those two carry visibility only, on purpose, so applying one cannot put your colours back to the day the template was built. A state <i>you</i> save captures everything, because that is what saving one means.</p>
+<p><b>+</b> saves the drawing as it stands under a new name, <b>↻</b> overwrites the one showing, <b>−</b> deletes it. The <b>⋯</b> button holds <b>Rename State</b>, <b>Export States</b> and <b>Import States</b>.</p>
+<p>A layer that did not exist when the state was saved is left alone when it is applied. Nothing is guessed at.</p>
+
+<h3>Carrying states to another cave</h3>
+<p>Export writes a <code>.clas</code> file — CaveCAD's own, not the <code>.las</code> layer states other CAD packages write, and the two do not read each other. Import merges: a state of the same name is replaced, everything else is left, so re-importing what you just exported changes nothing.</p>
+<p>Layers the other cave does not have are dropped, and the report says how many, because carrying one cave's states to another is a normal thing to do and a quiet partial result would not be.</p>
+<p><b>States never carry groups.</b> Importing states into a cave you have arranged by hand cannot disturb that arrangement.</p>
+
+<h2>Worth knowing</h2>
+<ul>
+<li>Group and state names cannot contain <code>|</code>, which is what separates them internally.</li>
+<li>Groups and states are stored <b>in the drawing</b>, so they travel with the file.</li>
+<li>Filing a layer into a group is not on the undo stack — it changes no geometry, and an undo of a drawing edit that silently unfiled a layer would be the more surprising of the two.</li>
+<li>Delete a layer somewhere else and it leaves its groups and states quietly; the panel notices next time it reads them.</li>
+</ul>
+
+<h2>See also</h2>
+<ul>
+<li><a href="words-layers.html">Layers: what the map is saying</a> — what a layer choice actually claims</li>
+<li><a href="repair-drawing.html">Repair Drawing</a> — files an older drawing's layers, and seeds the two states</li>
+<li><a href="build-a-sheet.html">Put a sheet together at a scale that fits</a> — a sheet is a file, not a layer state</li>
+</ul>

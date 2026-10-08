@@ -1,0 +1,5 @@
+;; Sample linetypes for Linetype Maker's import test.
+*CS_WATER,Stream ---- W ---- W ----
+A,1.0,-0.25,["W",standard,S=0.12,X=-0.05,Y=-0.06],-0.25
+*CS_DASHDOT,Dash dot __ . __ .
+A,0.5,-0.25,0,-0.25

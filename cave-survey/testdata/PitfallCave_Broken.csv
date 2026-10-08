@@ -1,0 +1,13 @@
+# name: PITFALL CAVE -- BROKEN DATA (TEST)
+# date: 2026-06-06
+# team: N. SCHONEGG, R. WEBB
+# declination: -4.67
+# unit: ft
+# fix: X1 0 0 812.4
+from,to,distance,azimuth,inclination,left,right,up,down,backazimuth,backinclination,flags,notes
+X1,X2,30,90,0,3,3,6,1,,,,
+X2,X3,0,120,0,,,,,,,,TAPE NEVER READ, ZERO WRITTEN
+X3,X3,18,140,0,,,,,,,,FROM AND TO THE SAME STATION
+X3,X4,25,160,95,,,,,,,,CLINO 95, WROTE THE COMPLEMENT
+X4,X5,22,372,0,,,,,,,,COMPASS WRITTEN 372
+Z1,Z2,40,45,0,,,,,,,,ORPHAN PAIR -- NAME TYPO SOMEWHERE

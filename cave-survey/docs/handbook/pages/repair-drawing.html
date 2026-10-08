@@ -1,0 +1,20 @@
+<h1>Repair Drawing</h1>
+<p>Five repair passes in one dialog, run in the order that matters. <code>rep</code></p>
+<h2>When you reach for it</h2>
+<p>An old drawing that predates a change; a drawing edited in another program; callout arrows that have come adrift; a cave whose layers look nothing like the palette.</p>
+<h2>The five passes</h2>
+<ol>
+<li><b>Survey data</b> first — re-derive the survey model from what the drawing already holds, and upgrade a legacy drawing's tags to the current schema. First because a legacy drawing's tags have to be current before anything else reads them.</li>
+<li><b>Scan images</b> second — put back the file reference of a scan whose page has been moved, renamed or re-synced. The placement is untouched: the scan returns at the size and angle it was fitted at. This pass has no checkbox and always runs; relinking a scan that is where it says it is changes nothing.</li>
+<li><b>Layers</b> third — add the registry layers this drawing is missing and rewrite colour, linetype and lineweight on the ones it has. A drawing keeps the layer appearance it was born with, so a cave started before a palette change stays on the old one until this runs. Because rebuilding survey data can add layers.</li>
+<li><b>Layer groups</b> fourth — file this drawing's layers into the Layer Manager's groups. <b>Plan</b> holds Passage, Floor, Formations, Water, Geology &amp; Finds and Notes; then <b>Profile</b>, <b>Cross Sections</b>, <b>Scans &amp; Basemap</b>, <b>Control</b> and <b>Sheet</b> — six top-level rows. The family names are the Symbol Palette's own categories, so the drawer a symbol lives in is the drawer its layer is in. A new drawing does not need this: the template ships already filed, and with two layer states, <b>Tracing</b> and <b>Plot ready</b>. This pass is here for the two cases the template cannot cover: a drawing made before the groups existed, and the per-run variant layers a later trip adds, which arrive unfiled. It <b>only adds</b>: a group you made and a layer you filed by hand are both left exactly as they are, so there is no reset to defaults. After the layer pass, because that is the pass that adds the layers which then need filing.</li>
+<li><b>Trip groups</b> with it — a row under <b>Trips</b> per survey trip, holding the layers of the runs that trip surveyed. Re-derived every time rather than filed once: those per-run layers are made the day somebody first traces in the band, so a trip's group fills in long after the trip was drawn. See <a href="layer-manager.html">the Layer Manager</a> for what a trip group means and why a trip has no layers of its own.</li>
+<li><b>Callouts</b> last — put every callout arrow back on its note after the note has been moved or reworded, and re-key a copied callout sharing an id with the original. Last because restyling can move a note onto a different layer and strand its arrows.</li>
+</ol>
+<p>Four of the five are checkboxes, on by default; the scan relink always runs. One combined report, and unticking a pass gives a line saying it was skipped.</p>
+<h2>See also</h2>
+<ul>
+<li><a href="check-map.html">Check Map</a> — what is wrong, rather than fixing it</li>
+<li><a href="callout.html">Callout</a></li>
+<li><a href="words-layers.html">Layers, in words</a></li>
+</ul>
