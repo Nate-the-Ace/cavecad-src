@@ -513,6 +513,21 @@ RibbonCommands.register = function() {
           } },
         C(cs("LayoutCheck"), { text: qsTr("Check\nsheet") }),
         C(cs("LayoutPlot"), { text: qsTr("Plot") }) ] });
+    var indexAnchorBtn = function(code, text) {
+        return { type: "button", id: "indexAnchor" + code, text: text, icon: "duplicate", size: "large",
+            tooltip: qsTr("Anchor the sheet index at this corner. It stays where it is drawn; the corner becomes its anchor, and it grows away from it."),
+            available: function(ctx) { return typeof CsLayoutFurniture !== "undefined"; },
+            onClick: function(entry, ctx) {
+                if (typeof CsLayoutFurniture === "undefined" || isNull(ctx.selection) || isNull(ctx.selection.ids.sheet)) { return; }
+                var doc = entry.di.getDocument();
+                var info = Layouts.current(doc);
+                var ok = !isNull(info) && CsLayoutFurniture.setIndexAnchor(doc, entry.di, info, code);
+                EAction.handleUserMessage(ok ? qsTr("Sheet index anchored at its %1 corner.").arg(text.replace("\n", " ")) : qsTr("Select the sheet index first (or it is already anchored there)."));
+            } };
+    };
+    Ribbon.registerPanel("sel-sheet", { id: "sh-index", title: qsTr("Sheet index anchor"), order: 15, items: [
+        indexAnchorBtn("TL", qsTr("Top\nleft")), indexAnchorBtn("TR", qsTr("Top\nright")),
+        indexAnchorBtn("BL", qsTr("Bottom\nleft")), indexAnchorBtn("BR", qsTr("Bottom\nright")) ] });
     Ribbon.registerPanel("sel-sheet", { id: "sh-title", title: qsTr("Title block"), order: 20, items: [
         { type: "button", id: "titleRefresh", text: qsTr("Refresh from\nnotebook"), icon: "back", size: "large",
           tooltip: qsTr("Bring the title block's linked fields (cave name, surveyed by, dates, length, depth, survey code) up to the notebook. Fields you typed over are left alone."),

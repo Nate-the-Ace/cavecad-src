@@ -28334,6 +28334,12 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     var ixBottom = ix.filter(function(i) { return i.text === "B1"; })[0], ixTop = ix.filter(function(i) { return i.text === "A1"; })[0], ixHead = ix[0];
     near(ixBottom.y, 0.05, 1e-9, "CsLayoutFurniture.indexLayout: the last row sits on the bottom-left corner");
     ok(ixTop.y > ixBottom.y && ixHead.y > ixTop.y, "CsLayoutFurniture.indexLayout: the first row is above the last, the heading above all");
+    ok(CsLayoutFurniture.indexClip("Short", 0.1) === "Short", "CsLayoutFurniture.indexClip: a short name is left alone");
+    var ixLong = CsLayoutFurniture.indexClip("A very long sheet name that cannot fit", 0.1);
+    ok(ixLong.length < 20 && ixLong.charAt(ixLong.length - 1) === "\u2026", "CsLayoutFurniture.indexClip: a long name is cut and ends with an ellipsis");
+    var ixBR = CsLayoutFurniture.indexLayout(ixRows, 0.1, "SHEET INDEX", "BR"), ixTL = CsLayoutFurniture.indexLayout(ixRows, 0.1, "SHEET INDEX", "TL");
+    ok(ixBR[0].x <= 0 && ixBR[ixBR.length - 1].y > 0, "CsLayoutFurniture.indexLayout: a bottom-right anchor grows left and up");
+    ok(ixTL[0].x >= 0 && ixTL[0].y < 0, "CsLayoutFurniture.indexLayout: a top-left anchor grows right and down");
     var ix4 = CsLayoutFurniture.indexLayout(ixRows.concat([{ name: "C1", paper: "", scale: "" }]), 0.1, "SHEET INDEX");
     near(ix4.filter(function(i) { return i.text === "C1"; })[0].y, 0.05, 1e-9, "CsLayoutFurniture.indexLayout: a new sheet takes the bottom; the corner does not move");
     ok(ix4[0].y > ixHead.y, "CsLayoutFurniture.indexLayout: and the index is taller");

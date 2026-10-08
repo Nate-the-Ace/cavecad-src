@@ -586,21 +586,46 @@ CsLayoutFurniture.INDEX_COLUMNS = [0, 1.6, 2.8];     // inches from the left: sh
  *
  * \return [{ x, y, text, heading }], the heading first
  */
-CsLayoutFurniture.indexLayout = function(rows, h, headingText) {
+CsLayoutFurniture.indexLayout = function(rows, h, headingText, anchor) {
     var step = h * 1.6, n = rows.length, out = [];
     out.push({ x: 0, y: (n > 0 ? (n - 1) * step + step * 1.4 : 0) + h / 2, text: headingText, heading: true });
     for (var r = 0; r < n; r++) {
         var y = (n - 1 - r) * step + h / 2;
-        out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[0], y: y, text: rows[r].name, heading: false });
+        out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[0], y: y, text: CsLayoutFurniture.indexClip(rows[r].name, h), heading: false });
         out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[1], y: y, text: rows[r].paper, heading: false });
         out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[2], y: y, text: rows[r].scale, heading: false });
     }
+    var off = CsLayoutFurniture.indexOffset(out, h, anchor);
+    for (var k = 0; k < out.length; k++) { out[k].x += off.x; out[k].y += off.y; }
     return out;
 };
 
-CsLayoutFurniture.indexDraw = function(rows) {
+CsLayoutFurniture.INDEX_ANCHORS = ["BL", "BR", "TL", "TR"];
+
+/**
+ * A sheet name cut to fit its column, ending in an ellipsis ("Long profile of the ma…"). PURE. The column is
+ * INDEX_COLUMNS[1] - INDEX_COLUMNS[0] inches wide and a letter is about 0.6 of the text height wide.
+ */
+CsLayoutFurniture.indexClip = function(text, h) {
+    var t = String(text), room = CsLayoutFurniture.INDEX_COLUMNS[1] - CsLayoutFurniture.INDEX_COLUMNS[0] - h * 0.8;
+    var max = Math.max(4, Math.floor(room / (h * 0.6)));
+    return t.length <= max ? t : t.substring(0, max - 1) + "\u2026";
+};
+
+/** How far the index's words move so that `anchor` (BL, BR, TL or TR) is the origin. PURE; items are laid out from the bottom-left. */
+CsLayoutFurniture.indexOffset = function(items, h, anchor) {
+    var w = 0, top = 0;
+    for (var i = 0; i < items.length; i++) {
+        w = Math.max(w, items[i].x + String(items[i].text).length * h * 0.6);
+        top = Math.max(top, items[i].y + h);
+    }
+    var right = anchor === "BR" || anchor === "TR", upper = anchor === "TL" || anchor === "TR";
+    return { x: right ? -w : 0, y: upper ? -top : 0, w: w, h: top };
+};
+
+CsLayoutFurniture.indexDraw = function(rows, anchor) {
     return function(env) {
-        var items = CsLayoutFurniture.indexLayout(rows, CsSheetSetup.TEXT.body, qsTr("SHEET INDEX"));
+        var items = CsLayoutFurniture.indexLayout(rows, CsSheetSetup.TEXT.body, qsTr("SHEET INDEX"), anchor);
         for (var i = 0; i < items.length; i++) {
             env.text(items[i].x, items[i].y, items[i].heading ? CsSheetSetup.TEXT.heading : CsSheetSetup.TEXT.body,
                 items[i].text, CsLayers.TITLE_BLOCK, "index", true);
@@ -627,21 +652,56 @@ CsLayoutFurniture.indexRef = function(doc, info) {
  *
  * \return how many rows it has
  */
-CsLayoutFurniture.addIndex = function(doc, di, info, x, y) {
+CsLayoutFurniture.addIndex = function(doc, di, info, x, y, anchor) {
+    anchor = CsLayoutFurniture.INDEX_ANCHORS.indexOf(anchor) >= 0 ? anchor : "BL";
     CsLayoutFurniture.removeTagged(doc, di, info, "SheetIndex");
     var rows = CsLayoutFurniture.indexRows(doc);
     var name = CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId);
-    var defId = CsSheetBlock.redefine(doc, di, name, CsLayoutFurniture.indexDraw(rows), { text: qsTr("Add sheet index") });
+    var defId = CsSheetBlock.redefine(doc, di, name, CsLayoutFurniture.indexDraw(rows, anchor), { text: qsTr("Add sheet index") });
     if (defId === null) {
         throw new Error("sheet index block could not be made");
     }
     var ref = CsSheetBlock.reference(doc, di, defId, info.blockId, CsLayers.TITLE_BLOCK, x, y);
     CsTags.set(ref, "SheetIndex", "1");
+    CsTags.set(ref, "IndexAnchor", anchor);
     var op = new RAddObjectsOperation();
     op.setText(qsTr("Add sheet index"));
     op.addObject(ref, false);
     di.applyOperation(op);
     return rows.length;
+};
+
+/** The corner a sheet index reference is anchored at: BL, BR, TL or TR (BL when untagged). */
+CsLayoutFurniture.indexAnchorOf = function(ref) {
+    var a = CsTags.get(ref, "IndexAnchor");
+    return CsLayoutFurniture.INDEX_ANCHORS.indexOf(a) >= 0 ? a : "BL";
+};
+
+/**
+ * Moves a sheet index's anchor to another corner WITHOUT moving what is drawn: the block is redrawn around the new
+ * corner and its reference slides to that corner's spot.
+ *
+ * \return true when it changed
+ */
+CsLayoutFurniture.setIndexAnchor = function(doc, di, info, anchor) {
+    var ref = CsLayoutFurniture.indexRef(doc, info);
+    if (ref === null || CsLayoutFurniture.INDEX_ANCHORS.indexOf(anchor) < 0) { return false; }
+    var old = CsLayoutFurniture.indexAnchorOf(ref);
+    if (old === anchor) { return false; }
+    var rows = CsLayoutFurniture.indexRows(doc), h = CsSheetSetup.TEXT.body;
+    var base = CsLayoutFurniture.indexLayout(rows, h, qsTr("SHEET INDEX"), "BL");
+    var oo = CsLayoutFurniture.indexOffset(base, h, old), on = CsLayoutFurniture.indexOffset(base, h, anchor);
+    var inch = Layouts.toPaper(doc, 25.4), at = ref.getPosition();
+    CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId),
+        CsLayoutFurniture.indexDraw(rows, anchor), { quiet: true, text: qsTr("Move sheet index anchor") });
+    ref = CsLayoutFurniture.indexRef(doc, info);
+    ref.setPosition(new RVector(at.x + (oo.x - on.x) * inch, at.y + (oo.y - on.y) * inch));
+    CsTags.set(ref, "IndexAnchor", anchor);
+    var op = new RModifyObjectsOperation();
+    op.setText(qsTr("Move sheet index anchor"));
+    op.addObject(ref, false);
+    di.applyOperation(op);
+    return true;
 };
 
 /**
@@ -657,13 +717,13 @@ CsLayoutFurniture.refreshIndex = function(doc, di, info, quiet) {
     var ref = CsLayoutFurniture.indexRef(doc, info);
     if (ref !== null) {
         var want = [qsTr("SHEET INDEX")];
-        for (var r = 0; r < rows.length; r++) { want.push(rows[r].name, rows[r].paper, rows[r].scale); }
+        for (var r = 0; r < rows.length; r++) { want.push(CsLayoutFurniture.indexClip(rows[r].name, CsSheetSetup.TEXT.body), rows[r].paper, rows[r].scale); }
         var have = CsSheetBlock.textsIn(doc, ref.getReferencedBlockId());
         if (have.slice().sort().join("\n") === want.slice().sort().join("\n")) {
             return 0;
         }
         CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId),
-            CsLayoutFurniture.indexDraw(rows), { quiet: quiet === true, text: qsTr("Sheet index follows the sheets") });
+            CsLayoutFurniture.indexDraw(rows, CsLayoutFurniture.indexAnchorOf(ref)), { quiet: quiet === true, text: qsTr("Sheet index follows the sheets") });
         return 1;
     }
     // a loose-text index from an older build: find its lowest-left corner, then replace it by the block
