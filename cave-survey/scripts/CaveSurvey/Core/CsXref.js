@@ -20,8 +20,9 @@
 // DEFAULTS: what the user chose last (kept in settings); until then Overlay and Absolute.
 //
 // The first half of this file is PURE (paths, defaults, the nesting plan) and unit-tested; the second half talks
-// to the engine through the paste operation the app already has (RPasteOperation: setBlockName,
-// setLayerNamePrefix, setUseExistingBlock, setCreateBlockReference).
+// to the engine through the paste operation the app already has (RPasteOperation: setBlockName). The paste's own
+// prefix / use-existing-block switches are NOT in the script bindings, so the layers are renamed in the source
+// copy in memory first (prefixLayers) and an update swaps in a fresh block (swapBlock).
 
 var CsXref = {};
 
@@ -367,6 +368,94 @@ CsXref.stripNested = function(src) {
     }
 };
 
+/**
+ * Gives every layer of the source copy (in memory) the xref's prefix, "Cave|Walls", so the picture's layers never mix
+ * with the drawing's own and show nested under the xref's name in the layer list. Layer 0 is left alone.
+ */
+CsXref.prefixLayers = function(src, prefix) {
+    try {
+        var ids = src.doc.queryAllLayers();
+        var op = new RModifyObjectsOperation(false);
+        var any = false;
+        for (var i = 0; i < ids.length; i++) {
+            var layer = src.doc.queryLayer(ids[i]);
+            if (isNull(layer) || String(layer.getName()) === "0") {
+                continue;
+            }
+            layer.setName(prefix + String(layer.getName()));
+            op.addObject(layer, false);
+            any = true;
+        }
+        if (any) {
+            src.di.applyOperation(op);
+        }
+    }
+    catch (e) {
+        // the picture then comes in on the file's own layer names: still correct, just not nested
+    }
+};
+
+/**
+ * Reads the source into a fresh block and puts it in place of the block `name`: the references of the old block are
+ * pointed at the new one (they keep their place), the old block and its contents go, and the new block takes the name.
+ * The paste cannot refill a block in place (its use-existing-block switch is not in the script bindings).
+ */
+CsXref.swapBlock = function(doc, di, src, oldId, name, group) {
+    var tmp = CsXref.blockNameFor("~" + name, function(n) { return doc.hasBlock(n); });
+    var op = new RPasteOperation(src.doc);
+    op.setText(qsTr("Update external reference"));
+    op.setBlockName(tmp);
+    op.setOverwriteBlocks(true);
+    op.setTransactionGroup(group);
+    di.applyOperation(op);
+    var newId = doc.getBlockId(tmp);
+    if (newId === RBlock.INVALID_ID || newId === undefined || newId === null || newId < 0) {
+        return { ok: false, why: qsTr("Reading the file did not make a block; the picture is kept as it was.") };
+    }
+    // the reference the paste added is not wanted: the existing references take over the new block
+    var extra = doc.queryBlockReferences(newId);
+    var drop = new RDeleteObjectsOperation();
+    drop.setText(qsTr("Update external reference"));
+    drop.setTransactionGroup(group);
+    for (var x = 0; x < extra.length; x++) {
+        var xe = doc.queryEntity(extra[x]);
+        if (!isNull(xe)) { drop.deleteObject(xe); }
+    }
+    var mine = doc.queryBlockReferences(oldId);
+    var move = new RModifyObjectsOperation();
+    move.setText(qsTr("Update external reference"));
+    move.setTransactionGroup(group);
+    for (var r = 0; r < mine.length; r++) {
+        var ref = doc.queryEntity(mine[r]);
+        if (!isNull(ref)) {
+            ref.setReferencedBlockId(newId);
+            move.addObject(ref, false);
+        }
+    }
+    di.applyOperation(drop);
+    di.applyOperation(move);
+    // the old block and what is in it go; the new one takes its name
+    var gone = new RDeleteObjectsOperation();
+    gone.setText(qsTr("Update external reference"));
+    gone.setTransactionGroup(group);
+    var inside = doc.queryBlockEntities(oldId);
+    for (var k = 0; k < inside.length; k++) {
+        var ie = doc.queryEntity(inside[k]);
+        if (!isNull(ie)) { gone.deleteObject(ie); }
+    }
+    var oldBlock = doc.queryBlock(oldId);
+    if (!isNull(oldBlock)) { gone.deleteObject(oldBlock); }
+    di.applyOperation(gone);
+    var nb = doc.queryBlock(newId);
+    nb.setName(name);
+    var ren = new RModifyObjectsOperation();
+    ren.setText(qsTr("Update external reference"));
+    ren.setTransactionGroup(group);
+    ren.addObject(nb, false);
+    di.applyOperation(ren);
+    return { ok: true, why: "", name: name };
+};
+
 /** Writes the xref tags onto the block definition. */
 CsXref.tagBlock = function(doc, di, name, info) {
     var block = doc.queryBlock(name);
@@ -412,12 +501,12 @@ CsXref.attach = function(doc, di, sourceFile, opts) {
     var name = CsXref.blockNameFor(stem, function(n) { return doc.hasBlock(n); });
     var base = CsXref.baseDirOf(doc);
     var stored = CsXref.toStored(full, pathStyle, base);
+    CsXref.prefixLayers(src, CsXref.layerPrefix(stem));
     doc.startTransactionGroup();
     var group = doc.getTransactionGroup();
     var op = new RPasteOperation(src.doc);
     op.setText(qsTr("Attach drawing"));
     op.setBlockName(name);
-    op.setLayerNamePrefix(CsXref.layerPrefix(stem));
     op.setOverwriteBlocks(true);
     op.setOffset(isNull(o.at) ? new RVector(0, 0) : o.at);
     op.setScale(isNull(o.scale) ? 1.0 : o.scale);
@@ -461,27 +550,13 @@ CsXref.reload = function(doc, di, blockId, opts) {
     }
     var name = String(block.getName());
     var stem = CsXref.stem(full);
+    CsXref.prefixLayers(src, CsXref.layerPrefix(stem));
     doc.startTransactionGroup();
     var group = doc.getTransactionGroup();
-    // empty the block, then read the file into it: one undo step
-    var del = new RDeleteObjectsOperation();
-    del.setText(qsTr("Update external reference"));
-    del.setTransactionGroup(group);
-    var old = doc.queryBlockEntities(blockId);
-    for (var i = 0; i < old.length; i++) {
-        var e = doc.queryEntity(old[i]);
-        if (!isNull(e)) { del.deleteObject(e); }
+    var swapped = CsXref.swapBlock(doc, di, src, blockId, name, group);
+    if (!swapped.ok) {
+        return swapped;
     }
-    di.applyOperation(del);
-    var op = new RPasteOperation(src.doc);
-    op.setText(qsTr("Update external reference"));
-    op.setBlockName(name);
-    op.setUseExistingBlock(true);
-    op.setCreateBlockReference(false);
-    op.setLayerNamePrefix(CsXref.layerPrefix(stem));
-    op.setOverwriteBlocks(true);
-    op.setTransactionGroup(group);
-    di.applyOperation(op);
     CsXref.tagBlock(doc, di, name, { stored: t.path, style: style, pathStyle: t.pathStyle, stamp: CsXref.stampOf(full), auto: t.auto, group: group });
     return { ok: true, why: "", name: name };
 };

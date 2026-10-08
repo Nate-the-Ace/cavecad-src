@@ -17,6 +17,11 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.11 -- fix: Attach Drawing "setLayerNamePrefix is not a function"
+- Mac test showed: `RPasteOperation` has no `setLayerNamePrefix` in the script bindings (nor `setUseExistingBlock` / `setCreateBlockReference`, though the C++ base class has them; the bindings come from the sibling jsapi repos and were not regenerated).
+- `CsXref`: the source copy's layers are renamed in memory (`prefixLayers`, "Cave|Layer", layer 0 left alone) before the paste; an update (`reload`) now pastes into a fresh block and swaps it in (`swapBlock`: references retargeted, old block deleted, new block renamed). No unbound setter is called any more.
+- Untested in app (the attach itself got as far as the paste in the last build, so the dialogs work).
+
 ### 0.9.215.10 -- Attach Drawing / External References say what went wrong
 - Reported: the xref command opened no popup. Cause not found by reading (no run possible): the command code looks right. Both commands now catch any error and show it in a box (`XrefAttach.pickAndAsk`, XrefManager),. Need the box text, and which way it was started (ribbon button, menu or typed command), from a Mac build.
 
