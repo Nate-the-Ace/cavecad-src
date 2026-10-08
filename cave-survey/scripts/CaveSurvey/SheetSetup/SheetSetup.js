@@ -996,7 +996,7 @@ SheetSetup.starter = function(doc, di) {
         titleValues: SheetSetup.titleValues(doc, state.filled),
         reading: CsSheetSetup.latestDeclination(state.survey),
         tiles: tiles, elevation: false, shiftInches: { x: 0, y: 0 },
-        extra: { offsets: {}, titleValues: SheetSetup.titleValues(doc, state.filled) } });
+        extra: { offsets: {}, titleValues: SheetSetup.titleValues(doc, state.filled), filled: state.filled } });
     return res.made.length > 0 ? res.made[0] : "";
 };
 
@@ -1077,7 +1077,7 @@ SheetSetup.build = function() {
             tiles: tiles, elevation: elevBox !== null,
             shiftInches: { x: -caveDrag.x, y: -caveDrag.y },
             extra: { offsets: w.offsets,
-                titleValues: SheetSetup.titleValues(doc, w.state.filled) } });
+                titleValues: SheetSetup.titleValues(doc, w.state.filled), filled: w.state.filled } });
     } catch (eGen) {
         SheetSetup.tell(qsTr("Sheet Setup: building the sheets failed (") + eGen + ").",
             SheetSetup.ERROR);

@@ -125,9 +125,28 @@ CsSheet.taggedTexts = function(doc, field) {
         return out;
     }
     var ids = doc.queryAllEntities(false, false);
+    // the title block lives on the LAYOUTS (sheets), not in the block that happens to be showing
+    if (typeof Layouts !== "undefined" && typeof Layouts.list === "function") {
+        try {
+            var sheets = Layouts.list(doc);
+            for (var s = 0; s < sheets.length; s++) {
+                var inSheet = doc.queryBlockEntities(sheets[s].blockId);
+                for (var q = 0; q < inSheet.length; q++) {
+                    ids.push(inSheet[q]);
+                }
+            }
+        }
+        catch (eSheets) {
+        }
+    }
+    var seen = {};
     for (var i = 0; i < ids.length; i++) {
+        if (seen.hasOwnProperty(ids[i])) {
+            continue;
+        }
+        seen[ids[i]] = true;
         var e = doc.queryEntity(ids[i]);
-        if (isNull(e)) {
+        if (isNull(e) || e.isUndone()) {
             continue;
         }
         if (!CsSheet.isText(e)) {
@@ -216,6 +235,10 @@ CsSheet.writeField = function(doc, op, field, value) {
     if (tagged.length > 0) {
         for (var i = 0; i < tagged.length; i++) {
             tagged[i].setText(text);
+            // a tool writing a LINKED field is the link itself writing, not a person editing: keep it linked
+            if (CsTags.get(tagged[i], "TBLink") === "auto") {
+                CsTags.set(tagged[i], "TBAuto", text);
+            }
             op.addObject(tagged[i], false);
         }
         return true;

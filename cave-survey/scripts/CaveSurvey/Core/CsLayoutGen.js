@@ -259,7 +259,7 @@ CsLayoutGen.envFor = function(doc, di, blockId, opText, tag, undoable) {
         }
         return entity;
     };
-    return { op: op, P: P, add: add, text: text, line: line, greyed: greyed, doc: doc, di: di };
+    return { op: op, P: P, add: add, text: text, line: line, greyed: greyed, doc: doc, di: di, blockId: blockId };
 };
 
 /**
@@ -281,6 +281,24 @@ CsLayoutGen.drawNorth = function(env, nx, ny, reading, guid) {
     CsNorth.markRef(ref, guid, reading, 0);
     env.add(ref, CsLayers.NORTH_ARROW, "north");
     return !isNull(reading);
+};
+
+/**
+ * The title block, as ONE block with a field per line (CsTitleBlock) when that is switched on, else - or if making the
+ * block fails for any reason - as the loose text lines of drawTitle. Same arguments and return as drawTitle.
+ *
+ * \param opts { jobId, filled }
+ */
+CsLayoutGen.drawTitleBlock = function(env, titleX, y, lines, values, kind, opts) {
+    if (typeof CsTitleBlock !== "undefined" && CsTitleBlock.enabled()) {
+        try {
+            return CsTitleBlock.draw(env, titleX, y, lines, values, kind, opts);
+        }
+        catch (e) {
+            CsTell.warn(qsTr("Title block: making it as a block failed (%1); it is drawn as text lines instead.").arg(String(e)));
+        }
+    }
+    return CsLayoutGen.drawTitle(env, titleX, y, lines, values, kind);
 };
 
 /**
@@ -430,7 +448,7 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
             if (ex.titleValues.hasOwnProperty(tk)) { titleVals[tk] = ex.titleValues[tk]; }
         }
         titleVals.sheetNumber = info.name;
-        CsLayoutGen.drawTitle(env, titleX, y, lines, titleVals, job.kind);
+        CsLayoutGen.drawTitleBlock(env, titleX, y, lines, titleVals, job.kind, { jobId: job.id, filled: ex.filled });
         drew.push("a title block");
     }
 
@@ -458,6 +476,9 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
     di.applyOperation(op);
     // a sheet drawn again leaves the last arrow's block behind (new viewport, new link): tidy up
     CsNorth.purgeUnused(doc, di);
+    if (typeof CsTitleBlock !== "undefined") {
+        CsTitleBlock.purgeUnused(doc, di);
+    }
     return drew;
 };
 
@@ -477,6 +498,9 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
 
 /** Custom-property keys on the layout (title "CaveCAD"). */
 CsLayoutGen.PROP_SIG = "LayoutSig";
+/** Which signature recipe stamped the sheet: "2" ignores what a rename or a linked field rewrites by itself. Absent = the first recipe. */
+CsLayoutGen.PROP_SIGV = "LayoutSigV";
+CsLayoutGen.SIG_VERSION = "2";
 /** The id of the job that made a sheet: how a generated sheet is found again after its tab is renamed. */
 CsLayoutGen.PROP_JOBID = "LayoutJobId";
 /** On a match-line label: the id of the job (sheet) it points at, so a rename can rewrite it. */
@@ -490,9 +514,14 @@ CsLayoutGen.round = function(v) {
 };
 
 /** A digest of one layout: its paper and every live entity in its block. */
-CsLayoutGen.signatureRows = function(doc, info) {
+CsLayoutGen.signatureRows = function(doc, info, legacy) {
+    // The first recipe put the layout's NAME in the digest and counted every word of text. A sheet may now be renamed
+    // (and its name-bearing text rewritten) without that being a hand edit, so the new recipe leaves them out.
     var parts = [info.paperMM.w, info.paperMM.h, info.marginsMM.l, info.marginsMM.b,
-        info.marginsMM.r, info.marginsMM.t, info.name];
+        info.marginsMM.r, info.marginsMM.t];
+    if (legacy === true) {
+        parts.push(info.name);
+    }
     var rows = [];
     var ids = doc.queryBlockEntities(info.blockId);
     for (var i = 0; i < ids.length; i++) {
@@ -514,6 +543,14 @@ CsLayoutGen.signatureRows = function(doc, info) {
             // a linked north arrow turns with its viewport by itself (its block is redrawn): only WHERE it sits is a hand edit
             var np = e.getPosition();
             rows.push(["NORTH", CsLayoutGen.round(np.x), CsLayoutGen.round(np.y)].join("|"));
+            continue;
+        }
+        if (legacy !== true && CsSheet.isText(e) && (CsTags.get(e, CsSheet.TAG) === CsSheetLink.SHEET_FIELD ||
+                CsTags.get(e, CsLayoutGen.TAG) === "sheetid" || CsTags.get(e, CsLayoutGen.TAG_MATCHTO) !== "" ||
+                CsTags.get(e, "SheetIndex") !== "")) {
+            // text that says a sheet's NAME: rewritten when a tab is renamed, so only WHERE it sits is a hand edit
+            var tp = e.getPosition();
+            rows.push(["NAMED", CsLayoutGen.round(tp.x), CsLayoutGen.round(tp.y)].join("|"));
             continue;
         }
         // NAMES, never ids: ids are not the same in a reloaded drawing
@@ -548,8 +585,8 @@ CsLayoutGen.signatureRows = function(doc, info) {
     return rows;
 };
 
-CsLayoutGen.signature = function(doc, info) {
-    var rows = CsLayoutGen.signatureRows(doc, info);
+CsLayoutGen.signature = function(doc, info, legacy) {
+    var rows = CsLayoutGen.signatureRows(doc, info, legacy);
     var text = rows.join("\n");
     // 32-bit FNV-1a, twice over (forwards and with a salt) so a collision needs two
     var h1 = 0x811c9dc5, h2 = 0x01000193;
@@ -575,7 +612,9 @@ CsLayoutGen.state = function(doc, info) {
     if (isNull(sig) || String(sig) === "") {
         return "manual";
     }
-    return String(sig) === CsLayoutGen.signature(doc, info) ? "auto" : "edited";
+    var ver = layout.getCustomProperty("CaveCAD", CsLayoutGen.PROP_SIGV);
+    var legacy = isNull(ver) || String(ver) !== CsLayoutGen.SIG_VERSION;      // stamped by the first recipe
+    return String(sig) === CsLayoutGen.signature(doc, info, legacy) ? "auto" : "edited";
 };
 
 // The job is a few KB of JSON; a file keeps a string value only up to about
@@ -627,10 +666,29 @@ CsLayoutGen.stamp = function(doc, di, job, name) {
     var info = Layouts.get(doc, name);
     var layout = doc.queryLayout(info.layoutId);
     layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_SIG, CsLayoutGen.signature(doc, info));
+    layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_SIGV, CsLayoutGen.SIG_VERSION);
     layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_JOBID, String(job.id));
     CsLayoutGen.storeJob(layout, JSON.stringify(job));
     var op = new RModifyObjectsOperation();
     op.setText(qsTr("Generate sheet"));
+    op.addObject(layout, false);
+    di.applyOperation(op);
+};
+
+/**
+ * Records the sheet as it stands now as "what the generator drew", for a change the GENERATOR's own links made (a
+ * linked title block field following the notebook). Only call it for a sheet that was automatic before the change.
+ */
+CsLayoutGen.restamp = function(doc, di, name, quiet) {
+    var info = Layouts.get(doc, name);
+    if (isNull(info)) {
+        return;
+    }
+    var layout = doc.queryLayout(info.layoutId);
+    layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_SIG, CsLayoutGen.signature(doc, info));
+    layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_SIGV, CsLayoutGen.SIG_VERSION);
+    var op = new RModifyObjectsOperation(quiet !== true);
+    op.setText(qsTr("Sheet follows its links"));
     op.addObject(layout, false);
     di.applyOperation(op);
 };

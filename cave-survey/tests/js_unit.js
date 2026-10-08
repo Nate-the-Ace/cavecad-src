@@ -284,6 +284,8 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsXref.js",
     // The title block's linked fields and the sheet number: pure.
     "scripts/CaveSurvey/Core/CsSheetLink.js",
+    // The title block as one block with fields: rows, field text and the linked-field sync are pure.
+    "scripts/CaveSurvey/Core/CsTitleBlock.js",
     // Pure: exaggeration, colour bands, arrow geometry and the caption
     // that has to state the exaggeration.
     "scripts/CaveSurvey/Core/CsClosure.js",
@@ -28311,6 +28313,30 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     ok(vJobs[0].wants.north === true && vJobs[1].wants.north === false && vJobs[2].wants.north === false,
         "CsLayoutGen.plan: only the plan sheet gets a north arrow");
     ok(CsLayoutGen.OTHER_FRAMES.section.join() === "plan,profile", "CsLayoutGen: a section sheet freezes the plan and profile layers");
+
+    // CsTitleBlock: where each line goes, what a field prints, and which linked fields follow the notebook
+    var tbLines = [{ text: "TRUITT CAVE", inches: 0.3, fieldId: "caveName" }, { text: "SURVEYED BY:  A B", inches: 0.1, fieldId: "surveyedBy" },
+        { text: "C D", inches: 0.1, fieldId: "" }];
+    var tbRows = CsTitleBlock.rows(tbLines, 1.5);
+    near(tbRows.rows[0].y, 0, 1e-12, "CsTitleBlock.rows: the first line is at the insertion point");
+    near(tbRows.rows[1].y, -0.45, 1e-12, "CsTitleBlock.rows: each line is below the last by its height and the spacing");
+    near(tbRows.rows[2].y, -0.6, 1e-12, "CsTitleBlock.rows: a wrapped field's continuation sits below it");
+    near(tbRows.headingY, -0.75, 1e-12, "CsTitleBlock.rows: the heading comes last");
+    near(tbRows.height, 0.75, 1e-12, "CsTitleBlock.rows: and the block is as tall as its lines");
+    ok(tbRows.rows[0].field && tbRows.rows[1].field && !tbRows.rows[2].field, "CsTitleBlock.rows: only a line with a field id becomes a field");
+    eqs(CsTitleBlock.fieldText({ prefix: "Length:  " }, "1,234 ft"), "LENGTH:  1,234 FT", "CsTitleBlock.fieldText: prefix, value, in capitals");
+    eqs(CsTitleBlock.blockName("A1"), "TITLE-BLOCK-A1", "CsTitleBlock.blockName: one block per sheet job");
+    eqs(CsTitleBlock.blockName("Profile: A/B"), "TITLE-BLOCK-Profile A B", "CsTitleBlock.blockName: unsafe characters go");
+    var tbFields = [{ id: "length", prefix: "Length:  " }, { id: "caveName", prefix: "" }, { id: "location", prefix: "Location:  " }];
+    var items = [
+        { id: "length", text: "LENGTH:  100 FT", link: "auto", lastAuto: "LENGTH:  100 FT" },
+        { id: "caveName", text: "MY OWN NAME", link: "auto", lastAuto: "TRUITT CAVE" },
+        { id: "location", text: "", link: "auto", lastAuto: "" }];
+    var plan = CsTitleBlock.syncLines(items, { length: "150 ft", caveName: "Truitt Cave", location: "Texas" }, tbFields, function(t) { return String(t).toUpperCase(); });
+    ok(plan.length === 2, "CsTitleBlock.syncLines: Location is never linked, so only two fields are looked at (" + plan.length + ")");
+    ok(plan[0].index === 0 && plan[0].action === "set" && plan[0].text === "LENGTH:  150 FT", "CsTitleBlock.syncLines: an untouched linked field follows the notebook");
+    ok(plan[1].index === 1 && plan[1].action === "manual", "CsTitleBlock.syncLines: a field a person retyped becomes manual and is left alone");
+    ok(CsTitleBlock.syncLines(items, {}, tbFields, function(t) { return t; }).length === 1, "CsTitleBlock.syncLines: a notebook with no answers changes nothing (only the retyped field is noticed)");
 
     // CsSheetLink: the sheet number is the layout name; linked title block fields follow the notebook, never over a person
     eqs(CsSheetLink.lineFor("A1"), "SHEET:  A1", "CsSheetLink.lineFor: the sheet-number line is lettered like the rest");

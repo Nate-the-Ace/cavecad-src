@@ -49,6 +49,8 @@ line = sheetTexts(info, CsSheetLink.SHEET_FIELD);
 check(line.length === 1 && CsSheet.textOf(line[0]) === CsSheetLink.lineFor("Sheet 7"), "and the sheet number follows the tab");
 check(CsLayoutGen.refreshNames(doc, di, -1, false) === 0, "a second refresh writes nothing");
 
+check(CsLayoutGen.state(doc, info) === "auto", "renaming a sheet is not a hand edit: it is still automatic");
+
 // a renamed sheet is still the sheet its job made: building again rewrites it, it does not make another
 var again = generate();
 check(again.made.length === 0 && again.rewritten.length + again.skipped.length === 1 && Layouts.list(doc).length === 1,

@@ -81,17 +81,21 @@ CsLayoutFurniture.addNorth = function(doc, di, info, x, y, vpOverride) {
 
 /** The title block with its lower left at paper (x, y), filled from the survey and what the drawing already says. */
 CsLayoutFurniture.addTitle = function(doc, di, info, x, y) {
-    var values = {};
+    var values = {}, filled = {};
     try {
         var state = SheetSetup.readState(doc);
-        values = SheetSetup.titleValues(doc, isNull(state) ? {} : state.filled);
+        filled = isNull(state) || isNull(state.filled) ? {} : state.filled;
+        values = SheetSetup.titleValues(doc, filled);
     } catch (e) {
         values = {};
+        filled = {};
     }
+    values.sheetNumber = info.name;            // each sheet's own number is its Layout tab's name
     var lines = CsSheetSetup.titleLines(values);
     var env = CsLayoutGen.envFor(doc, di, info.blockId, qsTr("Add title block"), "");
     var xIn = CsLayoutFurniture.inches(doc, x), yIn = CsLayoutFurniture.inches(doc, y);
-    CsLayoutGen.drawTitle(env, xIn, yIn + CsSheetSetup.linesHeight(lines), lines, values, "plan");
+    CsLayoutGen.drawTitleBlock(env, xIn, yIn + CsSheetSetup.linesHeight(lines), lines, values, "plan",
+        { jobId: "placed-" + info.name + "-" + String(new Date().getTime()), filled: filled, generated: false });
     di.applyOperation(env.op);
     return lines.length;
 };

@@ -307,6 +307,8 @@ include(includeBasePath + "/CsViews.js");
 include(includeBasePath + "/CsXref.js");
 // The title block's linked fields and the sheet number = layout name (pure).
 include(includeBasePath + "/CsSheetLink.js");
+// The title block as one block with a field per line, and the linked-field sync (after CsLayoutGen, CsSheet, CsSheetLink).
+include(includeBasePath + "/CsTitleBlock.js");
 // After CsAdjust (whose per-station shifts it draws) and CsNetwork
 // (whose loops it labels): turning a closure percentage into arrows.
 include(includeBasePath + "/CsClosure.js");

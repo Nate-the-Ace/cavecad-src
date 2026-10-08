@@ -513,6 +513,30 @@ RibbonCommands.register = function() {
           } },
         C(cs("LayoutCheck"), { text: qsTr("Check\nsheet") }),
         C(cs("LayoutPlot"), { text: qsTr("Plot") }) ] });
+    Ribbon.registerPanel("sel-sheet", { id: "sh-title", title: qsTr("Title block"), order: 20, items: [
+        { type: "button", id: "titleRefresh", text: qsTr("Refresh from\nnotebook"), icon: "back", size: "large",
+          tooltip: qsTr("Bring the title block's linked fields (cave name, surveyed by, dates, length, depth, survey code) up to the notebook. Fields you typed over are left alone."),
+          onClick: function(entry, ctx) {
+              if (typeof CsTitleBlock === "undefined" || typeof SheetSetup === "undefined") { EAction.handleUserWarning(qsTr("Refresh needs the Cave Survey tools.")); return; }
+              var doc = entry.di.getDocument(), state = SheetSetup.readState(doc);
+              if (isNull(state) || state.ok !== true) { EAction.handleUserWarning(isNull(state) ? "" : state.why); return; }
+              var r = CsTitleBlock.sync(doc, entry.di, state.filled, false);
+              EAction.handleUserMessage(qsTr("Title block: %1 field(s) updated; %2 left alone because you had edited them.").arg(r.set).arg(r.manual));
+          } },
+        { type: "button", id: "titleRelink", text: qsTr("Link field\nto notebook"), icon: "duplicate", size: "large",
+          tooltip: qsTr("Make the selected title block field follow the notebook again (it was typed over)"),
+          onClick: function(entry, ctx) {
+              if (typeof CsTitleBlock === "undefined" || typeof SheetSetup === "undefined" || isNull(ctx.selection) || isNull(ctx.selection.ids.sheet)) { return; }
+              var doc = entry.di.getDocument(), ents = [];
+              for (var i = 0; i < ctx.selection.ids.sheet.length; i++) {
+                  var e = doc.queryEntity(ctx.selection.ids.sheet[i]);
+                  if (!isNull(e)) { ents.push(e); }
+              }
+              var n = CsTitleBlock.relink(doc, entry.di, ents);
+              var state = SheetSetup.readState(doc);
+              if (n > 0 && !isNull(state) && state.ok === true) { CsTitleBlock.sync(doc, entry.di, state.filled, false); }
+              EAction.handleUserMessage(n > 0 ? qsTr("%1 field(s) linked to the notebook.").arg(n) : qsTr("Select a title block field first (cave name, surveyed by, dates, length, depth or survey code)."));
+          } } ] });
 
     Ribbon.registerSelectionTab({ id: "sel-surface", title: qsTr("Surface"), kind: "surface" });
     Ribbon.registerPanel("sel-surface", { id: "su-use", title: qsTr("Surface"), order: 10, items: [
