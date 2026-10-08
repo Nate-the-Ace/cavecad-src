@@ -222,7 +222,7 @@ CsLayoutFurniture.refreshBorder = function(doc, di, info, quiet) {
     }, { quiet: quiet === true, text: qsTr("Border follows the paper") });
     var ref = doc.queryEntity(refs[0].getId());
     CsTags.set(ref, "BorderPaper", wanted);
-    var mod = new RModifyObjectsOperation(quiet !== true);
+    var mod = new RModifyObjectsOperation();
     mod.setText(qsTr("Border follows the paper"));
     mod.addObject(ref, false);
     di.applyOperation(mod);
@@ -664,11 +664,17 @@ CsLayoutFurniture.addIndex = function(doc, di, info, x, y, anchor) {
     var ref = CsSheetBlock.reference(doc, di, defId, info.blockId, CsLayers.TITLE_BLOCK, x, y);
     CsTags.set(ref, "SheetIndex", "1");
     CsTags.set(ref, "IndexAnchor", anchor);
+    CsTags.set(ref, "IndexOrder", CsLayoutFurniture.indexOrderOf(rows));
     var op = new RAddObjectsOperation();
     op.setText(qsTr("Add sheet index"));
     op.addObject(ref, false);
     di.applyOperation(op);
     return rows.length;
+};
+
+/** The sheets in index order, as one string (their tab order): it changes when a tab is dragged. PURE. */
+CsLayoutFurniture.indexOrderOf = function(rows) {
+    return rows.map(function(r) { return r.name; }).join("\u241F");
 };
 
 /** The corner a sheet index reference is anchored at: BL, BR, TL or TR (BL when untagged). */
@@ -719,11 +725,21 @@ CsLayoutFurniture.refreshIndex = function(doc, di, info, quiet) {
         var want = [qsTr("SHEET INDEX")];
         for (var r = 0; r < rows.length; r++) { want.push(CsLayoutFurniture.indexClip(rows[r].name, CsSheetSetup.TEXT.body), rows[r].paper, rows[r].scale); }
         var have = CsSheetBlock.textsIn(doc, ref.getReferencedBlockId());
-        if (have.slice().sort().join("\n") === want.slice().sort().join("\n")) {
+        // the ORDER of the sheets (the tab order) is part of what the index says: it is kept on the reference
+        var order = CsLayoutFurniture.indexOrderOf(rows);
+        if (have.slice().sort().join("\n") === want.slice().sort().join("\n") && CsTags.get(ref, "IndexOrder") === order) {
             return 0;
         }
         CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId),
             CsLayoutFurniture.indexDraw(rows, CsLayoutFurniture.indexAnchorOf(ref)), { quiet: quiet === true, text: qsTr("Sheet index follows the sheets") });
+        var again = CsLayoutFurniture.indexRef(doc, info);
+        if (again !== null) {
+            CsTags.set(again, "IndexOrder", order);
+            var mop = new RModifyObjectsOperation();
+            mop.setText(qsTr("Sheet index follows the sheets"));
+            mop.addObject(again, false);
+            di.applyOperation(mop);
+        }
         return 1;
     }
     // a loose-text index from an older build: find its lowest-left corner, then replace it by the block

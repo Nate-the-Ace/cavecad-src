@@ -110,6 +110,7 @@ LayoutTabs.attach = function(root, di) {
     bar.expanding = false;
     bar.drawBase = false;
     bar.usesScrollButtons = true;
+    bar.movable = true;      // drag a layout tab to reorder the sheets (Model stays first)
     bar.contextMenuPolicy = Qt.CustomContextMenu;
     row.addWidget(bar, 0, 0);
 
@@ -138,6 +139,7 @@ LayoutTabs.attach = function(root, di) {
     }
 
     bar.currentChanged.connect(function(index) { LayoutTabs.tabPicked(entry, index); });
+    bar.tabMoved.connect(function(from, to) { LayoutTabs.tabDragged(entry, from, to); });
     bar.tabBarDoubleClicked.connect(function(index) { LayoutTabs.rename(entry, index); });
     bar.customContextMenuRequested.connect(function(pos) { LayoutTabs.contextMenu(entry, pos); });
     plus.clicked.connect(function() { LayoutTabs.addLayout(entry); });
@@ -660,6 +662,26 @@ LayoutTabs.newViewport = function(entry) {
         return;
     }
     action.slotTrigger();
+};
+
+/**
+ * A layout tab was dragged to a new place: the sheets take that order (the sheet index lists them in it). The Model
+ * tab is not a sheet, so it cannot move and nothing can be dropped before it; the tabs are put right again.
+ */
+LayoutTabs.tabDragged = function(entry, from, to) {
+    if (entry.syncing || entry.dead || from === to) {
+        return;
+    }
+    var again = new QTimer(qApp);       // rebuild once the drag has finished with the bar
+    again.singleShot = true;
+    again.timeout.connect(function() {
+        if (entry.dead) { return; }
+        if (from > 0 && to > 0 && isNull(entry.editing) && from < entry.names.length) {
+            Layouts.move(entry.di, entry.names[from], to - 1);
+        }
+        LayoutTabs.refresh(entry);
+    });
+    again.start(0);
 };
 
 LayoutTabs.tabPicked = function(entry, index) {

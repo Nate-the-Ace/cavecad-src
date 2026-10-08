@@ -58,6 +58,10 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Layout tabs can be dragged (done, untested in the app)
+Drag a layout tab left or right to reorder the sheets (Model stays first; the right-click Move left/right still works). The
+sheet index lists the sheets in tab order and redraws when the order changes.
+
 ### Sheet index: anchor corner and long names (done, untested in the app)
 Selecting the sheet index shows the Sheet Item tab with a **Sheet index anchor** group (top/bottom, left/right). Picking a corner
 moves the anchor there without moving what is drawn; the index then grows away from that corner. Sheet names too long for the
