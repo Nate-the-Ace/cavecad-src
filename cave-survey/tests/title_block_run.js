@@ -80,5 +80,16 @@ info = Layouts.get(doc, info.name);
 check(refs().length === 1, "reverting leaves ONE title block");
 check(CsLayoutGen.state(doc, info) === "auto", "and the sheet is automatic again");
 
+// a loose-text title block (an older build's, or a sheet not rebuilt yet) can be turned into the block in place
+RSettings.setValue(CsTitleBlock.SETTING, false);
+var loose = CsLayoutGen.revert(doc, di, info.name, { titleValues: values, filled: filled });
+RSettings.setValue(CsTitleBlock.SETTING, true);
+info = Layouts.get(doc, info.name);
+check(refs().length === 0 && field("caveName") !== null, "with blocks switched off the title block is loose text lines");
+var conv = CsTitleBlock.convert(doc, di, info, filled);
+check(conv.ok && refs().length === 1, "Make title block a block: ONE block now (" + conv.why + ")");
+check(field("caveName") !== null && CsSheet.textOf(field("caveName")) === "TRUITT CAVE", "with the same words");
+check(CsTitleBlock.convert(doc, di, info, filled).ok === false, "and doing it twice is refused");
+
 if (fails === 0) print("### TITLE BLOCK OK");
 QCoreApplication.exit(fails === 0 ? 0 : 1);

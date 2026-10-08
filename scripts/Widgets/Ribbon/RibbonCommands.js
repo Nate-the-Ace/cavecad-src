@@ -587,6 +587,20 @@ RibbonCommands.register = function() {
         // not tied to the sheet showing: it MAKES sheets from the views in the drawing (whole cave, profiles, cross sections)
         C(cs("LayoutViews"), { text: qsTr("Sheets from\nviews") }) ] });
     csUsed["LayoutViews"] = true;
+    // a title block drawn before the update (loose text lines) can be turned into the block with fields, in place
+    Ribbon.registerPanel("layout", { id: "cave-title", title: qsTr("Title block"), order: 41, items: [
+        { type: "button", id: "titleConvert", text: qsTr("Make title\nblock a block"), icon: "page", size: "large", enabled: onSheet,
+          tooltip: qsTr("Turn this sheet's loose-text title block into one block with a field per line, keeping its words and place"),
+          onClick: function(entry, ctx) {
+              if (typeof CsTitleBlock === "undefined" || typeof SheetSetup === "undefined" || isNull(ctx.layout)) { return; }
+              var doc = entry.di.getDocument(), state = SheetSetup.readState(doc);
+              var filled = (!isNull(state) && state.ok === true) ? state.filled : {};
+              var info = Layouts.get(doc, ctx.layout.name);
+              var r;
+              try { r = CsTitleBlock.convert(doc, entry.di, info, filled); } catch (e) { r = { ok: false, why: String(e) }; }
+              if (r.ok) { EAction.handleUserMessage(qsTr("The title block is now one block with %1 field line(s).").arg(r.fields)); }
+              else { EAction.handleUserWarning(qsTr("Title block: ") + r.why); }
+          } } ] });
     // fitting a viewport to the cave map follows the selected viewport
     var onViewport = function(ctx) { return !isNull(ctx.viewport); };
     var V = function(name, text) { csUsed[name] = true; return C(cs(name), { text: text, enabled: onViewport }); };

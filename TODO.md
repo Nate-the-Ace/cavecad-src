@@ -58,6 +58,10 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Grid button picks a viewport (done) and the grid must become dynamic (still to do)
+The Grid button now asks you to click the viewport (click each one you want a grid on, Esc when done); it no longer needs a
+viewport selected first. The grid itself is still drawn once and not kept up to date: see "Layout items as blocks".
+
 ### Stuck in the block editor after clicking through a viewport
 **Seen:** while editing through a viewport, a click went through to a block and opened it in the block editor, and there
 was no way out.

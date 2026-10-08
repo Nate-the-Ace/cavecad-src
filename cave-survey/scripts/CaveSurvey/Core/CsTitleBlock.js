@@ -323,3 +323,73 @@ CsTitleBlock.relink = function(doc, di, entities) {
     if (n > 0) { di.applyOperation(op); }
     return n;
 };
+
+/**
+ * Turns a LOOSE-text title block already on a layout (one an older build drew, or a sheet that has not been rebuilt since)
+ * into the block with fields, in place: the same words, the same top-left corner, linked fields linked only where the
+ * notebook agrees with what is printed. One undo step. Only title lines the generator or the field tags can identify are
+ * taken (a wrapped field's continuation lines are the generator's: tag LayoutGen=TITLE-BLOCK).
+ *
+ * \param filled  the notebook's values ({ field id: value }) so the right fields can be linked; {} links none
+ * \return { ok, why, fields }
+ */
+CsTitleBlock.convert = function(doc, di, info, filled) {
+    var ids = doc.queryBlockEntities(info.blockId);
+    var loose = [], hasBlock = false;
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (isNull(e) || e.isUndone()) { continue; }
+        if (e.getType() === RS.EntityBlockRef && CsTags.get(e, CsTitleBlock.TAG_REF) !== "") { hasBlock = true; }
+        if (!CsSheet.isText(e) || e.getType() === RS.EntityAttribute) { continue; }
+        var tagged = CsTags.get(e, CsSheet.TAG) !== "";
+        var generated = CsTags.get(e, CsLayoutGen.TAG) === "TITLE-BLOCK" && CsBind.layerNameOf(doc, e) === CsLayers.TITLE_BLOCK;
+        if (tagged || generated) { loose.push(e); }
+    }
+    if (hasBlock) {
+        return { ok: false, why: qsTr("This sheet's title block is already a block."), fields: 0 };
+    }
+    if (loose.length === 0) {
+        return { ok: false, why: qsTr("There is no loose-text title block on this sheet to convert."), fields: 0 };
+    }
+    // top to bottom; the heading ("PLAN"...) is the generator's last line
+    loose.sort(function(a, b) { return b.getPosition().y - a.getPosition().y; });
+    var x = Infinity, kind = "plan", values = {}, lines = [], dropped = [];
+    for (var k = 0; k < loose.length; k++) {
+        var t = loose[k], id = CsTags.get(t, CsSheet.TAG), text = CsSheet.textOf(t);
+        x = Math.min(x, t.getPosition().x);
+        if (id === "" && (text === "PLAN" || text === "EXTENDED ELEVATION" || text === "CROSS SECTION")) {
+            kind = text === "PLAN" ? "plan" : (text === "CROSS SECTION" ? "section" : "elevation");
+            dropped.push(t);
+            continue;
+        }
+        var inches = t.getTextHeight() / Layouts.toPaper(doc, 25.4);
+        if (id !== "") {
+            var whole = CsTags.get(t, CsSheetSetup.TAG_FULL);
+            values[id] = whole !== "" ? whole : CsSheetLink.nameFromLine(text);
+        }
+        lines.push({ text: text, inches: inches, fieldId: id });
+        dropped.push(t);
+    }
+    values.sheetNumber = info.name;
+    var hasSheet = false;
+    for (var n = 0; n < lines.length; n++) { if (lines[n].fieldId === CsSheetLink.SHEET_FIELD) { hasSheet = true; } }
+    if (!hasSheet) {
+        // the older block had no Sheet line: add it first, as a new build would
+        lines.unshift({ text: CsSheetLink.lineFor(info.name), inches: CsSheetSetup.TEXT.body, fieldId: CsSheetLink.SHEET_FIELD });
+    }
+    var inch = Layouts.toPaper(doc, 25.4);
+    var topY = loose[0].getPosition().y / inch;
+    doc.startTransactionGroup();
+    var group = doc.getTransactionGroup();
+    var del = new RDeleteObjectsOperation();
+    del.setText(qsTr("Make title block a block"));
+    del.setTransactionGroup(group);
+    for (var d = 0; d < dropped.length; d++) { del.deleteObject(dropped[d]); }
+    di.applyOperation(del);
+    var env = CsLayoutGen.envFor(doc, di, info.blockId, qsTr("Make title block a block"), "");
+    env.op.setTransactionGroup(group);
+    CsTitleBlock.draw(env, x / inch, topY, lines, values, kind,
+        { jobId: "converted-" + info.name + "-" + String(new Date().getTime()), filled: isNull(filled) ? {} : filled, generated: true });
+    di.applyOperation(env.op);
+    return { ok: true, why: "", fields: lines.length };
+};
