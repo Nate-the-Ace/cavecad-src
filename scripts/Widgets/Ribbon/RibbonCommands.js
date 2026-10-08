@@ -179,6 +179,51 @@ RibbonCommands.registerSelectionKinds = function() {
     K({ id: "area", order: 90, resolve: function(doc, ids) { return typeof CsArea !== "undefined" ? CsArea.resolveSelection(doc, ids) : []; } });
 };
 
+/**
+ * Scale and Density for the selected areas, in the Area Fill tab: two boxes and an Apply button. Each selected
+ * area keeps its own pattern; only its scale and density change (the same CsArea.repattern the Area Fill panel's
+ * boxes reach, so there is one path). Density means nothing for a hatch, as in the panel.
+ */
+RibbonCommands.makeAreaControls = function(entry, parent) {
+    var box = new QWidget(parent);
+    box.objectName = "RibbonAreaControls";
+    var grid = new QGridLayout();
+    grid.setContentsMargins(4, 0, 4, 0);
+    grid.setSpacing(2);
+    box.setLayout(grid);
+    var scale = new QDoubleSpinBox(box);
+    scale.setRange(0.25, 4.0);
+    scale.setSingleStep(0.25);
+    scale.setDecimals(2);
+    scale.setValue(1.0);
+    scale.toolTip = qsTr("How large each placed element is, as a multiple of the catalog's own size");
+    var density = new QDoubleSpinBox(box);
+    density.setRange(1, 500);
+    density.setDecimals(0);
+    density.setValue(30);
+    density.toolTip = qsTr("How closely elements are scattered (not used by a hatch)");
+    var apply = new QPushButton(qsTr("Apply to selected"), box);
+    grid.addWidget(new QLabel(qsTr("Scale"), box), 0, 0);
+    grid.addWidget(scale, 0, 1);
+    grid.addWidget(new QLabel(qsTr("Density"), box), 1, 0);
+    grid.addWidget(density, 1, 1);
+    grid.addWidget(apply, 2, 1);
+    apply.clicked.connect(function() {
+        var ctx = Ribbon.contextOf(entry);
+        if (typeof CsArea === "undefined" || isNull(ctx.selection) || isNull(ctx.selection.ids.area)) { return; }
+        var doc = entry.di.getDocument(), ids = ctx.selection.ids.area, done = 0;
+        for (var i = 0; i < ids.length; i++) {
+            var b = doc.queryEntity(ids[i]);
+            var key = isNull(b) ? "" : CsTags.get(b, CsArea.PATTERN_KEY);
+            if (key === "") { continue; }
+            var r = CsArea.repattern(doc, entry.di, [ids[i]], key, { scale: scale.value, density: density.value });
+            done += r.count;
+        }
+        EAction.handleUserMessage(done > 0 ? qsTr("Scale and density applied to %1 area(s).").arg(done) : qsTr("Nothing in that selection is an area."));
+    });
+    return box;
+};
+
 /** Starts a script-file action that has no menu entry (one the ribbon cannot look up by file). */
 RibbonCommands.runByScript = function(path) {
     var a = isNull(path) ? undefined : RGuiAction.getByScriptFile(path);
@@ -422,7 +467,8 @@ RibbonCommands.register = function() {
     Ribbon.registerSelectionTab({ id: "sel-area", title: qsTr("Area Fill"), kind: "area" });
     Ribbon.registerPanel("sel-area", { id: "ar-edit", title: qsTr("Area fill"), order: 10, items: [
         C(cs("AreaFill"), { text: qsTr("Area fill\npanel") }),
-        C(cs("AreaSync"), { text: qsTr("Sync\nareas") }) ] });
+        C(cs("AreaSync"), { text: qsTr("Sync\nareas") }),
+        { type: "widget", id: "areaControls", make: function(entry, parent) { return RibbonCommands.makeAreaControls(entry, parent); } } ] });
 
     Ribbon.registerSelectionTab({ id: "sel-station", title: qsTr("Station"), kind: "station" });
     Ribbon.registerPanel("sel-station", { id: "st-use", title: qsTr("Survey station"), order: 10, items: [
