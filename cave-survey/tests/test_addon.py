@@ -2939,6 +2939,8 @@ class TestHandbook(unittest.TestCase):
         """
         if not PUBLISH_CHECK:
             self.skipTest("publish-only: a shot goes stale between releases")
+        if os.environ.get("CAVESURVEY_SKIP_STALE_SHOTS") == "1":
+            self.skipTest("automatic build: reported as a warning, never a failure")
         stale = []
         for page in self.pages:
             for shot in page.get("shots", []):

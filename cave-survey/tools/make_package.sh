@@ -111,7 +111,10 @@ echo "Checking the staged package (structure, icons, status tips, menu order)"
 echo
 PY="python3"
 
+# A stale Handbook screenshot must never stop an automatic build: it blocks only a hand
+# publish (publish.sh), where the pictures have to be honest. --stage-only is the build path.
 CAVESURVEY_PUBLISH_CHECK=1 \
+CAVESURVEY_SKIP_STALE_SHOTS="${STAGE_ONLY:+1}" \
 CAVESURVEY_ADDON="$STAGE/CaveSurvey" \
 CAVESURVEY_TEMPLATES="$STAGE/templates" \
     "$PY" -m unittest tests.test_addon -v
