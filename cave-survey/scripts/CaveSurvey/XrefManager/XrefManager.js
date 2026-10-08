@@ -4,8 +4,8 @@
 // Relative) and whether the file is unchanged, changed since it was read, or missing. Buttons: Update (read the
 // file again), change the attachment, change the path style, Bind (make it an ordinary block).
 // It is also where a drawing is ATTACHED: the "Attach drawing..." button asks for the file, Overlay or Attach and the
-// path style, and puts it at this drawing's origin (right for drawings that share coordinates; move the block
-// afterwards if it should sit elsewhere). There is no separate Attach Drawing command: the typed words "attachdrawing" and "xref" open this same window.
+// path style, and places it by the entrance location each drawing carries (so the two sit on the same ground), or at this
+// drawing's 0,0 when either has no location or you untick that choice. There is no separate Attach Drawing command: the typed words "attachdrawing" and "xref" open this same window.
 // The logic is Core/CsXref.js.
 
 include("scripts/EAction.js");
@@ -74,6 +74,11 @@ XrefManager.ask = function(name, canBeRelative) {
     v.addWidget(absolute, 0, 0);
     v.addWidget(relative, 0, 0);
 
+    var byLoc = new QCheckBox(qsTr("Place it by its entrance location (on the same ground, not at the file's own 0,0)"));
+    byLoc.checked = true;
+    byLoc.toolTip = qsTr("When both drawings have an entrance location, the attached drawing is placed where the real ground puts it. Otherwise it goes at 0,0.");
+    v.addWidget(byLoc, 0, 0);
+
     var bb = new QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel);
     bb.accepted.connect(function() { dlg.accept(); });
     bb.rejected.connect(function() { dlg.reject(); });
@@ -82,7 +87,8 @@ XrefManager.ask = function(name, canBeRelative) {
     var accepted = (dlg.exec() === QDialog.Accepted);
     var out = {
         style: attach.checked ? CsXref.ATTACH : CsXref.OVERLAY,
-        pathStyle: relative.checked ? CsXref.RELATIVE : CsXref.ABSOLUTE
+        pathStyle: relative.checked ? CsXref.RELATIVE : CsXref.ABSOLUTE,
+        byLocation: byLoc.checked
     };
     try {
         dlg.close();
@@ -93,7 +99,7 @@ XrefManager.ask = function(name, canBeRelative) {
 };
 
 /**
- * Picks a file, asks how to attach it and attaches it at the origin.
+ * Picks a file, asks how to attach it and attaches it by its entrance location (or at 0,0 when either drawing has none).
  * \return { ok, why, text } -- text is a one-line message for the window ("" when cancelled)
  */
 XrefManager.attachNew = function(doc, di) {
@@ -108,13 +114,15 @@ XrefManager.attachNew = function(doc, di) {
     }
     var res;
     try {
-        res = CsXref.attach(doc, di, file, { style: choice.style, pathStyle: choice.pathStyle, at: new RVector(0, 0) });
+        res = CsXref.attach(doc, di, file, { style: choice.style, pathStyle: choice.pathStyle, byLocation: choice.byLocation });
     }
     catch (e) {
         res = { ok: false, why: String(e) };
     }
     if (res.ok) {
-        return { ok: true, why: "", text: qsTr("Attached %1 (%2, %3 path).").arg(CsXref.basename(file)).arg(choice.style).arg(choice.pathStyle) };
+        var where = res.byLocation ? qsTr("placed by its entrance location")
+            : (choice.byLocation && res.whyNot !== "" ? qsTr("placed at 0,0 because %1").arg(res.whyNot) : qsTr("placed at 0,0"));
+        return { ok: true, why: "", text: qsTr("Attached %1 (%2, %3 path), %4.").arg(CsXref.basename(file)).arg(choice.style).arg(choice.pathStyle).arg(where) };
     }
     return { ok: false, why: res.why, text: res.why };
 };

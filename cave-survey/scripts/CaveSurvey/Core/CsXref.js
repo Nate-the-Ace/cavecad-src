@@ -456,6 +456,52 @@ CsXref.swapBlock = function(doc, di, src, oldId, name, group) {
     return { ok: true, why: "", name: name };
 };
 
+/**
+ * Where the other drawing goes so that it sits on the SAME GROUND as this one, from the entrance location each carries
+ * (GeoLat/GeoLon on a station, pinned at a drawing point). The offset is the host drawing point that lies over the
+ * other drawing's pinned entrance, minus that pinned point in the other drawing's own coordinates. PURE.
+ *
+ * \param host    { lat, lon, x, y, unit }  the drawing receiving it (its pinned frame, in its unit)
+ * \param other   { lat, lon, x, y, unit }  the drawing being attached
+ * \return { x, y } the offset, in the host's unit
+ */
+CsXref.offsetByLocation = function(host, other) {
+    var at = CsGeoProject.drawingPointAtLatLon({ lat: other.lat, lon: other.lon },
+        { lat: host.lat, lon: host.lon, x: host.x, y: host.y }, host.unit);
+    var f = CsUnits.convert(1.0, other.unit, host.unit);
+    return { x: at.x - other.x * f, y: at.y - other.y * f };
+};
+
+/** A drawing's pinned entrance as { lat, lon, x, y, unit }, or null when it has no location. */
+CsXref.frameOf = function(doc) {
+    var rec = CsLocationPick.anchorRecord(doc);
+    if (rec === null) { return null; }
+    var x = rec.pinX, y = rec.pinY;
+    if ((x === null || y === null) && rec.pos !== null) { x = rec.pos.x; y = rec.pos.y; }   // georeferenced before the pin was recorded
+    if (x === null || y === null) { return null; }
+    return { lat: rec.lat, lon: rec.lon, x: x, y: y,
+        unit: CsUnits.fromDrawingUnit(doc.getUnit(), typeof RS !== "undefined" ? RS : undefined) };
+};
+
+/** Where an attached drawing goes: { at: RVector, byLocation: bool, why } -- by entrance location when both have one, else the origin. */
+CsXref.placement = function(doc, src, wantLocation) {
+    if (wantLocation !== false) {
+        try {
+            var h = CsXref.frameOf(doc), o = CsXref.frameOf(src.doc);
+            if (h !== null && o !== null) {
+                var off = CsXref.offsetByLocation(h, o);
+                return { at: new RVector(off.x, off.y), byLocation: true, why: "" };
+            }
+            return { at: new RVector(0, 0), byLocation: false,
+                why: h === null ? qsTr("this drawing has no entrance location") : qsTr("the attached drawing has no entrance location") };
+        }
+        catch (e) {
+            return { at: new RVector(0, 0), byLocation: false, why: String(e) };
+        }
+    }
+    return { at: new RVector(0, 0), byLocation: false, why: "" };
+};
+
 /** Writes the xref tags onto the block definition. */
 CsXref.tagBlock = function(doc, di, name, info) {
     var block = doc.queryBlock(name);
@@ -508,7 +554,8 @@ CsXref.attach = function(doc, di, sourceFile, opts) {
     op.setText(qsTr("Attach drawing"));
     op.setBlockName(name);
     op.setOverwriteBlocks(true);
-    op.setOffset(isNull(o.at) ? new RVector(0, 0) : o.at);
+    var place = isNull(o.at) ? CsXref.placement(doc, src, o.byLocation) : { at: o.at, byLocation: false, why: "" };
+    op.setOffset(place.at);
     op.setScale(isNull(o.scale) ? 1.0 : o.scale);
     op.setRotation(isNull(o.rotation) ? 0.0 : o.rotation);
     op.setTransactionGroup(group);
@@ -518,7 +565,7 @@ CsXref.attach = function(doc, di, sourceFile, opts) {
     }
     CsXref.tagBlock(doc, di, name, { stored: stored, style: style, pathStyle: pathStyle, stamp: CsXref.stampOf(full), group: group });
     CsXref.remember(style, pathStyle);
-    return { ok: true, why: "", name: name };
+    return { ok: true, why: "", name: name, byLocation: place.byLocation, whyNot: place.why };
 };
 
 /**

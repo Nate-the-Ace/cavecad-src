@@ -149,6 +149,20 @@ CsGeoProject.latLonAtDrawingPoint = function(point, frame, unitName) {
 };
 
 /**
+ * The drawing point that sits on `target` {lat, lon}, read through a pinned `frame` {lat, lon, x, y} -- the inverse of
+ * latLonAtDrawingPoint, in the same drawing unit. PURE.
+ */
+CsGeoProject.drawingPointAtLatLon = function(target, frame, unitName) {
+    var am = CsGeoProject.toMercator(frame.lat, frame.lon);
+    var tm = CsGeoProject.toMercator(target.lat, target.lon);
+    var inflate = 1.0 / Math.cos(frame.lat * Math.PI / 180.0);
+    return {
+        x: frame.x + CsUnits.convert((tm.x - am.x) / inflate, CsUnits.METERS, unitName),
+        y: frame.y + CsUnits.convert((tm.y - am.y) / inflate, CsUnits.METERS, unitName)
+    };
+};
+
+/**
  * Latitude/longitude in degrees -> EPSG:3857 metres.
  */
 CsGeoProject.toMercator = function(lat, lon) {

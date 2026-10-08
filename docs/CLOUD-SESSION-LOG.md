@@ -16,6 +16,11 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.14 -- attached drawings are placed by entrance location, not raw file coordinates
+- Cause of the "cave won't line up" complaint: every cave file has its own arbitrary local origin; Set Location only records lat/lon (only Pick on Drawing moves a cave). Attach used to put everything at 0,0.
+- `CsGeoProject.drawingPointAtLatLon` (inverse of `latLonAtDrawingPoint`), `CsXref.offsetByLocation` (pure), `frameOf`, `placement`; `CsXref.attach` uses it unless `opts.at` is given; the Attach dialog has "Place it by its entrance location" (default on); the result says whether it was placed by location or at 0,0 and why. Update keeps each reference where it is.
+- Both drawings need a georeference (GeoLat/GeoLon with the pinned drawing point GeoDrawX/Y, else the station's position); north is assumed up in both. Pure tests in `tests/js_unit.js`. Untested in app.
+
 ### (app script, no tools bump) -- External Reference tab: Open XREF and settings switches
 - `RibbonCommands.js`: **Open XREF** button (opens the referenced file in its own window via `NewFile.createMdiChild`; refuses with a message when the file is missing). New **Settings** panel (`makeXrefToggles`): three switches for the selected xref -- Include its own references (Attach/Overlay), Keep the path relative, Update by itself (`CsXref.setAuto`) -- shown from the selection on a 400 ms timer. The old Overlay/Attach and Absolute/Relative buttons were replaced by the switches.
 - This is an APP script (scripts/Widgets/Ribbon), so it needs the app build, not only a tools repack. Untested in app.

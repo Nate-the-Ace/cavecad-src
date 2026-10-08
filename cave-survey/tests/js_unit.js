@@ -28409,6 +28409,14 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
         "CsSheetLink: Location is never a linked field");
 
     // CsXref: external references -- paths, defaults, and which drawings a drawing sees through its references
+    // CsXref.offsetByLocation: an attached drawing is placed on the same ground as the host, by entrance location
+    var xrSame = CsXref.offsetByLocation({ lat: 37.0, lon: -86.0, x: 100, y: 200, unit: CsUnits.FEET }, { lat: 37.0, lon: -86.0, x: 10, y: 20, unit: CsUnits.FEET });
+    near(xrSame.x, 90, 1e-6, "CsXref.offsetByLocation: the same entrance puts the pinned points together (x)");
+    near(xrSame.y, 180, 1e-6, "CsXref.offsetByLocation: the same entrance puts the pinned points together (y)");
+    var xrNorth = CsXref.offsetByLocation({ lat: 37.0, lon: -86.0, x: 0, y: 0, unit: CsUnits.METERS }, { lat: 37.001, lon: -86.0, x: 0, y: 0, unit: CsUnits.METERS });
+    ok(xrNorth.y > 100 && xrNorth.y < 125 && Math.abs(xrNorth.x) < 1e-6, "CsXref.offsetByLocation: a cave 0.001 degrees north lands about 111 m north: " + xrNorth.y);
+    var xrBack = CsGeoProject.latLonAtDrawingPoint(xrNorth, { lat: 37.0, lon: -86.0, x: 0, y: 0 }, CsUnits.METERS);
+    near(xrBack.lat, 37.001, 1e-9, "CsGeoProject.drawingPointAtLatLon: the inverse of latLonAtDrawingPoint");
     eqs(CsXref.normalize("/a/b/../c/./d.dxf"), "/a/c/d.dxf", "CsXref.normalize: dots and double dots collapse");
     eqs(CsXref.normalize("C:\\Caves\\Truitt\\..\\Jones.dxf"), "C:/Caves/Jones.dxf", "CsXref.normalize: a Windows path keeps its drive");
     ok(CsXref.isAbsolute("/a/b") && CsXref.isAbsolute("C:/a") && !CsXref.isAbsolute("a/b") && !CsXref.isAbsolute("../a"), "CsXref.isAbsolute");
