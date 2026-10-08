@@ -957,6 +957,14 @@ SketchScans.buildDock = function(appWin) {
             grid.addWidget(button, row, 0, 1, 2);
             row += 1;
         }
+        // The buttons keep their natural height: whatever room the dock has to spare goes to an empty last row,
+        // not into the gaps between (and the height of) the buttons.
+        try {
+            grid.setRowStretch(row, 1);
+            grid.setVerticalSpacing(4);
+        } catch (eStretch) {
+            // a bridge without these leaves the buttons as they were
+        }
         page.setLayout(grid);
         return { page: page, set: set };
     };
@@ -1020,6 +1028,12 @@ SketchScans.buildDock = function(appWin) {
             "Drive has synced them."));
     layout.addWidget(w.refreshButton, 0, 0);
     layout.addWidget(w.tabs, 0, 0);
+    try {
+        // the tabs take only the height their buttons need; the scan list and preview get the rest
+        w.tabs.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum);
+    } catch (ePolicy) {
+        // the tabs then size as before
+    }
 
     // Every copy of a button, wired once each.
     SketchScans.eachButton(w, "pickAlignButton", function(b) {

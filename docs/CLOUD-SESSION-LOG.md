@@ -16,6 +16,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.15 -- Sketch Scans: bottom buttons no longer stretched
+- Reported (screenshot): the Plan/Profile/Cross Section tab buttons took far too much height. `SketchScans.js makePage` now puts a stretch on an empty last grid row and 4 px row spacing, and the tab widget has a Maximum vertical size policy, so the scan list and preview get the spare room. Untested in app (needs a Mac/other build; script-only, so the Mac fast path applies).
+
 ### CI -- Windows and Linux test builds with the tools (`desktop-test.yml`)
 - New hand-started workflow: builds Windows x64+ARM64 (`windows.yml`) and Linux x86_64+aarch64 (`linux.yml`) from the branch, adds the tools, marks each package `app_commit: dev` (updater stays out) and uploads artifacts `cavecad-windows-test`, `cavecad-linux-test`, `cavecad-linux-arm-test`. It publishes nothing: no release, no `app-base`, no `latest.json` (those platform workflows only store a base on the `cavecad` branch). `assemble.yml` is the public path and is NOT used for tests.
 - First run (run 37849911042, commit 78f888c7, tools 0.9.215.14): **all jobs succeeded in 32 min 2 s** (21:53:44Z-22:25:46Z). Linux x86_64 and aarch64 were done in ~10 min; Windows x64 ~26 min and Windows ARM64 ~31 min (the cavecadjsapi plugin step takes 11-14 min on Windows; ARM's updater test took 8.5 min). Artifacts: `cavecad-windows-test` (CaveCAD-windows-x64-test.zip, CaveCAD-windows-arm64-test.zip), `cavecad-linux-test` (CaveCAD-linux-x86_64-test.AppImage), `cavecad-linux-arm-test` (CaveCAD-linux-aarch64-test.AppImage). The "store-base" job was skipped, so nothing went to app-base / latest-build.
