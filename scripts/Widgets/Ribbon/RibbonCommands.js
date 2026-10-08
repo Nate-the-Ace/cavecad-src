@@ -108,6 +108,9 @@ RibbonCommands.classifySelection = function(doc) {
         else if (haveTags && (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "")) {
             kind = "shaped";
         }
+        else if (haveTags && CsTags.get(e, "Station") !== "") {
+            kind = "station";
+        }
         else if (haveCallout && CsTags.get(e, CsCallout.KEY.ID) !== "") {
             kind = (CsTags.get(e, CsCallout.KEY.KIND) === CsCallout.KIND_SECTION && CsTags.get(e, CsCallout.KEY.ROLE) === CsCallout.ROLE_BLOCK) ? "section" : "callout";
         }
@@ -368,6 +371,13 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("sel-area", { id: "ar-edit", title: qsTr("Area fill"), order: 10, items: [
         C(cs("AreaFill"), { text: qsTr("Area fill\npanel") }),
         C(cs("AreaSync"), { text: qsTr("Sync\nareas") }) ] });
+
+    Ribbon.registerTab({ id: "sel-station", title: qsTr("Station"), when: hasSel("station") });
+    Ribbon.registerPanel("sel-station", { id: "st-use", title: qsTr("Survey station"), order: 10, items: [
+        C(cs("DrawPanel"), { text: qsTr("Draw from\nhere") }),
+        C(cs("StationTable"), { text: qsTr("Station\ntable") }),
+        C(cs("LoopErrors"), { text: qsTr("Loop\nerrors") }),
+        C(cs("EntranceLocation"), { text: qsTr("Entrance") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
