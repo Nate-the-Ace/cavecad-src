@@ -1,6 +1,6 @@
 # Implementing translations in CaveCAD
 
-How the code in `cavecad-tools` and `cavecad-src` has to be written so that
+How the code in `cave-survey` and `cavecad-src` has to be written so that
 this repo can translate it, and how translations reach users. Everything
 marked *verified* was tested against the installed CaveCAD, headless.
 
@@ -22,10 +22,10 @@ marked *verified* was tested against the installed CaveCAD, headless.
 - `make_package.sh` copies the whole add-on folder, so a `ts/` inside it ships
   with no packaging change.
 
-## Rules for code in cavecad-tools
+## Rules for code in cave-survey
 
 `python3 tools/audit.py` reports every breach below. Once the backlog is at
-zero, `audit.py --fail` can run in cavecad-tools' test suite so no new one lands.
+zero, `audit.py --fail` can run in cave-survey' test suite so no new one lands.
 
 1. **Wrap every string a user reads in `qsTr()`** -- buttons, labels,
    tooltips, status tips, command prompts, `handleUserMessage/Warning`, and
@@ -71,8 +71,8 @@ languages inherited from QCAD) and are not handled here.
 2. `./tools/release.sh` -> `build/CaveSurvey_<lang>.qm`, plus a coverage line.
 3. `python3 tools/smoke.py build/CaveSurvey_de.qm ts/*_de.ts` proves CaveCAD
    returns every finished translation.
-4. On a **cavecad-tools branch made for it**:
-   `./tools/ship.sh ../cavecad-tools/scripts/CaveSurvey`, commit the `.qm`
+4. On a **cave-survey branch made for it**:
+   `./tools/ship.sh ../cave-survey/scripts/CaveSurvey`, commit the `.qm`
    files, then publish as usual.
 
 Unfinished entries are left out of the `.qm`; CaveCAD shows English for them.

@@ -195,7 +195,7 @@ def scan(src, prose=False, only_file=""):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default=os.environ.get(
-        "TOOLS_SRC", os.path.join(HERE, "..", "cavecad-tools")))
+        "TOOLS_SRC", os.path.join(HERE, "..", "cave-survey")))
     ap.add_argument("--only", default="")
     ap.add_argument("--fail", action="store_true")
     ap.add_argument("--prose", action="store_true",

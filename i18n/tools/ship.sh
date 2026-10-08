@@ -2,10 +2,10 @@
 #
 # Copies built .qm files into a Cave Survey add-on folder's ts/.
 #
-#   ./tools/ship.sh ../cavecad-tools/scripts/CaveSurvey
+#   ./tools/ship.sh ../cave-survey/scripts/CaveSurvey
 #
 # The ONLY tool here that writes outside this repo, and only to the folder
-# named on the command line -- run it on a cavecad-tools branch made for the
+# named on the command line -- run it on a cave-survey branch made for the
 # purpose. CaveCAD's autostart loads <addon>/ts/CaveSurvey_<locale>.qm, and
 # make_package.sh copies the whole add-on folder, so nothing else is needed
 # for the files to ship.

@@ -6,6 +6,8 @@ on:
   push:
     branches: [cavecad]
     paths-ignore:
+      - 'cave-survey/**'
+      - 'i18n/**'
       - '.github/workflows/windows.yml'
       - '.github/workflows/macos.yml'
       - '.github/workflows/release.yml'

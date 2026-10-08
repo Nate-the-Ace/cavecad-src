@@ -31598,7 +31598,7 @@ if (typeof isFunction === "undefined") {
     isFunction = function(v) { return typeof v === "function"; };
 }
 
-var forkRoot = repoRoot + "/../cavecad-src";
+var forkRoot = repoRoot + "/..";   // cave-survey/ now sits inside the app repo
 var layerManagerLoaded = true;
 try {
     var lmFiles = [

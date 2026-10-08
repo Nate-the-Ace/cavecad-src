@@ -62,7 +62,7 @@ CsHandbook.rootPath = function() {
     } catch (eSet) {
     }
     if (CsHandbook.BASE !== "") {
-        // a checkout: .../cavecad-tools/scripts/CaveSurvey/Core -> docs
+        // a checkout: .../cave-survey/scripts/CaveSurvey/Core -> docs
         candidates.push(CsHandbook.BASE + "/../../../docs/handbook");
     }
 

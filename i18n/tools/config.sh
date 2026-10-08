@@ -6,8 +6,8 @@
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
 # The Cave Survey add-on (JS) and the CaveCAD fork (C++ 3D view).
-TOOLS_SRC="${TOOLS_SRC:-$HERE/../cavecad-tools}"
-CAVECAD_SRC="${CAVECAD_SRC:-$HERE/../cavecad-src}"
+TOOLS_SRC="${TOOLS_SRC:-$HERE/../cave-survey}"
+CAVECAD_SRC="${CAVECAD_SRC:-$HERE/..}"
 
 # The running app, for the headless smoke test.
 CAVECAD_BIN="${CAVECAD_BIN:-/Applications/CaveCAD.app/Contents/MacOS/CaveCAD}"

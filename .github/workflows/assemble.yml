@@ -9,16 +9,17 @@ name: Assemble latest build
 # the internal "app-base" release; this adds the tools to it and repacks.
 # A tools-only change therefore reaches the download in minutes.
 #
-# Runs when a platform build finishes, on a schedule that notices new
-# tools commits (no token needed in the tools repo), or by hand.
+# The tools live in this repo, in cave-survey/. Runs when a platform build
+# finishes, when cave-survey/ changes on the cavecad branch, or by hand.
 
 on:
   workflow_run:
     workflows: [Windows build, Linux AppImage, macOS build]
     types: [completed]
     branches: [cavecad]
-  schedule:
-    - cron: '*/30 * * * *'
+  push:
+    branches: [cavecad]
+    paths: ['cave-survey/**']
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -31,8 +32,8 @@ permissions:
   contents: write
 
 env:
-  TOOLS_REPO: Nate-the-Ace/CaveCAD
-  TOOLS_REF: legacy-map
+  TOOLS_REPO: ${{ github.repository }}
+  TOOLS_REF: cavecad
   TAG: ${{ inputs.tag || 'latest-build' }}
 
 concurrency:
@@ -49,12 +50,16 @@ jobs:
       app_sha: ${{ steps.plan.outputs.app_sha }}
       key: ${{ steps.plan.outputs.key }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TOOLS_REF }}
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tools_sha=$(git ls-remote "https://github.com/$TOOLS_REPO" "refs/heads/$TOOLS_REF" | cut -f1)
-          [ -n "$tools_sha" ] || { echo "cannot read $TOOLS_REPO@$TOOLS_REF"; exit 1; }
+          # the tools are identified by the content of cave-survey/, so an app-only commit does not look like a tools change
+          tools_sha=$(git rev-parse HEAD:cave-survey)
+          [ -n "$tools_sha" ] || { echo "cannot read cave-survey/ at $TOOLS_REF"; exit 1; }
           mkdir base && cd base
           gh release download app-base -R "$GITHUB_REPOSITORY" -p 'base-*.commit' || true
           for p in windows-x64 linux-x86_64 macos-arm64; do
@@ -85,16 +90,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          repository: ${{ env.TOOLS_REPO }}
-          ref: ${{ needs.plan.outputs.tools_sha }}
+          ref: ${{ env.TOOLS_REF }}
       - name: Stage the Cave Survey add-on
         run: |
           # The add-on's own structural checks run here; the script parse
           # needs CaveCAD installed and is skipped (it runs on publish.sh).
+          cd cave-survey
           tools/make_package.sh --stage-only --version "$(cat VERSION)"
-          mkdir addon && cp -R dist/CaveSurveyTools-*/CaveSurvey addon/
-          cat VERSION > addon/VERSION
-          git rev-parse HEAD > addon/COMMIT
+          mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
+          cat VERSION > ../addon/VERSION
+          git rev-parse HEAD > ../addon/COMMIT
       - uses: actions/upload-artifact@v7
         with:
           name: addon

@@ -4,7 +4,7 @@
 #
 #   ./tests/run.sh
 #
-# Never touches cavecad-tools or cavecad-src: every path is pointed at the
+# Never touches cave-survey or cavecad-src: every path is pointed at the
 # fixture and a temp dir. Needs lupdate/lrelease and an installed CaveCAD.
 
 set -e
