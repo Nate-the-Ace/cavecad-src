@@ -58,6 +58,36 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Stuck in the block editor after clicking through a viewport
+**Seen:** while editing through a viewport, a click went through to a block and opened it in the block editor, and there
+was no way out.
+
+**What causes it (read from `scripts/DefaultAction.js`, `scripts/Block/Block.js`, `LayoutTabs.js`, `RibbonCommands.js`)**
+- Double-clicking a block reference runs `Block.editBlock(di, blockName)` (`DefaultAction.entityDoubleClicked`, ~line 711).
+  Its message tells you to "choose Block > Return to Main Drawing", which is a menu the ribbon does not have.
+- The ribbon's equivalent, **Edit main drawing**, is a small button in the Home tab's Block panel. While editing through a
+  viewport the **Editing Viewport** tab takes focus and offers only "Back to layout", so the way out is out of sight.
+- "Back to layout" (`LayoutTabs.exitViewport`) knows nothing about a block being open: it leaves the viewport but not
+  the block.
+- Now that the north arrow, title block, scale bar, border and sheet index are blocks, a double-click on a sheet is
+  more likely to land on one. Editing their definitions is also pointless (they are redrawn from the sheet's settings).
+
+**Preliminary plan**
+1. **An always-visible way out.** A contextual **Editing Block** tab (accented, takes focus) whenever the current block is a
+   block definition (not model space, not a layout): a banner "Editing block X" and a large **Return to main drawing**
+   button (runs `EditMainDrawing`). Add `ctx.block` (the name of the block being edited, else none) to the ribbon context.
+2. **"Back to layout" leaves the block first**, then the viewport; it can never strand you in either.
+3. **Esc** (with nothing else running) in a block edit offers to return, so the keyboard works too.
+4. **Do not open by accident.** (a) When a double-click would open a block while editing through a viewport or on a layout,
+   ask first ("Edit block X? You come back with Return to main drawing."). (b) Mark the generated sheet blocks
+   (north arrow, title block, scale bar, border, sheet index, external references) `DoubleClickEditBlock = false` so a
+   double-click on them does nothing destructive; the title block's fields are still edited by double-clicking the
+   field itself (an attribute), which is not block editing.
+5. Test: open a block from inside a viewport edit; the tab appears; Return to main drawing brings back the model; Back to
+   layout from inside a block ends in the layout with nothing left open.
+Risks: the context is polled, so checking the current block must stay cheap; the Esc handling must not swallow Esc from
+a running command.
+
 ### Sheet number = the Layout tab name, both ways
 Changing the sheet number on the sheet changes the Layout tab's name, and renaming the Layout tab changes the sheet
 number.
