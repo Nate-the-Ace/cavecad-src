@@ -34,7 +34,16 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Qt is the same every run: keep the download between builds
+      - name: Cache Qt ${{ env.QT_VERSION }}
+        id: qtcache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-${{ env.QT_VERSION }}-macos-clang_64-v1
+
       - name: Install Qt ${{ env.QT_VERSION }}
+        if: steps.qtcache.outputs.cache-hit != 'true'
         run: |
           pip install aqtinstall
           tools/install-qt.sh python mac "$QT_VERSION" clang_64 "$RUNNER_TEMP/Qt"

@@ -16,6 +16,12 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### CI -- faster Mac test builds (no tools bump)
+- Baseline (full test builds, runs 16/17): about 9-9.5 minutes. Biggest steps: cavecadjsapi plugin ~4 min, qtjsapi ~1.5, CaveCAD compile ~2 (ccache), Package ~1.7, Qt install ~0.6.
+- `macos-test.yml`: a `plan` job decides FAST or FULL. FAST (only scripts/data/tools/docs changed since the last full test build) reuses that build's compiled app from the internal `test-app-base` release, replaces its scripts (stripped as the packaging step does), adds the tools and re-signs. FULL (anything else, no base yet, or the `full` input ticked) compiles as before and then stores the bare app as the new base. Test builds only; published builds are untouched.
+- `macos.yml`: the Qt install is cached (`actions/cache`).
+- Measured results are recorded below once the runs finish.
+
 ### 0.9.215.14 -- attached drawings are placed by entrance location, not raw file coordinates
 - Cause of the "cave won't line up" complaint: every cave file has its own arbitrary local origin; Set Location only records lat/lon (only Pick on Drawing moves a cave). Attach used to put everything at 0,0.
 - `CsGeoProject.drawingPointAtLatLon` (inverse of `latLonAtDrawingPoint`), `CsXref.offsetByLocation` (pure), `frameOf`, `placement`; `CsXref.attach` uses it unless `opts.at` is given; the Attach dialog has "Place it by its entrance location" (default on); the result says whether it was placed by location or at 0,0 and why. Update keeps each reference where it is.

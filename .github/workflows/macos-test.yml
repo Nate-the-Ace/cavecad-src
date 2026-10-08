@@ -5,15 +5,71 @@ name: macOS test build (app + tools)
 # does, but published nowhere.
 # Started by hand only (Actions > macOS test build > Run workflow, or ask Claude to start it).
 # Download the "cavecad-macos-test" artifact from the finished run.
+#
+# FAST PATH. A full build compiles the app (about 10 minutes). When nothing but scripts and data
+# changed since the last full test build -- no C++, no build settings -- the compiled app of that
+# build is reused: its scripts are replaced by this checkout's and the tools are added (a minute or
+# two). The compiled app of each full test build is kept on the internal "test-app-base" release.
+# Anything outside the lists in the "plan" step forces a full build. Test builds only: a build
+# that is published to other people (assemble.yml / release) is never made this way.
 
 on:
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Force a full build (compile the app) even when only scripts changed"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      fast: ${{ steps.decide.outputs.fast }}
+      base: ${{ steps.decide.outputs.base }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Decide between the fast path and a full build
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_FULL: ${{ inputs.full }}
+        run: |
+          fast=false; base=""
+          mkdir -p basefile
+          if [ "$FORCE_FULL" = "true" ]; then
+            why="a full build was asked for"
+          elif ! gh release download test-app-base -p base-test.commit -D basefile -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            why="there is no earlier full test build to reuse yet"
+          else
+            base="$(tr -d '[:space:]' < basefile/base-test.commit)"
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              why="the earlier build's commit ${base} is not in this history"
+            else
+              # what the app is made of besides compiled code: anything else changing means a full build
+              bad="$(git diff --name-only "$base" HEAD | grep -Ev '^(scripts|patterns|linetypes|fonts|libraries|defaults|cave-survey|i18n|docs|tests|examples)/|^[^/]+\.(md|txt)$|^\.github/workflows/(macos-test|assemble|linux|windows|release)\.yml$' || true)"
+              if [ -n "$bad" ]; then
+                why="these changed since the last full build and need compiling: $(echo "$bad" | head -5 | tr '\n' ' ')"
+              else
+                fast=true
+                why="only scripts and data changed since ${base}"
+              fi
+            fi
+          fi
+          echo "fast=$fast" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "### Build plan: $([ "$fast" = true ] && echo FAST || echo FULL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "$why" >> "$GITHUB_STEP_SUMMARY"
+          echo "Plan: fast=$fast -- $why"
+
   app:
+    needs: plan
+    if: needs.plan.outputs.fast != 'true'
     uses: ./.github/workflows/macos.yml
     secrets: inherit
 
@@ -33,13 +89,30 @@ jobs:
           path: addon/
 
   assemble:
-    needs: [app, addon]
+    needs: [plan, app, addon]
+    if: ${{ !cancelled() && needs.addon.result == 'success' && (needs.app.result == 'success' || needs.app.result == 'skipped') }}
     runs-on: macos-15
+    env:
+      FAST: ${{ needs.plan.outputs.fast }}
+      BASE: ${{ needs.plan.outputs.base }}
+      GH_TOKEN: ${{ github.token }}
     steps:
+      # the checkout is only needed to put this commit's scripts into a reused app
+      - uses: actions/checkout@v7
+        if: env.FAST == 'true'
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
+        if: env.FAST != 'true'
         with:
           name: cavecad-macos-arm64
           path: app
+      - name: Fetch the compiled app of the last full test build
+        if: env.FAST == 'true'
+        run: |
+          mkdir app
+          gh release download test-app-base -p base-test-macos-arm64.dmg -D app -R "$GITHUB_REPOSITORY"
+          mv app/base-test-macos-arm64.dmg app/CaveCAD.dmg
       - uses: actions/download-artifact@v8
         with:
           name: addon
@@ -49,10 +122,21 @@ jobs:
           hdiutil attach -quiet -nobrowse -readonly -mountpoint base app/CaveCAD.dmg
           ditto base/CaveCAD.app CaveCAD.app
           hdiutil detach -quiet base
-          ditto addon/CaveSurvey CaveCAD.app/Contents/Resources/scripts/CaveSurvey
+          R=CaveCAD.app/Contents/Resources
+          if [ "$FAST" = "true" ]; then
+            # this commit's scripts and data replace the reused app's (same stripping as the packaging step)
+            rm -rf stage && mkdir stage && ditto scripts stage/scripts
+            tools/strip-runtime.sh stage
+            ditto stage/scripts "$R/scripts"
+            for d in patterns linetypes fonts libraries defaults; do ditto "$d" "$R/$d"; done
+            # files deleted since the reused build must not linger
+            git diff --name-only --diff-filter=D "$BASE" HEAD | grep -E '^(scripts|patterns|linetypes|fonts|libraries|defaults)/' | while read -r f; do rm -f "$R/$f"; done || true
+            echo "Reused the compiled app of $BASE" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          ditto addon/CaveSurvey "$R/scripts/CaveSurvey"
           # a test build must never be "updated" to the published build: marked as a development build,
           # the built-in updater stays out (it offers any other app commit, newer or not)
-          printf '{"platform": "macos-arm64", "app_commit": "dev"}\n' > CaveCAD.app/Contents/Resources/cavecad-build.json
+          printf '{"platform": "macos-arm64", "app_commit": "dev"}\n' > "$R/cavecad-build.json"
           codesign --force --deep -s - CaveCAD.app
           codesign --verify --deep --strict CaveCAD.app
           hdiutil create -quiet -volname CaveCAD -srcfolder CaveCAD.app -ov \
@@ -62,3 +146,16 @@ jobs:
           name: cavecad-macos-test
           path: CaveCAD-macos-test.dmg
           if-no-files-found: error
+      # a full build leaves its compiled app for the fast path to reuse
+      - name: Keep the compiled app for the fast path
+        if: env.FAST != 'true'
+        run: |
+          cp app/CaveCAD.dmg base-test-macos-arm64.dmg
+          echo "$GITHUB_SHA" > base-test.commit
+          gh release view test-app-base -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create test-app-base -R "$GITHUB_REPOSITORY" --prerelease \
+              --title "Test app base (internal)" \
+              --notes "Compiled CaveCAD of the last full test build, reused by the macOS test build's fast path. Not for download." ||
+            gh release view test-app-base -R "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload test-app-base base-test-macos-arm64.dmg -R "$GITHUB_REPOSITORY" --clobber
+          gh release upload test-app-base base-test.commit -R "$GITHUB_REPOSITORY" --clobber
