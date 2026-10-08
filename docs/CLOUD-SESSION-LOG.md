@@ -16,6 +16,10 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### (app script, no tools bump) -- External Reference tab: Open XREF and settings switches
+- `RibbonCommands.js`: **Open XREF** button (opens the referenced file in its own window via `NewFile.createMdiChild`; refuses with a message when the file is missing). New **Settings** panel (`makeXrefToggles`): three switches for the selected xref -- Include its own references (Attach/Overlay), Keep the path relative, Update by itself (`CsXref.setAuto`) -- shown from the selection on a 400 ms timer. The old Overlay/Attach and Absolute/Relative buttons were replaced by the switches.
+- This is an APP script (scripts/Widgets/Ribbon), so it needs the app build, not only a tools repack. Untested in app.
+
 ### 0.9.215.13 -- fix: External References window opened with an error
 - Mac test: "Property 'clear' of object QListWidget is not a function". The window now uses a table (`QTableWidget`, the calls LinetypeMaker already proves in this bridge): columns Drawing / Attached / Path / State / File; `currentRow()` is a method there.
 - Note for local sessions: `QListWidget.clear()` is not callable in this engine build; `LayoutViews.ask` also uses a `QListWidget` (add + `item(r).checkState()` only) and is still untested.

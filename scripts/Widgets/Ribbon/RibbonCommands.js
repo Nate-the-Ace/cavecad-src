@@ -224,6 +224,65 @@ RibbonCommands.makeAreaControls = function(entry, parent) {
     return box;
 };
 
+/**
+ * Simple on/off switches for the selected external reference: whether it brings its own references with it
+ * (Attach), whether its path is kept relative, and whether it updates by itself when its file changes. They show the
+ * selected reference's settings (checked on a short timer while the tab is showing) and change them when clicked.
+ */
+RibbonCommands.makeXrefToggles = function(entry, parent) {
+    var box = new QWidget(parent);
+    box.objectName = "RibbonXrefToggles";
+    var col = new QVBoxLayout();
+    col.setContentsMargins(4, 0, 4, 0);
+    col.setSpacing(2);
+    box.setLayout(col);
+    var nested = new QCheckBox(qsTr("Include its own references"), box);
+    nested.toolTip = qsTr("On = Attach (it and whatever it refers to). Off = Overlay (its own drawing only).");
+    var relative = new QCheckBox(qsTr("Keep the path relative"), box);
+    relative.toolTip = qsTr("On = relative to this drawing's folder (a cave folder can move). Off = the full path. Save this drawing first to use relative.");
+    var auto = new QCheckBox(qsTr("Update by itself"), box);
+    auto.toolTip = qsTr("On = when the file changes, update without asking.");
+    col.addWidget(nested, 0, 0);
+    col.addWidget(relative, 0, 0);
+    col.addWidget(auto, 0, 0);
+    var current = function() {
+        var ctx = Ribbon.contextOf(entry);
+        if (typeof CsXref === "undefined" || isNull(ctx.selection) || isNull(ctx.selection.xrefBlocks)) { return null; }
+        var doc = entry.di.getDocument(), id = ctx.selection.xrefBlocks[0];
+        var t = CsXref.tagsOf(doc.queryBlock(id));
+        return isNull(t) ? null : { doc: doc, id: id, t: t };
+    };
+    var show = function() {
+        if (!box.visible || entry.dead === true) { return; }
+        var c = null;
+        try { c = current(); } catch (e) { c = null; }
+        nested.enabled = relative.enabled = auto.enabled = (c !== null);
+        if (c === null) { return; }
+        var set = function(cb, on) { if (cb.checked !== on) { cb.checked = on; } };
+        set(nested, c.t.style === CsXref.ATTACH);
+        set(relative, c.t.pathStyle === CsXref.RELATIVE);
+        set(auto, c.t.auto === true);
+    };
+    var act = function(fn) {
+        return function() {
+            var c = current();
+            if (c === null) { return; }
+            var res;
+            try { res = fn(c); } catch (e) { res = { ok: false, why: String(e) }; }
+            if (!isNull(res) && res.ok === false) { EAction.handleUserWarning(res.why); }
+            show();
+        };
+    };
+    nested.clicked.connect(act(function(c) { return CsXref.reload(c.doc, entry.di, c.id, { style: nested.checked ? CsXref.ATTACH : CsXref.OVERLAY }); }));
+    relative.clicked.connect(act(function(c) { return CsXref.setPathStyle(c.doc, entry.di, c.id, relative.checked ? CsXref.RELATIVE : CsXref.ABSOLUTE); }));
+    auto.clicked.connect(act(function(c) { return CsXref.setAuto(c.doc, entry.di, c.id, auto.checked); }));
+    var timer = new QTimer(box);
+    timer.interval = 400;
+    timer.timeout.connect(show);
+    timer.start();
+    return box;
+};
+
 /** Starts a script-file action that has no menu entry (one the ribbon cannot look up by file). */
 RibbonCommands.runByScript = function(path) {
     var a = isNull(path) ? undefined : RGuiAction.getByScriptFile(path);
@@ -577,19 +636,26 @@ RibbonCommands.register = function() {
         };
     };
     Ribbon.registerPanel("sel-xref", { id: "xr-use", title: qsTr("External reference"), order: 10, items: [
+        { type: "button", id: "xrefOpen", text: qsTr("Open\nXREF"), icon: "sheet", size: "large",
+          tooltip: qsTr("Open the referenced drawing in its own window, to edit it. Come back and press Update to see the change here."),
+          onClick: xrefAct(function(doc, di, id, t) {
+              var full = CsXref.fullPath(t.path, CsXref.baseDirOf(doc));
+              if (full === "" || CsXref.stampOf(full) === 0) {
+                  return { ok: false, why: qsTr("The file is missing, so it cannot be opened: %1").arg(full === "" ? t.path : full) };
+              }
+              include("scripts/File/NewFile/NewFile.js");
+              NewFile.createMdiChild(full);
+              return { ok: true, why: "" };
+          }) },
         { type: "button", id: "xrefUpdate", text: qsTr("Update"), icon: "back", size: "large",
           tooltip: qsTr("Read the referenced drawing again"),
           onClick: xrefAct(function(doc, di, id) { return CsXref.reload(doc, di, id, {}); }) },
-        { type: "button", id: "xrefStyle", text: qsTr("Overlay /\nAttach"), icon: "duplicate", size: "large",
-          tooltip: qsTr("Switch between Overlay (its own drawing only) and Attach (it and what it refers to)"),
-          onClick: xrefAct(function(doc, di, id, t) { return CsXref.reload(doc, di, id, { style: t.style === CsXref.ATTACH ? CsXref.OVERLAY : CsXref.ATTACH }); }) },
-        { type: "button", id: "xrefPath", text: qsTr("Absolute /\nRelative"), icon: "rename", size: "large",
-          tooltip: qsTr("Change how the file's path is kept"),
-          onClick: xrefAct(function(doc, di, id, t) { return CsXref.setPathStyle(doc, di, id, t.pathStyle === CsXref.RELATIVE ? CsXref.ABSOLUTE : CsXref.RELATIVE); }) },
         { type: "button", id: "xrefBind", text: qsTr("Bind"), icon: "lock", size: "large",
           tooltip: qsTr("Make it an ordinary block: the link is dropped, the picture stays"),
           onClick: xrefAct(function(doc, di, id) { return CsXref.detach(doc, di, id); }) },
         C(cs("XrefManager"), { text: qsTr("All\nreferences") }) ] });
+    Ribbon.registerPanel("sel-xref", { id: "xr-set", title: qsTr("Settings"), order: 20, items: [
+        { type: "widget", id: "xrefToggles", make: function(entry, parent) { return RibbonCommands.makeXrefToggles(entry, parent); } } ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
