@@ -32,10 +32,33 @@ referenced drawing is saved, an open drawing that uses it offers to update.
      existing watcher/prompt hooks would be bypassed.
    Recommendation: start with (b) for cave use (only plan/profile visuals are needed), keep the data model
    (block + file name + `|` names) identical so (a) can replace it later without breaking drawings.
-2. Attach: "Attach drawing..." picks a file (cave shelf aware, paths stored relative so a cave folder can move),
-   inserts one block reference carrying the whole visual, at a chosen point/scale/rotation. The drawing is
-   treated as one unit: selecting any part selects the whole reference; its layers show under `xref|LAYER`
-   and can be toggled/greyed as a group but not edited.
+2. Attach: "Attach drawing..." picks a file (cave shelf aware), asks the two options below, and inserts one
+   block reference carrying the whole visual, at a chosen point/scale/rotation. The drawing is treated as one
+   unit: selecting any part selects the whole reference; its layers show under `xref|LAYER` and can be
+   toggled/greyed as a group but not edited.
+
+   **Attachment style** (chosen per reference):
+   - **Overlay** - a visual only. This drawing sees the other drawing's own geometry, but not anything that
+     drawing has itself referenced. If drawing B is overlaid into A and B has xrefs of its own, those do not come
+     along into A. Also safe against loops: overlaying never makes the other drawing depend on this one.
+   - **Attach** - inherits the geometry and brings it along. If B has xrefs (overlay or attach) of its own, A
+     gets those too, one level at a time, as part of B. Use it to build a regional map out of caves that are
+     themselves built from references.
+   Rules: Attach carries nested references with it; Overlay stops at the first level; an Attach chain that
+   leads back to the drawing itself is refused (loop check), an Overlay that does so is allowed (it adds
+   nothing back). The style can be changed later without re-attaching (Overlay <-> Attach), and either can be
+   made a plain block (Bind).
+
+   **Path style** (chosen per reference): **Absolute** (the full path; first choice) or **Relative** (kept
+   relative to this drawing, so a cave folder can be moved or shared). Switching a reference between them later
+   is a button, and packaging/sharing a cave (`CsPackage`) offers to convert absolute paths to relative ones
+   so the package opens on another computer. A missing file under an absolute path is reported with its full
+   path; under a relative one, with where it looked.
+
+   **Defaults:** whatever the user picks last becomes the default the next time (kept in the user's settings,
+   one for style and one for path). The shipped/template defaults, used until the user has picked anything and
+   for the cave template, are **Overlay** and **Absolute**. The attach dialog shows both choices with the
+   remembered one selected.
 3. Dynamic link: watch the referenced file (reuse `fileSystemWatcher` for (a); a `QFileSystemWatcher` in the tools
    for (b)). On change, if the drawing is open show a non-blocking offer "<name> changed - update?" (Update now /
    Later / Always update this one). Also check on open and on layout switch for files changed while closed.
@@ -50,7 +73,10 @@ referenced drawing is saved, an open drawing that uses it offers to update.
    referenced files.
 7. Ribbon: a contextual "External Reference" tab when a reference is selected (Reload, Unload, Bind, Re-path,
    Open source), using the selection framework.
-Risks: circular references (A uses B uses A) - detect and refuse; a missing file must never delete the cached
+Risks: circular references (A attaches B attaches A) - detect and refuse (Overlay is exempt, see above);
+absolute paths breaking when a drawing is copied to another computer (the package conversion and a clear
+"missing file" message are the answer); which style to choose being unclear to a new user (the dialog
+explains each in one line); a missing file must never delete the cached
 visuals (keep the last good copy); big references slowing the drawing (cache a simplified copy, regenerate on
 update); coordinate/scale/unit mismatch between drawings; the same layer names clashing (the `xref|` prefix
 solves this only if every import path honours it); updating a drawing someone has open on another computer.
