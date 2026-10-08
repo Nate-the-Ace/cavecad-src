@@ -168,6 +168,17 @@ CaveSurvey.init = function(basePath, splash) {
         // degrade: the bar keeps the scale it was drawn at
     }
 
+    // Offer to update an external reference when its file has changed. Without it External
+    // References still updates by hand; this only makes the offer by itself.
+    try {
+        include(includeBasePath + "/XrefAttach/XrefListener.js");
+        if (typeof XrefListener !== "undefined") {
+            XrefListener.install();
+        }
+    } catch (eXref) {
+        // degrade to the External References list
+    }
+
     // Keep the 3D view following the drawing while the caver edits.
     // UNLIKE the three listeners above this one writes nothing -- it
     // reads the survey and pushes a mesh into a window -- so it carries

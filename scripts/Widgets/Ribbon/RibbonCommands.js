@@ -88,6 +88,15 @@ RibbonCommands.registerSelectionKinds = function() {
     var K = Ribbon.registerSelectionKind;
     // the surface above the cave (aerial photo, contours) is told apart by its LAYER: an aerial photo is an image
     // too, and must not be offered scan tools
+    // a placed external reference (a reference to a block that is linked to another drawing's file)
+    K({ id: "xref", order: 4, test: function(e, doc, out) {
+        if (typeof CsXref === "undefined" || typeof CsTags === "undefined") { return false; }
+        var x = CsXref.xrefOfReference(doc, e);
+        if (x === null) { return false; }
+        out.xrefBlocks = out.xrefBlocks || [];
+        out.xrefBlocks.push(x.blockId);
+        return true;
+    } });
     var SURFACE_LAYERS = { "CTRL-AERIAL": true, "CTRL-CONTOUR": true, "CTRL-CONTOUR-MAJOR": true };
     var onSurface = function(e, doc) {
         return SURFACE_LAYERS[String(doc.getLayerName(e.getLayerId()))] === true;
@@ -341,7 +350,8 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("cave", { id: "c-draw", title: qsTr("Draw and trace"), order: 30, items: [
         CS("DrawPanel", { text: qsTr("Draw") }),
         CS("SketchScans", { text: qsTr("Sketch\nscans") }),
-        K([ cs_("CrossSection", { text: qsTr("Cross section") }), cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]) ] });
+        K([ cs_("CrossSection", { text: qsTr("Cross section") }), cs_("GenerateProfile", { text: qsTr("Profile") }), cs_("ScatterBreakdown", { text: qsTr("Scatter") }) ]),
+        K([ cs_("XrefAttach", { text: qsTr("Attach drawing") }), cs_("XrefManager", { text: qsTr("External refs") }), cs_("LayoutViews", { text: qsTr("Sheets from views") }) ]) ] });
     Ribbon.registerPanel("cave", { id: "c-check", title: qsTr("Check and repair"), order: 40, items: [
         CS("CheckMap", { text: qsTr("Check\nmap") }),
         CS("LoopErrors", { text: qsTr("Loop\nerrors") }),
@@ -470,6 +480,31 @@ RibbonCommands.register = function() {
     Ribbon.registerSelectionTab({ id: "sel-sectionpart", title: qsTr("Section Drawing"), kind: "sectionpart" });
     Ribbon.registerPanel("sel-sectionpart", { id: "sp-use", title: qsTr("Section drawing"), order: 10, items: [
         C(cs("CrossSection"), { text: qsTr("Cross section\ntool") }) ] });
+
+    Ribbon.registerSelectionTab({ id: "sel-xref", title: qsTr("External Reference"), kind: "xref" });
+    var xrefAct = function(fn) {
+        return function(entry, ctx) {
+            if (typeof CsXref === "undefined" || isNull(ctx.selection) || isNull(ctx.selection.xrefBlocks)) { return; }
+            var doc = entry.di.getDocument(), id = ctx.selection.xrefBlocks[0];
+            var t = CsXref.tagsOf(doc.queryBlock(id));
+            var res = fn(doc, entry.di, id, t);
+            if (!isNull(res) && res.ok === false) { EAction.handleUserWarning(res.why); }
+        };
+    };
+    Ribbon.registerPanel("sel-xref", { id: "xr-use", title: qsTr("External reference"), order: 10, items: [
+        { type: "button", id: "xrefUpdate", text: qsTr("Update"), icon: "back", size: "large",
+          tooltip: qsTr("Read the referenced drawing again"),
+          onClick: xrefAct(function(doc, di, id) { return CsXref.reload(doc, di, id, {}); }) },
+        { type: "button", id: "xrefStyle", text: qsTr("Overlay /\nAttach"), icon: "duplicate", size: "large",
+          tooltip: qsTr("Switch between Overlay (its own drawing only) and Attach (it and what it refers to)"),
+          onClick: xrefAct(function(doc, di, id, t) { return CsXref.reload(doc, di, id, { style: t.style === CsXref.ATTACH ? CsXref.OVERLAY : CsXref.ATTACH }); }) },
+        { type: "button", id: "xrefPath", text: qsTr("Absolute /\nRelative"), icon: "rename", size: "large",
+          tooltip: qsTr("Change how the file's path is kept"),
+          onClick: xrefAct(function(doc, di, id, t) { return CsXref.setPathStyle(doc, di, id, t.pathStyle === CsXref.RELATIVE ? CsXref.ABSOLUTE : CsXref.RELATIVE); }) },
+        { type: "button", id: "xrefBind", text: qsTr("Bind"), icon: "lock", size: "large",
+          tooltip: qsTr("Make it an ordinary block: the link is dropped, the picture stays"),
+          onClick: xrefAct(function(doc, di, id) { return CsXref.detach(doc, di, id); }) },
+        C(cs("XrefManager"), { text: qsTr("All\nreferences") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };

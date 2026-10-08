@@ -280,6 +280,8 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsLayoutGen.js",
     // The views a sheet can be made of (pure half: build / pick / safeName).
     "scripts/CaveSurvey/Core/CsViews.js",
+    // External references: paths, remembered defaults and the nesting plan are pure.
+    "scripts/CaveSurvey/Core/CsXref.js",
     // Pure: exaggeration, colour bands, arrow geometry and the caption
     // that has to state the exaggeration.
     "scripts/CaveSurvey/Core/CsClosure.js",
@@ -28307,6 +28309,51 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     ok(vJobs[0].wants.north === true && vJobs[1].wants.north === false && vJobs[2].wants.north === false,
         "CsLayoutGen.plan: only the plan sheet gets a north arrow");
     ok(CsLayoutGen.OTHER_FRAMES.section.join() === "plan,profile", "CsLayoutGen: a section sheet freezes the plan and profile layers");
+
+    // CsXref: external references -- paths, defaults, and which drawings a drawing sees through its references
+    eqs(CsXref.normalize("/a/b/../c/./d.dxf"), "/a/c/d.dxf", "CsXref.normalize: dots and double dots collapse");
+    eqs(CsXref.normalize("C:\\Caves\\Truitt\\..\\Jones.dxf"), "C:/Caves/Jones.dxf", "CsXref.normalize: a Windows path keeps its drive");
+    ok(CsXref.isAbsolute("/a/b") && CsXref.isAbsolute("C:/a") && !CsXref.isAbsolute("a/b") && !CsXref.isAbsolute("../a"), "CsXref.isAbsolute");
+    eqs(CsXref.stem("/x/Truitt Cave.dxf"), "Truitt Cave", "CsXref.stem: the file name without its extension");
+    eqs(CsXref.dirname("/x/y/z.dxf"), "/x/y", "CsXref.dirname");
+    eqs(CsXref.relative("/caves/truitt", "/caves/jones/map.dxf"), "../jones/map.dxf", "CsXref.relative: up and over");
+    eqs(CsXref.relative("/caves/truitt", "/caves/truitt/sub/map.dxf"), "sub/map.dxf", "CsXref.relative: down");
+    eqs(CsXref.relative("/caves/truitt", "/caves/truitt/map.dxf"), "map.dxf", "CsXref.relative: beside");
+    eqs(CsXref.relative("C:/caves", "D:/other/map.dxf"), "D:/other/map.dxf", "CsXref.relative: a different drive stays absolute");
+    eqs(CsXref.fullPath("../jones/map.dxf", "/caves/truitt"), "/caves/jones/map.dxf", "CsXref.fullPath: a relative path resolves against the folder");
+    eqs(CsXref.fullPath("../jones/map.dxf", ""), "", "CsXref.fullPath: no folder (unsaved drawing), no answer");
+    eqs(CsXref.fullPath("/abs/map.dxf", ""), "/abs/map.dxf", "CsXref.fullPath: an absolute path needs no folder");
+    eqs(CsXref.toStored("/caves/jones/map.dxf", "absolute", "/caves/truitt"), "/caves/jones/map.dxf", "CsXref.toStored: absolute keeps the full path");
+    eqs(CsXref.toStored("/caves/jones/map.dxf", "relative", "/caves/truitt"), "../jones/map.dxf", "CsXref.toStored: relative is from the drawing's folder");
+    eqs(CsXref.toStored("/caves/jones/map.dxf", "relative", ""), "/caves/jones/map.dxf", "CsXref.toStored: relative without a folder falls back to absolute");
+    ok(CsXref.key("C:/A/B.dxf") === CsXref.key("c:\\a\\b.DXF"), "CsXref.key: the same file however it is spelled");
+    // defaults: Overlay and Absolute until the user chooses; then what they chose
+    var xs = {};
+    var xd = CsXref.defaults(function(k, f) { return xs.hasOwnProperty(k) ? xs[k] : f; });
+    ok(xd.style === "overlay" && xd.pathStyle === "absolute", "CsXref.defaults: Overlay and Absolute to begin with");
+    CsXref.remember("attach", "relative", function(k, v) { xs[k] = v; });
+    xd = CsXref.defaults(function(k, f) { return xs.hasOwnProperty(k) ? xs[k] : f; });
+    ok(xd.style === "attach" && xd.pathStyle === "relative", "CsXref.defaults: what the user chose last is the default from then on");
+    xs[CsXref.SETTING_STYLE] = "nonsense";
+    ok(CsXref.defaults(function(k, f) { return xs.hasOwnProperty(k) ? xs[k] : f; }).style === "overlay", "CsXref.defaults: a damaged setting falls back to Overlay");
+    // the nesting plan
+    var G = function(g) { return function(p) { return g[p] || []; }; };
+    var seen = function(plan) { return plan.include.map(function(x) { return x.path.replace("/", ""); }).sort().join(","); };
+    var p1 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "overlay" }], "/B": [{ path: "/C", style: "attach" }] }));
+    ok(seen(p1) === "B" && p1.loops.length === 0, "CsXref.plan: overlaying B shows B only -- what B attaches does not come along");
+    var p2 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "attach" }], "/B": [{ path: "/C", style: "overlay" }, { path: "/D", style: "attach" }], "/D": [{ path: "/E", style: "overlay" }], "/C": [{ path: "/Z", style: "overlay" }] }));
+    ok(seen(p2) === "B,C,D,E", "CsXref.plan: attaching B brings B's references (C, D); an attached D brings E; an overlaid C does not bring Z: " + seen(p2));
+    var p3 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "overlay" }], "/B": [{ path: "/A", style: "attach" }] }));
+    ok(seen(p3) === "B" && p3.loops.length === 0, "CsXref.plan: an overlay stops at B, so B attaching A is not a loop for A");
+    var p4 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "attach" }], "/B": [{ path: "/A", style: "attach" }] }));
+    ok(p4.loops.length === 1 && p4.loops[0].to === "/A", "CsXref.plan: A attaches B attaches A is a loop, and is reported");
+    var p5 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "attach" }], "/B": [{ path: "/C", style: "attach" }], "/C": [{ path: "/B", style: "attach" }] }));
+    ok(p5.loops.length === 1 && seen(p5) === "B,C", "CsXref.plan: a ring that does not include the root is found too");
+    var p6 = CsXref.plan("/A", G({ "/A": [{ path: "/B", style: "attach" }, { path: "/C", style: "attach" }], "/B": [{ path: "/D", style: "attach" }], "/C": [{ path: "/D", style: "attach" }] }));
+    ok(seen(p6) === "B,C,D" && p6.include.length === 3, "CsXref.plan: a drawing reached by two routes is shown once");
+    var nm = CsXref.blockNameFor("Truitt: Cave/1", function(n) { return n === "XREF-Truitt Cave 1"; });
+    eqs(nm, "XREF-Truitt Cave 1-2", "CsXref.blockNameFor: unsafe characters go, and a taken name gets a number");
+    eqs(CsXref.layerPrefix("Truitt Cave"), "Truitt Cave|", "CsXref.layerPrefix: the drawing's name and a bar");
 
     // TEXT NEVER ROTATES: turn the reference itself by 90 degrees and the drawing counter-turns, so what SHOWS is unchanged
     var nc = CsNorth.layout(0.3, 12, nSpec, Math.PI / 2), nw = CsNorth.layout(0.3, 12, nSpec, 0);
