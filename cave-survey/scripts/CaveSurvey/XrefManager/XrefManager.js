@@ -27,7 +27,12 @@ XrefManager.prototype.beginEvent = function() {
         this.terminate();
         return;
     }
-    XrefManager.show(doc, di);
+    try {
+        XrefManager.show(doc, di);
+    }
+    catch (e) {
+        CsTell.warn(qsTr("External References could not open: %1").arg(String(e)));
+    }
     this.terminate();
 };
 

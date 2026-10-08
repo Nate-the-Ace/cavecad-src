@@ -17,6 +17,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.10 -- Attach Drawing / External References say what went wrong
+- Reported: the xref command opened no popup. Cause not found by reading (no run possible): the command code looks right. Both commands now catch any error and show it in a box (`XrefAttach.pickAndAsk`, XrefManager), and Attach uses the whole-drawing guard (`blocksWhole`). Need the box text, and which way it was started (ribbon button, menu or typed command), from a Mac build.
+
 ### 0.9.215.9 -- grid is ONE dynamic block that follows its viewport
 - Reported: the grid was many loose pieces and did not move with the viewport.
 - `CsLayoutFurniture`: `gridLayout` (pure, inches from the viewport's lower-left), `gridParams`, `gridSig`, `gridDraw`, `gridRef`, `gridTag`, `addGrid` (now one block `GRID-<guid>`, GUID saved on the viewport), `syncGrid`/`syncGrids`; `removeFor("grid")` purges the block.

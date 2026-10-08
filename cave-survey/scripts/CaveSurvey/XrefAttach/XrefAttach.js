@@ -80,8 +80,21 @@ XrefAttach.ask = function(name, canBeRelative) {
 XrefAttach.prototype.beginEvent = function() {
     EAction.prototype.beginEvent.call(this);
     this.choice = undefined;
+    // Anything that goes wrong is SAID in a box (a script error alone is invisible to the caver: the command just
+    // seems to do nothing).
+    try {
+        this.pickAndAsk();
+    }
+    catch (e) {
+        this.choice = undefined;
+        CsTell.warn(qsTr("Attach Drawing could not start: %1").arg(String(e)));
+        this.terminate();
+    }
+};
+
+XrefAttach.prototype.pickAndAsk = function() {
     var doc = this.getDocument();
-    if (isNull(doc) || CsModelSpace.blocks(doc, qsTr("Attach Drawing"))) {
+    if (isNull(doc) || CsModelSpace.blocksWhole(doc, qsTr("Attach Drawing"))) {
         this.terminate();
         return;
     }
