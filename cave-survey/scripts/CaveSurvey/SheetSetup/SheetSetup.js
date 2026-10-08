@@ -204,6 +204,9 @@ SheetSetup.titleValues = function(doc, filled) {
     var values = {};
     for (var f = 0; f < CsSheet.FIELDS.length; f++) {
         var field = CsSheet.FIELDS[f];
+        if (field.perSheet === true) {
+            continue;       // the sheet number is each sheet's own (its Layout tab's name), never one value for all
+        }
         var existing = SheetSetup.readWhole(doc, field);
         if (String(existing).replace(/\s/g, "") !== "") {
             values[field.id] = existing;

@@ -1241,6 +1241,22 @@ else
 fi
 
 echo
+echo "=============================================================="
+echo " Sheet number = Layout tab name, both ways (renamed sheets keep their identity)"
+echo "=============================================================="
+if [ -e "$QCAD" ]; then
+    output=$("$QCAD" -no-dock-icon -no-gui -allow-multiple-instances \
+                 -autostart tests/sheet_names_run.js "$PWD" 2>/dev/null)
+    echo "$output"
+    case "$output" in
+        *"### SHEET NAMES OK"*) ;;
+        *) echo "Sheet names run did not pass."; status=1 ;;
+    esac
+else
+    echo "SKIP: CaveCAD not found at $QCAD"
+fi
+
+echo
 if [ "$status" -eq 0 ]; then
     if [ "$engine" -eq 0 ]; then
         echo "STRUCTURAL TESTS PASSED -- the 43 engine suites were SKIPPED"

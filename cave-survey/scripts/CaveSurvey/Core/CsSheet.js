@@ -33,6 +33,11 @@ CsSheet.FIELDS = [
     { id: "caveName", block: "TB_CAVE_NAME", label: "Cave name",
         prefix: "", required: true,
         hint: "Unabbreviated, most prominent text on the sheet." },
+    // PER SHEET: the name of the layout this title block is on (the Layout tab). Rename the tab and this follows;
+    // edit this and the tab is renamed (CsSheetLink, CsLayoutGen.refreshNames, SheetNameListener).
+    { id: "sheetNumber", block: "TB_SHEET_NUMBER", label: "Sheet", perSheet: true,
+        prefix: "Sheet:  ", required: false,
+        hint: "The sheet's name -- the same as its Layout tab. Change either and the other follows." },
     { id: "location", block: "TB_LOCATION", label: "Geographic location",
         prefix: "Location:  ", required: true,
         hint: "State and county at minimum. Coordinates must name their system, units and datum." },

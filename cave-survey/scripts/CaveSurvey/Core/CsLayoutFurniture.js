@@ -530,6 +530,43 @@ CsLayoutFurniture.addIndex = function(doc, di, info, x, y) {
 // only after the caver has said so in as many words.
 // ---------------------------------------------------------------------
 
+/**
+ * Redraws a layout's sheet index where it stands, if it has one and what it lists is out of date (a layout was
+ * renamed, added or removed). Compares what the index SAYS to what it should say first, so an index that is right
+ * is never touched.
+ *
+ * \return 1 when it was redrawn, else 0
+ */
+CsLayoutFurniture.refreshIndex = function(doc, di, info) {
+    var heading = null, have = [];
+    var ids = doc.queryBlockEntities(info.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (isNull(e) || e.isUndone() || CsTags.get(e, "SheetIndex") === "") {
+            continue;
+        }
+        var t = CsSheet.textOf(e);
+        have.push(t);
+        if (t === qsTr("SHEET INDEX")) {
+            heading = e;
+        }
+    }
+    if (heading === null) {
+        return 0;
+    }
+    var want = [qsTr("SHEET INDEX")], rows = CsLayoutFurniture.indexRows(doc);
+    for (var r = 0; r < rows.length; r++) {
+        want.push(rows[r].name, rows[r].paper, rows[r].scale);
+    }
+    var a = have.slice().sort().join("\n"), b = want.slice().sort().join("\n");
+    if (a === b) {
+        return 0;
+    }
+    var at = heading.getPosition();
+    CsLayoutFurniture.addIndex(doc, di, info, at.x, at.y);
+    return 1;
+};
+
 CsLayoutFurniture.GRID_STEPS = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
 
 /** The first step (in the drawing's own units) at which grid lines are at least `minIn` inches apart on paper. */

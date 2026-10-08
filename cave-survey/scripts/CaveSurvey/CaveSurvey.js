@@ -168,6 +168,17 @@ CaveSurvey.init = function(basePath, splash) {
         // degrade: the bar keeps the scale it was drawn at
     }
 
+    // Keep a sheet's number and its Layout tab's name the same, both ways. Without it the names
+    // agree whenever a sheet is built; it only makes a rename or an edit take effect by itself.
+    try {
+        include(includeBasePath + "/SheetSetup/SheetNameListener.js");
+        if (typeof SheetNameListener !== "undefined") {
+            SheetNameListener.install();
+        }
+    } catch (eNames) {
+        // degrade: names agree at the next build
+    }
+
     // Offer to update an external reference when its file has changed. Without it External
     // References still updates by hand; this only makes the offer by itself.
     try {

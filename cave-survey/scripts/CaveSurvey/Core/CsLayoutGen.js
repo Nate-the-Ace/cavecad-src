@@ -71,7 +71,13 @@ CsLayoutGen.OTHER_FRAMES = {
  */
 CsLayoutGen.plan = function(o) {
     var wants = isNull(o.wants) ? { border: true, bar: true, north: true, title: true } : o.wants;
-    var titleLines = (wants.title === true) ? CsSheetSetup.titleLines(o.titleValues) : [];
+    // the title block is sized WITH its Sheet line (each sheet's own name is put in when it is drawn)
+    var titleValuesSized = {};
+    for (var tvk in (isNull(o.titleValues) ? {} : o.titleValues)) {
+        if (o.titleValues.hasOwnProperty(tvk)) { titleValuesSized[tvk] = o.titleValues[tvk]; }
+    }
+    titleValuesSized.sheetNumber = "A1";
+    var titleLines = (wants.title === true) ? CsSheetSetup.titleLines(titleValuesSized) : [];
     var titleHeight = CsSheetSetup.linesHeight(titleLines) + 0.2;
     var turned = o.turned === true;
     var W = turned ? o.sheet.h : o.sheet.w;
@@ -369,10 +375,12 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
             else if (ml.edge === "W") { tx = a.x + gap; angle = Math.PI / 2; }
             else if (ml.edge === "S") { ty = a.y + gap; }
             else { ty = a.y - gap; }
-            text(tx, ty, CsSheetSetup.TEXT.body, CsSheetTile.matchText(ml.to),
+            // the neighbour is named by its CURRENT tab name; the text remembers which job it points at
+            var mtext = text(tx, ty, CsSheetSetup.TEXT.body, CsSheetTile.matchText(CsLayoutGen.nameOfJobId(doc, ml.to)),
                 CsLayers.BORDER, "matchline", false, angle, RS.HAlignCenter);
+            CsTags.set(mtext, CsLayoutGen.TAG_MATCHTO, String(ml.to));
         }
-        text(m * 1.2, H - m * 1.5, CsSheetSetup.TEXT.caveName * 0.8, "SHEET " + tile.id,
+        text(m * 1.2, H - m * 1.5, CsSheetSetup.TEXT.caveName * 0.8, CsSheetLink.cornerFor(info.name),
             CsLayers.BORDER, "sheetid");
         drew.push("sheet " + tile.id + (tile.matches.length > 0 ? " with " + tile.matches.length +
             " match line" + (tile.matches.length === 1 ? "" : "s") : ""));
@@ -407,11 +415,22 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
     }
 
     if (wants.title === true) {
-        var lines = job.titleLines;
+        // the Sheet line says THIS layout's name (the tab), whatever the job was planned with
+        var lines = [];
+        for (var tl = 0; tl < job.titleLines.length; tl++) {
+            var jl = job.titleLines[tl];
+            lines.push(jl.fieldId === CsSheetLink.SHEET_FIELD ?
+                { text: CsSheetLink.lineFor(info.name), inches: jl.inches, fieldId: jl.fieldId } : jl);
+        }
         var tOff = off("title");
         var titleX = leftX + fur.pieces.title.x + tOff.x;
         var y = footY + fur.pieces.title.y + CsSheetSetup.linesHeight(lines) + tOff.y;
-        CsLayoutGen.drawTitle(env, titleX, y, lines, isNull(ex.titleValues) ? {} : ex.titleValues, job.kind);
+        var titleVals = {};
+        for (var tk in (isNull(ex.titleValues) ? {} : ex.titleValues)) {
+            if (ex.titleValues.hasOwnProperty(tk)) { titleVals[tk] = ex.titleValues[tk]; }
+        }
+        titleVals.sheetNumber = info.name;
+        CsLayoutGen.drawTitle(env, titleX, y, lines, titleVals, job.kind);
         drew.push("a title block");
     }
 
@@ -458,6 +477,10 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
 
 /** Custom-property keys on the layout (title "CaveCAD"). */
 CsLayoutGen.PROP_SIG = "LayoutSig";
+/** The id of the job that made a sheet: how a generated sheet is found again after its tab is renamed. */
+CsLayoutGen.PROP_JOBID = "LayoutJobId";
+/** On a match-line label: the id of the job (sheet) it points at, so a rename can rewrite it. */
+CsLayoutGen.TAG_MATCHTO = "MatchTo";
 CsLayoutGen.PROP_JOB = "LayoutJob";
 
 // 1e-5 of a drawing unit: well inside what a DXF file keeps, well under a
@@ -604,6 +627,7 @@ CsLayoutGen.stamp = function(doc, di, job, name) {
     var info = Layouts.get(doc, name);
     var layout = doc.queryLayout(info.layoutId);
     layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_SIG, CsLayoutGen.signature(doc, info));
+    layout.setCustomProperty("CaveCAD", CsLayoutGen.PROP_JOBID, String(job.id));
     CsLayoutGen.storeJob(layout, JSON.stringify(job));
     var op = new RModifyObjectsOperation();
     op.setText(qsTr("Generate sheet"));
@@ -651,6 +675,93 @@ CsLayoutGen.revert = function(doc, di, name, extra) {
     CsLayoutGen.stamp(doc, di, job, name);
     doc.setCurrentBlock(saved);
     return true;
+};
+
+/** The id of the job a layout was generated from, or "". */
+CsLayoutGen.jobIdOf = function(doc, info) {
+    var layout = doc.queryLayout(info.layoutId);
+    if (isNull(layout)) {
+        return "";
+    }
+    var v = layout.getCustomProperty("CaveCAD", CsLayoutGen.PROP_JOBID);
+    return (isNull(v) || String(v) === "undefined") ? "" : String(v);
+};
+
+/**
+ * The layout a job made, if it is still there: by the job's id (so a renamed tab is still that sheet), else by
+ * name for a layout that was never generated. undefined when there is none (a new sheet is to be made).
+ */
+CsLayoutGen.findSheet = function(doc, job) {
+    var all = Layouts.list(doc), cands = [];
+    for (var i = 0; i < all.length; i++) {
+        cands.push({ name: all[i].name, jobId: CsLayoutGen.jobIdOf(doc, all[i]) });
+    }
+    var hit = CsSheetLink.pickSheet(cands, job.id, job.name);
+    return hit === null ? undefined : Layouts.get(doc, hit.name);
+};
+
+/** The CURRENT tab name of the sheet a job id made (the id itself when there is no such sheet). */
+CsLayoutGen.nameOfJobId = function(doc, jobId) {
+    var all = Layouts.list(doc);
+    for (var i = 0; i < all.length; i++) {
+        if (CsLayoutGen.jobIdOf(doc, all[i]) === String(jobId)) {
+            return all[i].name;
+        }
+    }
+    return String(jobId);
+};
+
+/**
+ * Brings every piece of text that SAYS a sheet's name back in line with the tab names: each sheet's own Sheet line
+ * (the title block's sheetNumber field), the "SHEET A1" corner label of a tiled sheet, and the match lines that
+ * name a neighbour. Then the sheet indexes are redrawn. Idempotent: it writes only what differs, so calling it
+ * after every change to a layout is cheap and never loops.
+ *
+ * \param group  transaction group to join, or -1
+ * \param quiet  true: not undoable (the transaction being answered is an undo or redo, or has no group to join)
+ * \return how many pieces of text were rewritten
+ */
+CsLayoutGen.refreshNames = function(doc, di, group, quiet) {
+    var layouts = Layouts.list(doc);
+    var op = new RModifyObjectsOperation(quiet !== true);
+    op.setText(qsTr("Sheet names"));
+    if (group >= 0) {
+        op.setTransactionGroup(group);
+    }
+    var n = 0;
+    for (var l = 0; l < layouts.length; l++) {
+        var info = layouts[l];
+        var ids = doc.queryBlockEntities(info.blockId);
+        for (var i = 0; i < ids.length; i++) {
+            var e = doc.queryEntity(ids[i]);
+            if (isNull(e) || e.isUndone() || !CsSheet.isText(e)) {
+                continue;
+            }
+            var want = null;
+            if (CsTags.get(e, CsSheet.TAG) === CsSheetLink.SHEET_FIELD) {
+                want = CsSheetLink.lineFor(info.name);
+            }
+            else if (CsTags.get(e, CsLayoutGen.TAG) === "sheetid") {
+                want = CsSheetLink.cornerFor(info.name);
+            }
+            else if (CsTags.get(e, CsLayoutGen.TAG_MATCHTO) !== "") {
+                want = CsSheetTile.matchText(CsLayoutGen.nameOfJobId(doc, CsTags.get(e, CsLayoutGen.TAG_MATCHTO)));
+            }
+            if (want !== null && CsSheet.textOf(e) !== want) {
+                e.setText(want);
+                op.addObject(e, false);
+                n++;
+            }
+        }
+    }
+    if (n > 0) {
+        di.applyOperation(op);
+    }
+    // a sheet index lists layout names: redraw each where it stands
+    for (var x = 0; x < layouts.length; x++) {
+        n += CsLayoutFurniture.refreshIndex(doc, di, layouts[x]);
+    }
+    return n;
 };
 
 /** Every entity in a layout's block that the generator drew. */
@@ -707,10 +818,11 @@ CsLayoutGen.generate = function(doc, di, o) {
     var savedBlock = doc.getCurrentBlockId();
     for (var j = 0; j < jobs.length; j++) {
         var job = jobs[j];
-        var info = Layouts.get(doc, job.name);
+        // found by the job's id: a sheet whose tab was renamed is still the sheet this job made
+        var info = CsLayoutGen.findSheet(doc, job);
         if (!isNull(info) && CsLayoutGen.state(doc, info) !== "auto") {
             // manual, or generated and edited since: the person's now
-            res.skipped.push(job.name);
+            res.skipped.push(info.name);
             continue;
         }
         if (isNull(info) && j === 0) {
@@ -739,7 +851,7 @@ CsLayoutGen.generate = function(doc, di, o) {
         }
         else {
             // paper may have changed
-            info = Layouts.pageSetup(di, job.name, {
+            info = Layouts.pageSetup(di, info.name, {
                 paper: { w: job.paperInches.w * 25.4, h: job.paperInches.h * 25.4 },
                 landscape: job.paperInches.w >= job.paperInches.h,
                 margins: job.marginInches * 25.4 });
@@ -752,10 +864,10 @@ CsLayoutGen.generate = function(doc, di, o) {
                 }
                 di.applyOperation(del);
             }
-            res.rewritten.push(job.name);
+            res.rewritten.push(info.name);
         }
         CsLayoutGen.draw(doc, di, job, info, o.extra);
-        CsLayoutGen.stamp(doc, di, job, job.name);
+        CsLayoutGen.stamp(doc, di, job, info.name);
     }
     doc.setCurrentBlock(savedBlock);
     return res;

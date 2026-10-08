@@ -282,6 +282,8 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsViews.js",
     // External references: paths, remembered defaults and the nesting plan are pure.
     "scripts/CaveSurvey/Core/CsXref.js",
+    // The title block's linked fields and the sheet number: pure.
+    "scripts/CaveSurvey/Core/CsSheetLink.js",
     // Pure: exaggeration, colour bands, arrow geometry and the caption
     // that has to state the exaggeration.
     "scripts/CaveSurvey/Core/CsClosure.js",
@@ -28309,6 +28311,33 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     ok(vJobs[0].wants.north === true && vJobs[1].wants.north === false && vJobs[2].wants.north === false,
         "CsLayoutGen.plan: only the plan sheet gets a north arrow");
     ok(CsLayoutGen.OTHER_FRAMES.section.join() === "plan,profile", "CsLayoutGen: a section sheet freezes the plan and profile layers");
+
+    // CsSheetLink: the sheet number is the layout name; linked title block fields follow the notebook, never over a person
+    eqs(CsSheetLink.lineFor("A1"), "SHEET:  A1", "CsSheetLink.lineFor: the sheet-number line is lettered like the rest");
+    eqs(CsSheetLink.nameFromLine("SHEET:  A1"), "A1", "CsSheetLink.nameFromLine: the name is read back from the line");
+    eqs(CsSheetLink.nameFromLine("  sheet :   Plan 2 "), "Plan 2", "CsSheetLink.nameFromLine: spacing and case do not matter");
+    eqs(CsSheetLink.nameFromLine("B3"), "B3", "CsSheetLink.nameFromLine: a bare name is a name");
+    eqs(CsSheetLink.nameFromLine(""), "", "CsSheetLink.nameFromLine: nothing in, nothing out");
+    eqs(CsSheetLink.cornerFor("A1"), "SHEET A1", "CsSheetLink.cornerFor");
+    var shL = [{ name: "B2", jobId: "A1" }, { name: "A2", jobId: "A2" }, { name: "Plan", jobId: "" }, { name: "Notes", jobId: "" }];
+    eqs(CsSheetLink.pickSheet(shL, "A1", "A1").name, "B2", "CsSheetLink.pickSheet: a renamed tab is still the sheet its job made");
+    eqs(CsSheetLink.pickSheet(shL, "Plan", "Plan").name, "Plan", "CsSheetLink.pickSheet: a layout never generated is found by name");
+    ok(CsSheetLink.pickSheet(shL, "A2", "A1") !== null && CsSheetLink.pickSheet(shL, "A2", "A1").name === "A2", "CsSheetLink.pickSheet: the id wins over a different name");
+    ok(CsSheetLink.pickSheet([{ name: "A1", jobId: "Z9" }], "A1", "A1") === null, "CsSheetLink.pickSheet: a sheet generated as another job is never taken by name");
+    ok(CsSheetLink.pickSheet(shL, "Q7", "Q7") === null, "CsSheetLink.pickSheet: nothing matches, nothing is picked (a new sheet is made)");
+    var dup = CsSheetLink.pickSheet([{ name: "A1 copy", jobId: "A1" }, { name: "A1", jobId: "A1" }], "A1", "A1");
+    eqs(dup.name, "A1", "CsSheetLink.pickSheet: a duplicated sheet shares the id; the one still named for the job wins");
+    // linked fields
+    var dAuto = function(text, link, last, now) { return CsSheetLink.decide({ text: text, link: link, lastAuto: last }, now).action; };
+    eqs(dAuto("LENGTH:  100 FT", "auto", "LENGTH:  100 FT", "LENGTH:  150 FT"), "set", "CsSheetLink.decide: the notebook moved on, an untouched linked field follows");
+    eqs(dAuto("LENGTH:  100 FT", "auto", "LENGTH:  100 FT", "LENGTH:  100 FT"), "none", "CsSheetLink.decide: nothing changed, nothing is written");
+    eqs(dAuto("LENGTH:  100 FT", "auto", "", "LENGTH:  100 FT"), "mark", "CsSheetLink.decide: right already but not yet recorded, only record it");
+    eqs(dAuto("LENGTH:  ABOUT 90", "auto", "LENGTH:  100 FT", "LENGTH:  150 FT"), "manual", "CsSheetLink.decide: a person typed over it, so it becomes manual and is left alone");
+    eqs(dAuto("LENGTH:  ABOUT 90", "manual", "LENGTH:  100 FT", "LENGTH:  150 FT"), "none", "CsSheetLink.decide: a manual field is never overwritten");
+    eqs(dAuto("SURVEYED BY:  ME", "auto", "SURVEYED BY:  ME", null), "none", "CsSheetLink.decide: the notebook has no answer, so what is there stays");
+    eqs(dAuto("COPYRIGHT 2026", "", "", "COPYRIGHT 2027"), "none", "CsSheetLink.decide: a field that was never linked is left alone");
+    ok(CsSheetLink.isNotebookField("length") && CsSheetLink.isNotebookField("caveName") && !CsSheetLink.isNotebookField("location"),
+        "CsSheetLink: Location is never a linked field");
 
     // CsXref: external references -- paths, defaults, and which drawings a drawing sees through its references
     eqs(CsXref.normalize("/a/b/../c/./d.dxf"), "/a/c/d.dxf", "CsXref.normalize: dots and double dots collapse");

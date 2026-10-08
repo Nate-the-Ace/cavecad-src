@@ -305,6 +305,8 @@ include(includeBasePath + "/CsLayoutGen.js");
 include(includeBasePath + "/CsViews.js");
 // External references: another drawing's visuals as one linked unit (needs CsTags).
 include(includeBasePath + "/CsXref.js");
+// The title block's linked fields and the sheet number = layout name (pure).
+include(includeBasePath + "/CsSheetLink.js");
 // After CsAdjust (whose per-station shifts it draws) and CsNetwork
 // (whose loops it labels): turning a closure percentage into arrows.
 include(includeBasePath + "/CsClosure.js");
