@@ -48,6 +48,103 @@ Ribbon.registerTab = function(def) {
     }
 };
 
+// ---------------------------------------------------------------------
+// Selection tabs: tabs that follow what is selected
+// ---------------------------------------------------------------------
+
+/**
+ * TO ADD A TAB THAT FOLLOWS A KIND OF OBJECT (two steps):
+ *
+ *   1. Say how to recognise the object:
+ *        Ribbon.registerSelectionKind({ id: "symbol", order: 60,
+ *            test: function(e, doc, out) { return isThisAThing(e); } });
+ *      `test` gets one selected entity. The first kind (lowest `order`) whose test is true wins;
+ *      an entity no kind claims is "other". `test` may stash extras on `out` (out.symbolNames = ...)
+ *      for buttons to read later from ctx.selection. A kind about the whole selection rather than
+ *      single entities (an area is a boundary plus its fill) gives `resolve(doc, ids, out)` instead:
+ *      it gets the ids of the "other" entities and returns the ids that make up the kind.
+ *      Both may be given. `begin()` runs once per classification, to clear caches.
+ *
+ *   2. Declare the tab and put panels on it, as on any tab:
+ *        Ribbon.registerSelectionTab({ id: "sel-symbol", title: qsTr("Symbol"), kind: "symbol" });
+ *        Ribbon.registerPanel("sel-symbol", { id: "sy-use", title: qsTr("Symbol"), items: [ ... ] });
+ *
+ * The tab shows while at least one selected entity is of its kind. It is NOT accented, so it appears
+ * without taking focus from the tab you are on (add `accent: true` to make it take focus).
+ * Buttons can check ctx.selection: { count, kinds: {kind: n}, ids: {kind: [ids]}, kind: the only
+ * kind, or "mixed", truncated, + whatever tests stashed }, undefined when nothing is selected.
+ * The host classifies once per selection or transaction signal (it queries each entity), never
+ * from the poll (see LayoutTabs.selectionOf).
+ */
+Ribbon.selectionKinds = [];
+Ribbon.SELECTION_LIMIT = 500;
+
+Ribbon.registerSelectionKind = function(def) {
+    for (var i = 0; i < Ribbon.selectionKinds.length; i++) {
+        if (Ribbon.selectionKinds[i].id === def.id) { Ribbon.selectionKinds[i] = def; return; }
+    }
+    Ribbon.selectionKinds.push(def);
+    Ribbon.selectionKinds.sort(function(a, b) { return (isNull(a.order) ? 100 : a.order) - (isNull(b.order) ? 100 : b.order); });
+};
+
+/** True when the context's selection holds at least one entity of `kind`. */
+Ribbon.selects = function(ctx, kind) {
+    return !isNull(ctx.selection) && (ctx.selection.kinds[kind] || 0) > 0;
+};
+
+/** A tab that shows while something of `def.kind` is selected. */
+Ribbon.registerSelectionTab = function(def) {
+    var kind = def.kind;
+    def.when = function(ctx) { return Ribbon.selects(ctx, kind); };
+    Ribbon.registerTab(def);
+};
+
+/** What the selection holds, or undefined when nothing is selected (see registerSelectionKind). */
+Ribbon.classifySelection = function(doc) {
+    if (isNull(doc)) { return undefined; }
+    var all = doc.querySelectedEntities();
+    if (isNull(all) || all.length === 0) { return undefined; }
+    var out = { count: all.length, kinds: {}, ids: {}, truncated: all.length > Ribbon.SELECTION_LIMIT };
+    var kinds = Ribbon.selectionKinds;
+    var k, i;
+    for (k = 0; k < kinds.length; k++) {
+        if (typeof kinds[k].begin === "function") { try { kinds[k].begin(); } catch (eB) { } }
+    }
+    var add = function(kind, id) {
+        out.kinds[kind] = (out.kinds[kind] || 0) + 1;
+        if (isNull(out.ids[kind])) { out.ids[kind] = []; }
+        out.ids[kind].push(id);
+    };
+    var n = Math.min(all.length, Ribbon.SELECTION_LIMIT);
+    for (i = 0; i < n; i++) {
+        var e = doc.queryEntity(all[i]);
+        if (isNull(e)) { continue; }
+        var kind = "other";
+        for (k = 0; k < kinds.length; k++) {
+            if (typeof kinds[k].test !== "function") { continue; }
+            var hit = false;
+            try { hit = kinds[k].test(e, doc, out) === true; } catch (eT) { hit = false; }
+            if (hit) { kind = kinds[k].id; break; }
+        }
+        add(kind, all[i]);
+    }
+    for (k = 0; k < kinds.length; k++) {
+        if (typeof kinds[k].resolve !== "function" || isNull(out.ids.other)) { continue; }
+        try {
+            var found = kinds[k].resolve(doc, out.ids.other, out);
+            if (!isNull(found) && found.length > 0) {
+                out.kinds[kinds[k].id] = found.length;
+                out.ids[kinds[k].id] = found;
+            }
+        }
+        catch (eR) { }
+    }
+    var present = [];
+    for (var key in out.kinds) { if (out.kinds.hasOwnProperty(key)) { present.push(key); } }
+    out.kind = present.length === 1 ? present[0] : "mixed";
+    return out;
+};
+
 Ribbon.registerPanel = function(tabId, def) {
     if (isNull(Ribbon.panels[tabId])) {
         Ribbon.panels[tabId] = [];

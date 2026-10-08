@@ -80,94 +80,51 @@ RibbonCommands.columnsOf = function(menuName) {
 };
 
 /**
- * What the selection holds, for the tabs that follow it (ctx.selection).
- *
- *     { count, kinds: { scan: n, shaped: n, other: n }, kind: "scan" | "shaped" | "other" | "mixed", ids: { scan: [ids], ... } }
- *
- * or undefined when nothing is selected. It queries every selected entity, so LayoutTabs
- * calls it on the selection-change signal and caches the answer; never from the poll.
- * A selection past LIMIT entities is classed by its first LIMIT (`truncated` says so).
+ * The kinds of object the selection tabs follow (see Ribbon.registerSelectionKind).
+ * Lowest order is tried first. Each is guarded, so a build without the cave tools has none.
  */
-RibbonCommands.SELECTION_LIMIT = 500;
-
-RibbonCommands.classifySelection = function(doc) {
-    if (isNull(doc)) { return undefined; }
-    var all = doc.querySelectedEntities();
-    if (isNull(all) || all.length === 0) { return undefined; }
-    var out = { count: all.length, kinds: {}, ids: {}, truncated: all.length > RibbonCommands.SELECTION_LIMIT };
-    var n = Math.min(all.length, RibbonCommands.SELECTION_LIMIT);
-    var haveTags = (typeof CsTags !== "undefined" && typeof CsShapeLine !== "undefined");
-    var haveSymbols = (typeof CsSymbols !== "undefined");
-    RibbonCommands.customNames = undefined;     // the caver's own symbols are re-read for each classification
-    var haveCallout = (typeof CsTags !== "undefined" && typeof CsCallout !== "undefined");
-    for (var i = 0; i < n; i++) {
-        var e = doc.queryEntity(all[i]);
-        if (isNull(e)) { continue; }
-        var kind = "other";
-        if (e.getType() === RS.EntityImage) {
-            kind = "scan";
-        }
-        else if (haveTags && (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "")) {
-            kind = "shaped";
-        }
-        else if (haveTags && CsTags.get(e, "Station") !== "") {
-            kind = "station";
-        }
-        else if (haveTags && (CsTags.get(e, "From") !== "" || CsTags.get(e, "Splay") !== "")) {
-            kind = "shot";
-        }
-        else if (haveCallout && CsTags.get(e, CsCallout.KEY.ID) !== "") {
-            kind = (CsTags.get(e, CsCallout.KEY.KIND) === CsCallout.KIND_SECTION && CsTags.get(e, CsCallout.KEY.ROLE) === CsCallout.ROLE_BLOCK) ? "section" : "callout";
-        }
-        else if (haveSymbols && e.getType() === RS.EntityBlockRef) {
-            var bname = "";
-            try { bname = String(e.getReferencedBlockName()); } catch (eName) { }
-            if (bname !== "" && (CsSymbols.byBlock(bname) !== null || RibbonCommands.customSymbolNames()[bname] === true)) {
-                kind = "symbol";
+RibbonCommands.registerSelectionKinds = function() {
+    var tagged = function() { return typeof CsTags !== "undefined"; };
+    var K = Ribbon.registerSelectionKind;
+    K({ id: "scan", order: 10, test: function(e) { return e.getType() === RS.EntityImage; } });
+    K({ id: "shaped", order: 20, test: function(e) {
+        return tagged() && typeof CsShapeLine !== "undefined" &&
+            (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "");
+    } });
+    K({ id: "station", order: 30, test: function(e) { return tagged() && CsTags.get(e, "Station") !== ""; } });
+    K({ id: "shot", order: 40, test: function(e) { return tagged() && (CsTags.get(e, "From") !== "" || CsTags.get(e, "Splay") !== ""); } });
+    // a placed cross section is a callout block of kind "section"; every other callout part is a callout
+    var isCallout = function(e) { return tagged() && typeof CsCallout !== "undefined" && CsTags.get(e, CsCallout.KEY.ID) !== ""; };
+    var isSection = function(e) {
+        return CsTags.get(e, CsCallout.KEY.KIND) === CsCallout.KIND_SECTION && CsTags.get(e, CsCallout.KEY.ROLE) === CsCallout.ROLE_BLOCK;
+    };
+    K({ id: "section", order: 50, test: function(e) { return isCallout(e) && isSection(e); } });
+    K({ id: "callout", order: 51, test: function(e) { return isCallout(e); } });
+    // a symbol placed from the palette: a block reference to a shipped or custom symbol
+    var customNames;
+    K({ id: "symbol", order: 60,
+        begin: function() { customNames = undefined; },    // the caver's own symbols are re-read for each classification
+        test: function(e, doc, out) {
+            if (typeof CsSymbols === "undefined" || e.getType() !== RS.EntityBlockRef) { return false; }
+            var name = String(e.getReferencedBlockName());
+            if (name === "") { return false; }
+            var ours = CsSymbols.byBlock(name) !== null;
+            if (!ours) {
+                if (isNull(customNames)) {
+                    customNames = {};
+                    var list = CsSymbols.merged().entries;
+                    for (var i = 0; i < list.length; i++) { customNames[list[i].block] = true; }
+                }
+                ours = customNames[name] === true;
+            }
+            if (ours) {
                 out.symbolNames = out.symbolNames || [];
-                out.symbolNames.push(bname);
+                out.symbolNames.push(name);
             }
-        }
-        out.kinds[kind] = (out.kinds[kind] || 0) + 1;
-        if (isNull(out.ids[kind])) { out.ids[kind] = []; }
-        out.ids[kind].push(all[i]);
-    }
-    // area fills: a boundary or its fill (an "other" entity until the area engine says so)
-    if (typeof CsArea !== "undefined" && !isNull(out.ids.other)) {
-        try {
-            var areas = CsArea.resolveSelection(doc, out.ids.other);
-            if (areas.length > 0) {
-                out.kinds.area = areas.length;
-                out.ids.area = areas;
-            }
-        }
-        catch (eArea) {
-        }
-    }
-    var present = [];
-    for (var k in out.kinds) { if (out.kinds.hasOwnProperty(k)) { present.push(k); } }
-    out.kind = present.length === 1 ? present[0] : "mixed";
-    return out;
-};
-
-/** Block names of the caver's own symbols (read once per classification, and only if a block reference needs it). */
-RibbonCommands.customSymbolNames = function() {
-    if (isNull(RibbonCommands.customNames)) {
-        var names = {};
-        try {
-            var list = CsSymbols.merged().entries;
-            for (var i = 0; i < list.length; i++) { names[list[i].block] = true; }
-        }
-        catch (e) {
-        }
-        RibbonCommands.customNames = names;
-    }
-    return RibbonCommands.customNames;
-};
-
-/** True when the context's selection holds at least one entity of `kind`. */
-RibbonCommands.selects = function(ctx, kind) {
-    return !isNull(ctx.selection) && (ctx.selection.kinds[kind] || 0) > 0;
+            return ours;
+        } });
+    // an area is a boundary plus its fill, so it is read from the whole leftover selection
+    K({ id: "area", order: 90, resolve: function(doc, ids) { return typeof CsArea !== "undefined" ? CsArea.resolveSelection(doc, ids) : []; } });
 };
 
 /** Starts a script-file action that has no menu entry (one the ribbon cannot look up by file). */
@@ -179,6 +136,7 @@ RibbonCommands.runByScript = function(path) {
 };
 
 RibbonCommands.register = function() {
+    RibbonCommands.registerSelectionKinds();
     if (RibbonCommands.registered === true) {
         return;
     }
@@ -358,14 +316,13 @@ RibbonCommands.register = function() {
     // These follow what is selected (ctx.selection). They DUPLICATE the Cave Survey tab's verbs
     // (that tab stays the full index) and are not accented, so they show without taking focus
     // away from the tab you are working in.
-    var hasSel = function(kind) { return function(ctx) { return RibbonCommands.selects(ctx, kind); }; };
-    Ribbon.registerTab({ id: "sel-shaped", title: qsTr("Shaped Line"), when: hasSel("shaped") });
+    Ribbon.registerSelectionTab({ id: "sel-shaped", title: qsTr("Shaped Line"), kind: "shaped" });
     Ribbon.registerPanel("sel-shaped", { id: "ss-edit", title: qsTr("Shaped line"), order: 10, items: [
         C("CaveSurvey/ShapedLines/ShapedFlip.js", { text: qsTr("Flip\nside") }),
         C("CaveSurvey/ShapedLines/ShapedSync.js", { text: qsTr("Sync\nshaped lines") }) ] });
     Ribbon.registerPanel("sel-shaped", { id: "ss-wall", title: qsTr("Walls"), order: 20, items: [
         C("CaveSurvey/ShapedLines/WallEdging.js", { text: qsTr("Wall\nedging") }) ] });
-    Ribbon.registerTab({ id: "sel-scan", title: qsTr("Scan"), when: hasSel("scan") });
+    Ribbon.registerSelectionTab({ id: "sel-scan", title: qsTr("Scan"), kind: "scan" });
     Ribbon.registerPanel("sel-scan", { id: "sc-fit", title: qsTr("Fit to the map"), order: 10, items: [
         { type: "button", id: "scanAlign", text: qsTr("Align\nscan"), icon: "scale", size: "large",
           tooltip: qsTr("Match stations on the selected scan to the drawing"),
@@ -392,7 +349,7 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("sel-scan", { id: "sc-more", title: qsTr("Scans"), order: 20, items: [
         C(cs("SketchScans"), { text: qsTr("Sketch scans\npanel") }) ] });
 
-    Ribbon.registerTab({ id: "sel-callout", title: qsTr("Callout"), when: hasSel("callout") });
+    Ribbon.registerSelectionTab({ id: "sel-callout", title: qsTr("Callout"), kind: "callout" });
     Ribbon.registerPanel("sel-callout", { id: "co-edit", title: qsTr("Callout"), order: 10, items: [
         C(cs("Callout"), { text: qsTr("Callout\npanel") }),
         { type: "button", id: "calloutReflow", text: qsTr("Reflow\nselected"), icon: "back", size: "large",
@@ -401,7 +358,7 @@ RibbonCommands.register = function() {
               if (typeof CsCalloutSync === "undefined") { EAction.handleUserWarning(qsTr("Reflow needs the Cave Survey tools.")); return; }
               EAction.handleUserMessage(CsCalloutSync.run(entry.di.getDocument(), entry.di));
           } } ] });
-    Ribbon.registerTab({ id: "sel-section", title: qsTr("Cross Section"), when: hasSel("section") });
+    Ribbon.registerSelectionTab({ id: "sel-section", title: qsTr("Cross Section"), kind: "section" });
     Ribbon.registerPanel("sel-section", { id: "se-edit", title: qsTr("Cross section"), order: 10, items: [
         { type: "button", id: "sectionReopen", text: qsTr("Reopen in\nthe bay"), icon: "rename", size: "large",
           tooltip: qsTr("Put the selected cross section back into its bay to edit it (one undo step)"),
@@ -410,19 +367,19 @@ RibbonCommands.register = function() {
               SectionEdit.run();
           } },
         C(cs("CrossSection"), { text: qsTr("Cross section\ntool") }) ] });
-    Ribbon.registerTab({ id: "sel-area", title: qsTr("Area Fill"), when: hasSel("area") });
+    Ribbon.registerSelectionTab({ id: "sel-area", title: qsTr("Area Fill"), kind: "area" });
     Ribbon.registerPanel("sel-area", { id: "ar-edit", title: qsTr("Area fill"), order: 10, items: [
         C(cs("AreaFill"), { text: qsTr("Area fill\npanel") }),
         C(cs("AreaSync"), { text: qsTr("Sync\nareas") }) ] });
 
-    Ribbon.registerTab({ id: "sel-station", title: qsTr("Station"), when: hasSel("station") });
+    Ribbon.registerSelectionTab({ id: "sel-station", title: qsTr("Station"), kind: "station" });
     Ribbon.registerPanel("sel-station", { id: "st-use", title: qsTr("Survey station"), order: 10, items: [
         C(cs("DrawPanel"), { text: qsTr("Draw from\nhere") }),
         C(cs("StationTable"), { text: qsTr("Station\ntable") }),
         C(cs("LoopErrors"), { text: qsTr("Loop\nerrors") }),
         C(cs("EntranceLocation"), { text: qsTr("Entrance") }) ] });
 
-    Ribbon.registerTab({ id: "sel-symbol", title: qsTr("Symbol"), when: hasSel("symbol") });
+    Ribbon.registerSelectionTab({ id: "sel-symbol", title: qsTr("Symbol"), kind: "symbol" });
     Ribbon.registerPanel("sel-symbol", { id: "sy-use", title: qsTr("Symbol"), order: 10, items: [
         C(cs("SymbolPalette"), { text: qsTr("Symbol\npalette") }),
         { type: "button", id: "symbolEdit", text: qsTr("Edit\nsymbol"), icon: "rename", size: "large",
@@ -435,7 +392,7 @@ RibbonCommands.register = function() {
                   if (list[i].block === name) { SymbolPaletteEdit.startEdit(list[i]); return; }
               }
           } } ] });
-    Ribbon.registerTab({ id: "sel-shot", title: qsTr("Survey Shot"), when: hasSel("shot") });
+    Ribbon.registerSelectionTab({ id: "sel-shot", title: qsTr("Survey Shot"), kind: "shot" });
     Ribbon.registerPanel("sel-shot", { id: "sh-use", title: qsTr("Survey shot"), order: 10, items: [
         C(cs("SurveyNotebook"), { text: qsTr("Survey\nnotebook") }),
         C(cs("StationTable"), { text: qsTr("Station\ntable") }),

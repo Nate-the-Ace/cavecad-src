@@ -1809,7 +1809,7 @@ LayoutTabs.selectionOf = function(entry) {
     if (entry.selectionStale !== false) {
         entry.selectionStale = false;
         try {
-            entry.selection = RibbonCommands.classifySelection(entry.di.getDocument());
+            entry.selection = Ribbon.classifySelection(entry.di.getDocument());
         }
         catch (e) {
             entry.selection = undefined;
