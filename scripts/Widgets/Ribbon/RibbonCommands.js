@@ -93,7 +93,35 @@ RibbonCommands.registerSelectionKinds = function() {
         return SURFACE_LAYERS[String(doc.getLayerName(e.getLayerId()))] === true;
     };
     K({ id: "surface", order: 5, test: function(e, doc) { return onSurface(e, doc); } });
-    K({ id: "scan", order: 10, test: function(e, doc) { return e.getType() === RS.EntityImage && !onSurface(e, doc); } });
+
+    // WHICH VIEW an object belongs to, by its layer: the plan, the profile (elevation), a cross-section bay or the
+    // sheet. The same kind of object (a line, an image, a point) means different things in each, so the tab
+    // depends on the layer as well as the object.
+    var frameOf = function(e, doc) {
+        return typeof CsLayers !== "undefined" ? CsLayers.frameOf(String(doc.getLayerName(e.getLayerId()))) : "plan";
+    };
+    var hasCallout = function(e) { return tagged() && typeof CsCallout !== "undefined" && CsTags.get(e, CsCallout.KEY.ID) !== ""; };
+    // sheet furniture drawn without a tag of its own (border, legend...) is known by its layer
+    var SHEET_ITEM_LAYERS = { "BORDER": true, "TITLE-BLOCK": true, "NORTH-ARROW": true, "SCALE-BAR": true, "LEGEND": true };
+    K({ id: "sheet", order: 8, test: function(e, doc) {
+        if (SHEET_ITEM_LAYERS[String(doc.getLayerName(e.getLayerId()))] === true) { return true; }
+        if (!tagged()) { return false; }
+        if (typeof CsLayoutGen !== "undefined" && CsTags.get(e, CsLayoutGen.TAG) !== "") { return true; }
+        if (typeof CsScaleBar !== "undefined" && CsScaleBar.isPiece(e)) { return true; }
+        if (typeof CsNorth !== "undefined" && CsTags.get(e, CsNorth.LINK) !== "") { return true; }
+        return CsTags.get(e, "GridOf") !== "" || CsTags.get(e, "SheetIndex") !== "" || CsTags.get(e, "DetailMark") !== "";
+    } });
+    // anything in the profile view is a profile object (its stations, shots, scans and shaped lines are
+    // generated or traced there, and the plan tools do not apply to them); callouts keep their own tab
+    K({ id: "profile", order: 12, test: function(e, doc) {
+        if (hasCallout(e)) { return false; }
+        if (frameOf(e, doc) === "profile") { return true; }
+        return tagged() && (CsTags.get(e, "ProfileRun") !== "" || CsTags.get(e, "ProfileBox") !== "" || CsTags.get(e, "ProfileStation") !== "");
+    } });
+    // likewise a cross-section bay's own drawing (not the placed section block, which is a callout block)
+    K({ id: "sectionpart", order: 13, test: function(e, doc) { return !hasCallout(e) && frameOf(e, doc) === "section"; } });
+    // a scan is a PLAN sketch: an image anywhere else was claimed above
+    K({ id: "scan", order: 14, test: function(e, doc) { return e.getType() === RS.EntityImage && !onSurface(e, doc); } });
     K({ id: "shaped", order: 20, test: function(e) {
         return tagged() && typeof CsShapeLine !== "undefined" &&
             (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "");
@@ -130,17 +158,13 @@ RibbonCommands.registerSelectionKinds = function() {
             }
             return ours;
         } });
-    // the cave profile (elevation) drawing: everything it draws carries a profile tag
-    K({ id: "profile", order: 70, test: function(e) {
-        return tagged() && (CsTags.get(e, "ProfileRun") !== "" || CsTags.get(e, "ProfileBox") !== "" || CsTags.get(e, "ProfileStation") !== "");
-    } });
-    // sheet furniture: what the layout tools draw on a sheet (north arrow, scale bar, title block, grid, index, detail marks)
-    K({ id: "sheet", order: 80, test: function(e) {
-        if (!tagged()) { return false; }
-        if (typeof CsLayoutGen !== "undefined" && CsTags.get(e, CsLayoutGen.TAG) !== "") { return true; }
-        if (typeof CsScaleBar !== "undefined" && CsScaleBar.isPiece(e)) { return true; }
-        if (typeof CsNorth !== "undefined" && CsTags.get(e, CsNorth.LINK) !== "") { return true; }
-        return CsTags.get(e, "GridOf") !== "" || CsTags.get(e, "SheetIndex") !== "" || CsTags.get(e, "DetailMark") !== "";
+    // a plain line on a plan wall or feature layer: can be dressed as a shaped line (Decorate)
+    var WALL_LAYERS = /^(WALLS-|LEDGE-)|^(FLOWSTONE|RIMSTONE|SLOPE|PITS-DOMES|OVERHANG-LEDGE)$/;
+    var LINE_TYPES = {};
+    LINE_TYPES[RS.EntityLine] = true; LINE_TYPES[RS.EntityArc] = true; LINE_TYPES[RS.EntityPolyline] = true;
+    LINE_TYPES[RS.EntitySpline] = true; LINE_TYPES[RS.EntityCircle] = true;
+    K({ id: "wall", order: 95, test: function(e, doc) {
+        return LINE_TYPES[e.getType()] === true && WALL_LAYERS.test(String(doc.getLayerName(e.getLayerId())));
     } });
     // an area is a boundary plus its fill, so it is read from the whole leftover selection
     K({ id: "area", order: 90, resolve: function(doc, ids) { return typeof CsArea !== "undefined" ? CsArea.resolveSelection(doc, ids) : []; } });
@@ -438,6 +462,14 @@ RibbonCommands.register = function() {
     Ribbon.registerPanel("sel-surface", { id: "su-use", title: qsTr("Surface"), order: 10, items: [
         C(cs("SurfaceData"), { text: qsTr("Surface\ndata") }),
         C(cs("EntranceLocation"), { text: qsTr("Entrance\nlocation") }) ] });
+
+    Ribbon.registerSelectionTab({ id: "sel-wall", title: qsTr("Cave Line"), kind: "wall" });
+    Ribbon.registerPanel("sel-wall", { id: "wl-use", title: qsTr("Cave line"), order: 10, items: [
+        C(cs("ShapedLines"), { text: qsTr("Decorate\nselection") }),
+        C("CaveSurvey/ShapedLines/WallEdging.js", { text: qsTr("Wall\nedging") }) ] });
+    Ribbon.registerSelectionTab({ id: "sel-sectionpart", title: qsTr("Section Drawing"), kind: "sectionpart" });
+    Ribbon.registerPanel("sel-sectionpart", { id: "sp-use", title: qsTr("Section drawing"), order: 10, items: [
+        C(cs("CrossSection"), { text: qsTr("Cross section\ntool") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
