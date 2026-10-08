@@ -79,6 +79,57 @@ RibbonCommands.columnsOf = function(menuName) {
     return cols;
 };
 
+/**
+ * What the selection holds, for the tabs that follow it (ctx.selection).
+ *
+ *     { count, kinds: { scan: n, shaped: n, other: n }, kind: "scan" | "shaped" | "other" | "mixed", ids: { scan: [ids], ... } }
+ *
+ * or undefined when nothing is selected. It queries every selected entity, so LayoutTabs
+ * calls it on the selection-change signal and caches the answer; never from the poll.
+ * A selection past LIMIT entities is classed by its first LIMIT (`truncated` says so).
+ */
+RibbonCommands.SELECTION_LIMIT = 500;
+
+RibbonCommands.classifySelection = function(doc) {
+    if (isNull(doc)) { return undefined; }
+    var all = doc.querySelectedEntities();
+    if (isNull(all) || all.length === 0) { return undefined; }
+    var out = { count: all.length, kinds: {}, ids: {}, truncated: all.length > RibbonCommands.SELECTION_LIMIT };
+    var n = Math.min(all.length, RibbonCommands.SELECTION_LIMIT);
+    var haveTags = (typeof CsTags !== "undefined" && typeof CsShapeLine !== "undefined");
+    for (var i = 0; i < n; i++) {
+        var e = doc.queryEntity(all[i]);
+        if (isNull(e)) { continue; }
+        var kind = "other";
+        if (e.getType() === RS.EntityImage) {
+            kind = "scan";
+        }
+        else if (haveTags && (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "")) {
+            kind = "shaped";
+        }
+        out.kinds[kind] = (out.kinds[kind] || 0) + 1;
+        if (isNull(out.ids[kind])) { out.ids[kind] = []; }
+        out.ids[kind].push(all[i]);
+    }
+    var present = [];
+    for (var k in out.kinds) { if (out.kinds.hasOwnProperty(k)) { present.push(k); } }
+    out.kind = present.length === 1 ? present[0] : "mixed";
+    return out;
+};
+
+/** True when the context's selection holds at least one entity of `kind`. */
+RibbonCommands.selects = function(ctx, kind) {
+    return !isNull(ctx.selection) && (ctx.selection.kinds[kind] || 0) > 0;
+};
+
+/** Starts a script-file action that has no menu entry (one the ribbon cannot look up by file). */
+RibbonCommands.runByScript = function(path) {
+    var a = isNull(path) ? undefined : RGuiAction.getByScriptFile(path);
+    if (isNull(a)) { return false; }
+    a.slotTrigger();
+    return true;
+};
+
 RibbonCommands.register = function() {
     if (RibbonCommands.registered === true) {
         return;
@@ -255,6 +306,30 @@ RibbonCommands.register = function() {
         CS("SheetSetup", { text: qsTr("Sheet\nsetup") }),
         CS("ExpeditionPlanner", { text: qsTr("Expedition\nplanner") }),
         K([ cs_("ExportCaveSurvey", { text: qsTr("Export") }), cs_("PackageCave", { text: qsTr("Package") }), cs_("Cave3D", { text: qsTr("3D view") }) ]) ] });
+    // ---------------------------------------------------- Selection tabs
+    // These follow what is selected (ctx.selection). They DUPLICATE the Cave Survey tab's verbs
+    // (that tab stays the full index) and are not accented, so they show without taking focus
+    // away from the tab you are working in.
+    var hasSel = function(kind) { return function(ctx) { return RibbonCommands.selects(ctx, kind); }; };
+    Ribbon.registerTab({ id: "sel-shaped", title: qsTr("Shaped Line"), when: hasSel("shaped") });
+    Ribbon.registerPanel("sel-shaped", { id: "ss-edit", title: qsTr("Shaped line"), order: 10, items: [
+        C("CaveSurvey/ShapedLines/ShapedFlip.js", { text: qsTr("Flip\nside") }),
+        C("CaveSurvey/ShapedLines/ShapedSync.js", { text: qsTr("Sync\nshaped lines") }) ] });
+    Ribbon.registerPanel("sel-shaped", { id: "ss-wall", title: qsTr("Walls"), order: 20, items: [
+        C("CaveSurvey/ShapedLines/WallEdging.js", { text: qsTr("Wall\nedging") }) ] });
+    Ribbon.registerTab({ id: "sel-scan", title: qsTr("Scan"), when: hasSel("scan") });
+    Ribbon.registerPanel("sel-scan", { id: "sc-fit", title: qsTr("Fit to the map"), order: 10, items: [
+        { type: "button", id: "scanAlign", text: qsTr("Align\nscan"), icon: "scale", size: "large",
+          tooltip: qsTr("Match stations on the selected scan to the drawing"),
+          onClick: function(entry, ctx) {
+              var path = (typeof ScanAlign !== "undefined") ? ScanAlign.scriptPath : undefined;
+              if (!RibbonCommands.runByScript(path)) { EAction.handleUserWarning(qsTr("Align Scan needs the Cave Survey tools (Sketch Scans).")); }
+          } },
+        C("Modify/Translate/Translate.js", { text: qsTr("Move") }),
+        K([ s("Modify/Rotate/Rotate.js"), s("Modify/Scale/Scale.js"), s("Modify/Mirror/Mirror.js") ]) ] });
+    Ribbon.registerPanel("sel-scan", { id: "sc-more", title: qsTr("Scans"), order: 20, items: [
+        C(cs("SketchScans"), { text: qsTr("Sketch scans\npanel") }) ] });
+
     RibbonCommands.sweepOnce = true;
     // whatever the survey suite adds later still shows up
     var leftovers = [];

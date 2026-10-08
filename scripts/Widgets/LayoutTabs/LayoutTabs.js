@@ -47,11 +47,11 @@ LayoutTabs.init = function(basePath) {
     // the viewport controls follow the selection and any change to a viewport
     var sel = new RSelectionListenerAdapter();
     appWin.addSelectionListener(sel);
-    sel.selectionChanged.connect(function(di) { LayoutTabs.refreshControlsAll(); });
+    sel.selectionChanged.connect(function(di) { LayoutTabs.markSelectionStale(); LayoutTabs.refreshControlsAll(); });
     LayoutTabs.selAdapter = sel;
     var tx = new RTransactionListenerAdapter();
     appWin.addTransactionListener(tx);
-    tx.transactionUpdated.connect(function(document, transaction) { LayoutTabs.refreshControlsAll(); });
+    tx.transactionUpdated.connect(function(document, transaction) { LayoutTabs.markSelectionStale(); LayoutTabs.refreshControlsAll(); });
     LayoutTabs.txAdapter = tx;
 };
 
@@ -1794,13 +1794,37 @@ LayoutTabs.applyTheme = function(entry) {
 // The ribbon: tabs, panels and their buttons for the layout workflow
 // ---------------------------------------------------------------------------
 
+/**
+ * What is selected in a window, classified for the contextual tabs (ctx.selection).
+ * Worked out once per selection or transaction signal (it queries each selected entity), then
+ * served from the entry, so the ribbon's poll costs nothing.
+ */
+LayoutTabs.markSelectionStale = function() {
+    for (var i = 0; i < LayoutTabs.entries.length; i++) {
+        LayoutTabs.entries[i].selectionStale = true;
+    }
+};
+
+LayoutTabs.selectionOf = function(entry) {
+    if (entry.selectionStale !== false) {
+        entry.selectionStale = false;
+        try {
+            entry.selection = RibbonCommands.classifySelection(entry.di.getDocument());
+        }
+        catch (e) {
+            entry.selection = undefined;
+        }
+    }
+    return entry.selection;
+};
+
 /** What the ribbon needs to know about a window right now. */
 LayoutTabs.ribbonContext = function(entry) {
     var doc = entry.di.getDocument();
     var cur = Layouts.current(doc);
     var editing = !isNull(entry.editing);
     var ctx = { mode: editing ? "editing" : (isNull(cur) ? "model" : "layout"), layout: cur, tool: Ribbon.currentTool(),
-        viewport: editing ? undefined : LayoutTabs.controlViewport(entry) };
+        viewport: editing ? undefined : LayoutTabs.controlViewport(entry), selection: LayoutTabs.selectionOf(entry) };
     // top right of the ribbon: what the running command asks for, else where you are
     if (!isNull(Ribbon.prompt) && Ribbon.prompt !== "") {
         ctx.stateText = Ribbon.prompt;
