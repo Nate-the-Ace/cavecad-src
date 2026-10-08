@@ -3,12 +3,10 @@ name: macOS test build (app + tools)
 # A one-click Mac build for testing a branch: the app from THIS branch plus the
 # Cave Survey tools in its cave-survey/ folder, assembled the way assemble.yml
 # does, but published nowhere.
+# Started by hand only (Actions > macOS test build > Run workflow, or ask Claude to start it).
 # Download the "cavecad-macos-test" artifact from the finished run.
 
 on:
-  push:
-    branches: [claude/cavecad-contextual-ribbon-oq2r4f]
-    paths: ['.github/workflows/macos-test.yml', 'cave-survey/**']
   workflow_dispatch:
 
 permissions:
