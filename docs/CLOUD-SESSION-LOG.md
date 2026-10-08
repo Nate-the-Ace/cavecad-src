@@ -16,6 +16,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### (app script) -- Layer Manager: VP Freeze column placed after Freeze
+- Reported: viewport-specific layer visibility "not working". The VP Freeze column exists (shown only while one viewport is selected or edited through) but was the LAST column, off the right edge of a docked palette. `RLayerTreeQt.applyColumnVisibility` now moves it to sit right after Freeze. Separate open problem: plain clicks cannot select viewports on a layout (Select All and double-click-through still work); cause not found yet (see conversation: suspects are block-style sheet items catching the click).
+
 ### 0.9.215.15 -- Sketch Scans: bottom buttons no longer stretched
 - Reported (screenshot): the Plan/Profile/Cross Section tab buttons took far too much height. `SketchScans.js makePage` now puts a stretch on an empty last grid row and 4 px row spacing, and the tab widget has a Maximum vertical size policy, so the scan list and preview get the spare room. Untested in app (needs a Mac/other build; script-only, so the Mac fast path applies).
 

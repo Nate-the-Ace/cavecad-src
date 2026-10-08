@@ -450,6 +450,19 @@ RLayerTreeQt.prototype.applyColumnVisibility = function() {
     // viewport is the thing being worked on (editing through one, or one
     // selected on a layout), and gone otherwise -- the AutoCAD behaviour.
     this.setColumnHidden(RLayerTreeQt.colVpFreeze, isNull(this.vp));
+    // It is the LAST column, and a docked palette is narrower than all of them, so it sat off the right edge where
+    // nobody saw it: show it right after Freeze, beside the switch it is the per-viewport version of.
+    if (this.vpColumnPlaced !== true) {
+        try {
+            var head = this.header();
+            var want = head.visualIndex(RLayerTreeQt.colFreeze) + 1;
+            head.moveSection(head.visualIndex(RLayerTreeQt.colVpFreeze), want);
+            this.vpColumnPlaced = true;
+        }
+        catch (eMove) {
+            // the column stays at the right end: still reachable by scrolling
+        }
+    }
 };
 
 /**
