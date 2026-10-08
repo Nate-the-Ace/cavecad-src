@@ -52,6 +52,9 @@ jobs:
           ditto base/CaveCAD.app CaveCAD.app
           hdiutil detach -quiet base
           ditto addon/CaveSurvey CaveCAD.app/Contents/Resources/scripts/CaveSurvey
+          # a test build must never be "updated" to the published build: marked as a development build,
+          # the built-in updater stays out (it offers any other app commit, newer or not)
+          printf '{"platform": "macos-arm64", "app_commit": "dev"}\n' > CaveCAD.app/Contents/Resources/cavecad-build.json
           codesign --force --deep -s - CaveCAD.app
           codesign --verify --deep --strict CaveCAD.app
           hdiutil create -quiet -volname CaveCAD -srcfolder CaveCAD.app -ov \

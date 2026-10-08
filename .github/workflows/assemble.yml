@@ -75,6 +75,14 @@ jobs:
           if [ -f base-linux-aarch64.commit ]; then key="$key linuxarm=$(cat base-linux-aarch64.commit)"; fi
           current=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null \
             | sed -n 's/.*<!-- key: \(.*\) -->.*/\1/p')
+          # Installed copies are offered a tools update only when cave-survey/VERSION goes UP, so a tools
+          # change published under the same version would never reach anyone. Say so.
+          pub_tools=$(echo "$current" | sed -n 's/^tools=\([^ ]*\).*/\1/p')
+          pub_ver=$(gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p latest.json -O - 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["tools"]["version"])' 2>/dev/null || true)
+          if [ -n "$pub_ver" ] && [ -n "$pub_tools" ] && [ "$pub_tools" != "$tools_sha" ] && [ "$pub_ver" = "$(cat cave-survey/VERSION)" ]; then
+            echo "::warning title=Bump cave-survey/VERSION::The Cave Survey tools changed but cave-survey/VERSION is still $pub_ver, so installed copies will not be offered this update."
+          fi
           go=true
           if [ "$current" = "$key" ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then go=false; fi
           echo "key: $key"; echo "published: ${current:-none}"; echo "go: $go"
