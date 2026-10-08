@@ -28279,6 +28279,23 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
         "CsNorth.layout: 30 degrees east leans the needle east");
     ok(nm.captions[0].text.indexOf("DECLINATION 30.0") > 0, "CsNorth.layout: the caption states the declination applied");
     ok(CsNorth.blockName("abc") === "NORTH-ARROW-abc", "CsNorth.blockName: one block per viewport link");
+    // TEXT NEVER ROTATES: turn the reference itself by 90 degrees and the drawing counter-turns, so what SHOWS is unchanged
+    var nc = CsNorth.layout(0.3, 12, nSpec, Math.PI / 2), nw = CsNorth.layout(0.3, 12, nSpec, 0);
+    var showsAs = function(p) { return { x: p.x * Math.cos(Math.PI / 2) - p.y * Math.sin(Math.PI / 2), y: p.x * Math.sin(Math.PI / 2) + p.y * Math.cos(Math.PI / 2) }; };
+    var allSame = true, ti;
+    for (ti = 0; ti < nw.lines.length; ti++) {
+        var a1 = showsAs({ x: nc.lines[ti].x1, y: nc.lines[ti].y1 }), a2 = showsAs({ x: nc.lines[ti].x2, y: nc.lines[ti].y2 });
+        if (Math.abs(a1.x - nw.lines[ti].x1) > 1e-9 || Math.abs(a1.y - nw.lines[ti].y1) > 1e-9 ||
+                Math.abs(a2.x - nw.lines[ti].x2) > 1e-9 || Math.abs(a2.y - nw.lines[ti].y2) > 1e-9) { allSame = false; }
+    }
+    ok(allSame, "CsNorth.layout: a turned reference shows the same arrow (the lines counter-turn)");
+    var textsSame = true, texts = nw.labels.concat(nw.captions), textsC = nc.labels.concat(nc.captions);
+    for (ti = 0; ti < texts.length; ti++) {
+        var w = showsAs({ x: textsC[ti].x, y: textsC[ti].y });
+        if (Math.abs(w.x - texts[ti].x) > 1e-9 || Math.abs(w.y - texts[ti].y) > 1e-9) { textsSame = false; }
+        if (Math.abs(textsC[ti].angle + Math.PI / 2) > 1e-12 || (texts[ti].angle || 0) !== 0) { textsSame = false; }
+    }
+    ok(textsSame, "CsNorth.layout: the text stays where it was AND upright (drawn at minus the reference's turn)");
 
     eqs(CsSheetSetup.magneticText({ declination: 3.2,
         date: "2024-11-03" }),

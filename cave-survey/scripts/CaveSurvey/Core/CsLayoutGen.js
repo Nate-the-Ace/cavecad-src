@@ -418,6 +418,8 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
     }
 
     di.applyOperation(op);
+    // a sheet drawn again leaves the last arrow's block behind (new viewport, new link): tidy up
+    CsNorth.purgeUnused(doc, di);
     return drew;
 };
 

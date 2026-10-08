@@ -33,6 +33,7 @@ CsNorth.PART = "NorthPart";
 CsNorth.ROT = "NorthRot";
 CsNorth.DECL = "NorthDecl";
 CsNorth.DATE = "NorthDate";
+CsNorth.CTR = "NorthCtr";     // the reference rotation the block was last drawn against
 CsNorth.BLOCK_PREFIX = "NORTH-ARROW-";
 
 /** The block definition of the arrow linked to a viewport GUID. */
@@ -44,28 +45,38 @@ CsNorth.blockName = function(guid) {
  * Where every part of an arrow goes, in INCHES from its pivot, turned by `angle`
  * (radians, anticlockwise). Pure: the one definition of the arrow's shape.
  *
+ * Text NEVER rotates: the letters ride round the arrow's tips but stay upright, and the captions stay put. If the
+ * reference itself is turned by `counter` radians (someone rotated the block), every point is counter-turned and
+ * every text is drawn at -counter, so what shows is still the arrow at `angle` with upright text.
+ *
  * \param spec  { arrow: CsSheetSetup.NORTH, heading, small } (text heights, inches)
  * \param decl  the declination in degrees, or null for a true-north-only arrow
- * \return { lines: [{x1,y1,x2,y2,grey}], labels: [{x,y,text,grey,keepCase}], captions: [{x,y,text,grey}] }
- *         Labels follow the turn but stay upright; captions never move.
+ * \param counter  the rotation of the block reference holding the drawing (default 0)
+ * \return { lines: [{x1,y1,x2,y2,grey}], labels: [{x,y,text,grey,keepCase,angle}], captions: [{x,y,text,grey,angle}] }
+ *         Labels follow the turn but stay upright; captions never move. `angle` is the text's own angle.
  */
-CsNorth.layout = function(angle, decl, spec) {
+CsNorth.layout = function(angle, decl, spec, counter) {
+    var ctr = (counter === undefined || counter === null) ? 0 : counter;
     var a = spec.arrow, c = Math.cos(angle), sn = Math.sin(angle);
+    var cc = Math.cos(-ctr), cs_ = Math.sin(-ctr);
+    var undo = function(p) { return { x: p.x * cc - p.y * cs_, y: p.x * cs_ + p.y * cc }; };   // into the block's own axes
     var rot = function(x, y) { return { x: x * c - y * sn, y: x * sn + y * c }; };
     var out = { lines: [], labels: [], captions: [] };
+    var textAngle = -ctr;
     var line = function(x1, y1, x2, y2, grey) {
-        var p = rot(x1, y1), q = rot(x2, y2);
+        var p = undo(rot(x1, y1)), q = undo(rot(x2, y2));
         out.lines.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, grey: grey === true });
     };
     var nh = a.height;
     line(0, 0, 0, nh);
     line(0, nh, -a.headHalf, nh - a.headLength);
     line(0, nh, a.headHalf, nh - a.headLength);
-    var n = rot(-0.09, nh + 0.28);
-    out.labels.push({ x: n.x, y: n.y, text: "N", grey: false, keepCase: false });
+    var n = undo(rot(-0.09, nh + 0.28));
+    out.labels.push({ x: n.x, y: n.y, text: "N", grey: false, keepCase: false, angle: textAngle });
     var hasMag = decl !== null && decl !== undefined && isFinite(decl);
     var note = (hasMag && decl !== 0) ? "  (DECLINATION " + Number(decl).toFixed(1) + "\u00b0 APPLIED)" : "";
-    out.captions.push({ x: -0.9, y: -0.2, text: "TRUE NORTH" + note, grey: false });
+    var cap1 = undo({ x: -0.9, y: -0.2 });
+    out.captions.push({ x: cap1.x, y: cap1.y, text: "TRUE NORTH" + note, grey: false, angle: textAngle });
     if (!hasMag) {
         return out;
     }
@@ -78,9 +89,10 @@ CsNorth.layout = function(angle, decl, spec) {
     var bx = tipX - mx * back, by = tipY - my * back;
     line(tipX, tipY, bx - my * half, by + mx * half, true);
     line(tipX, tipY, bx + my * half, by - mx * half, true);
-    var m = rot(tipX + mx * 0.12 - 0.06, tipY + 0.18);
-    out.labels.push({ x: m.x, y: m.y, text: "mN", grey: true, keepCase: true });
-    out.captions.push({ x: -0.9, y: -(0.2 + spec.small * 2), text: null, grey: true });   // text: CsSheetSetup.magneticText(reading), filled in by the drawer
+    var m = undo(rot(tipX + mx * 0.12 - 0.06, tipY + 0.18));
+    out.labels.push({ x: m.x, y: m.y, text: "mN", grey: true, keepCase: true, angle: textAngle });
+    var cap2 = undo({ x: -0.9, y: -(0.2 + spec.small * 2) });
+    out.captions.push({ x: cap2.x, y: cap2.y, text: null, grey: true, angle: textAngle });   // text: CsSheetSetup.magneticText(reading), filled in by the drawer
     return out;
 };
 
@@ -211,12 +223,16 @@ CsNorth.sync = function(doc, di, vp, group, quiet) {
         }
         if (ar.block === true) {
             // the arrow as one block: redraw its DEFINITION at the new angle; the reference stays where it is
-            if (Math.abs(target - CsNorth.appliedOf(ar.ref)) <= 1e-9) {
+            var turnedBy = ar.ref.getRotation();      // the reference itself, if someone rotated the block
+            var drawnCtr = CsTags.getNumber(ar.ref, CsNorth.CTR);
+            if (Math.abs(target - CsNorth.appliedOf(ar.ref)) <= 1e-9 && Math.abs(turnedBy - (drawnCtr === null ? 0 : drawnCtr)) <= 1e-9) {
                 continue;
             }
-            CsNorth.defineBlock(doc, di, ar.guid, CsNorth.readingOf(ar.ref), target, { group: group, quiet: quiet === true });
+            CsNorth.defineBlock(doc, di, ar.guid, CsNorth.readingOf(ar.ref), target,
+                { group: group, quiet: quiet === true, counter: turnedBy });
             var bref = doc.queryEntity(ar.ref.getId());
             CsTags.set(bref, CsNorth.ROT, String(target));
+            CsTags.set(bref, CsNorth.CTR, String(turnedBy));
             if (op === null) {
                 op = new RModifyObjectsOperation(quiet !== true);
                 op.setText(qsTr("North arrow follows its viewport"));
@@ -316,7 +332,7 @@ CsNorth.defineBlock = function(doc, di, guid, reading, angle, opts) {
         }
     }
     var decl = isNull(reading) ? null : reading.declination;
-    var shape = CsNorth.layout(angle, decl, { arrow: CsSheetSetup.NORTH, small: CsSheetSetup.TEXT.small });
+    var shape = CsNorth.layout(angle, decl, { arrow: CsSheetSetup.NORTH, small: CsSheetSetup.TEXT.small }, o.counter);
     var L = CsLayers.NORTH_ARROW, k;
     for (k = 0; k < shape.lines.length; k++) {
         var ln = shape.lines[k];
@@ -325,17 +341,49 @@ CsNorth.defineBlock = function(doc, di, guid, reading, angle, opts) {
     }
     for (k = 0; k < shape.labels.length; k++) {
         var lb = shape.labels[k];
-        var te = env.text(lb.x, lb.y, lb.grey ? CsSheetSetup.TEXT.small : CsSheetSetup.TEXT.heading, lb.text, L, undefined, lb.keepCase);
+        var te = env.text(lb.x, lb.y, lb.grey ? CsSheetSetup.TEXT.small : CsSheetSetup.TEXT.heading, lb.text, L, undefined, lb.keepCase, lb.angle);
         if (lb.grey) { env.greyed(te); }
     }
     for (k = 0; k < shape.captions.length; k++) {
         var cp = shape.captions[k];
         var words = isNull(cp.text) ? CsSheetSetup.magneticText(reading) : cp.text;
-        var ce = env.text(cp.x, cp.y, CsSheetSetup.TEXT.small, words, L);
+        var ce = env.text(cp.x, cp.y, CsSheetSetup.TEXT.small, words, L, undefined, false, cp.angle);
         if (cp.grey) { env.greyed(ce); }
     }
     di.applyOperation(env.op);
     return blockId;
+};
+
+/**
+ * Removes north arrow block definitions nothing refers to any more (a sheet drawn again gets a new viewport, so
+ * a new link and a new block name, and the old definition is left behind). Never fails the caller.
+ *
+ * \return how many definitions were removed
+ */
+CsNorth.purgeUnused = function(doc, di) {
+    var removed = 0;
+    try {
+        var ids = doc.queryAllBlocks();
+        var op = new RDeleteObjectsOperation();
+        op.setText(qsTr("Remove unused north arrow blocks"));
+        for (var i = 0; i < ids.length; i++) {
+            var block = doc.queryBlock(ids[i]);
+            if (isNull(block) || String(block.getName()).indexOf(CsNorth.BLOCK_PREFIX) !== 0) {
+                continue;
+            }
+            if (doc.queryBlockReferences(ids[i]).length === 0) {
+                op.deleteObject(block);
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            di.applyOperation(op);
+        }
+    }
+    catch (e) {
+        return 0;
+    }
+    return removed;
 };
 
 /** Syncs every arrow in the drawing (tests, and a manual refresh). */

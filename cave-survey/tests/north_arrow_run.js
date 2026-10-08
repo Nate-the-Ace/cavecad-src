@@ -91,6 +91,25 @@ check(near(shapeAngle(), Math.PI / 2 + 40 * Math.PI / 180, 1e-9), "and still tak
 vp = Layouts.viewports(doc, info)[0]; vp.setRotation(0); di.applyOperation(new RModifyObjectOperation(vp));
 CsNorth.syncAll(doc, di, -1, false);
 
+// TEXT NEVER ROTATES: turn the block reference itself and the text inside is drawn against the turn, upright on the sheet
+var tref = doc.queryEntity(theRef().getId());
+tref.setRotation(Math.PI / 2);
+di.applyOperation(new RModifyObjectOperation(tref));
+CsNorth.syncAll(doc, di, -1, false);
+var upright = true, sawText = false, esT = defEntities();
+for (var q = 0; q < esT.length; q++) {
+    if (typeof esT[q].getPlainText === "function") {
+        sawText = true;
+        var shown = esT[q].getAngle() + Math.PI / 2;      // its own angle plus the reference's turn
+        if (!(near(shown, 0, 1e-9) || near(Math.abs(shown), 2 * Math.PI, 1e-9))) { upright = false; }
+    }
+}
+check(sawText && upright, "a turned block still shows its text upright");
+tref = doc.queryEntity(theRef().getId());
+tref.setRotation(0);
+di.applyOperation(new RModifyObjectOperation(tref));
+CsNorth.syncAll(doc, di, -1, false);
+
 // a PLACED arrow (a block reference on the layer) reads the viewport under it
 var blk = new RBlock(doc, "NA", new RVector(0, 0));
 di.applyOperation(new RAddObjectOperation(blk, false));
