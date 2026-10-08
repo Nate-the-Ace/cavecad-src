@@ -86,7 +86,14 @@ RibbonCommands.columnsOf = function(menuName) {
 RibbonCommands.registerSelectionKinds = function() {
     var tagged = function() { return typeof CsTags !== "undefined"; };
     var K = Ribbon.registerSelectionKind;
-    K({ id: "scan", order: 10, test: function(e) { return e.getType() === RS.EntityImage; } });
+    // the surface above the cave (aerial photo, contours) is told apart by its LAYER: an aerial photo is an image
+    // too, and must not be offered scan tools
+    var SURFACE_LAYERS = { "CTRL-AERIAL": true, "CTRL-CONTOUR": true, "CTRL-CONTOUR-MAJOR": true };
+    var onSurface = function(e, doc) {
+        return SURFACE_LAYERS[String(doc.getLayerName(e.getLayerId()))] === true;
+    };
+    K({ id: "surface", order: 5, test: function(e, doc) { return onSurface(e, doc); } });
+    K({ id: "scan", order: 10, test: function(e, doc) { return e.getType() === RS.EntityImage && !onSurface(e, doc); } });
     K({ id: "shaped", order: 20, test: function(e) {
         return tagged() && typeof CsShapeLine !== "undefined" &&
             (CsTags.get(e, CsShapeLine.KEY.ID) !== "" || CsTags.get(e, CsShapeLine.KEY.DECOR) !== "");
@@ -426,6 +433,11 @@ RibbonCommands.register = function() {
           } },
         C(cs("LayoutCheck"), { text: qsTr("Check\nsheet") }),
         C(cs("LayoutPlot"), { text: qsTr("Plot") }) ] });
+
+    Ribbon.registerSelectionTab({ id: "sel-surface", title: qsTr("Surface"), kind: "surface" });
+    Ribbon.registerPanel("sel-surface", { id: "su-use", title: qsTr("Surface"), order: 10, items: [
+        C(cs("SurfaceData"), { text: qsTr("Surface\ndata") }),
+        C(cs("EntranceLocation"), { text: qsTr("Entrance\nlocation") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
