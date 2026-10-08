@@ -3,6 +3,44 @@
 Newest first. Move an item to "Done" when it ships.
 Every new item gets a short preliminary plan when it is added (what exists, what changes, the order, the risks).
 
+## Status of the work done on this branch (untested in the app: nothing here has been run in CaveCAD itself)
+
+Built and checked as far as this build machine can: syntax, the packaging checks (`tools/make_package.sh`),
+and unit tests of the pure logic. The tests that need the real engine (`tests/north_arrow_run.js` and the
+other `*_run.js`) are written but have NOT been run. Try each in the app before relying on it.
+
+### Done
+- Contextual ribbon: selection tabs for shaped lines, scans, callouts, cross sections, area fills, stations,
+  survey shots, symbols, profiles, sheet items, the surface (aerial/contours), plain cave lines, section
+  drawings and external references; layer-aware; tabs take focus; Layout tab follows the layout.
+- North arrow fixed: ONE block, its insertion point is the pivot (a move can no longer displace the turn);
+  text never rotates (and stays upright even if the block itself is rotated); old loose-piece arrows still read.
+- Sheets from Views: a sheet of the whole cave, each profile or each cross section (`CsViews`, the generator's
+  `views`/`skipPlan`, the `LayoutViews` command, handbook page, ribbon button).
+- External references: Attach Drawing (Overlay/Attach, Absolute/Relative, remembered defaults, Overlay+Absolute to
+  begin with), External References manager, update offer when the file changes, ribbon tab (`CsXref`).
+- Area Fill tab: Scale and Density controls.
+- One repository: `cave-survey/` and `i18n/` merged into this repo with history; builds read from it.
+
+### Still to do, from the items below
+- **Sheet items as blocks**: only the NORTH ARROW is a block so far. Scale bar, title block, border and legend are
+  still loose pieces. Each has readers that expect pieces (`CsScaleBar.pieces/anchorOf`, `SheetSetup.titleValues`
+  reads the title's text entities, `CsLayoutFurniture.hasBorder`, the signature rows, `LayoutCheck`), so each
+  conversion should be made and tried in the app one at a time, the way the north arrow now can be.
+- **Sheets from Views**: Viewport-tab "Re-frame to...", editing a view's scale before making it, marking a sheet
+  stale when its profile/section moved, tiling for profile/section views.
+- **External references**: package/share conversion of absolute paths to relative (`CsPackage`), the DXF
+  bind-on-export option, cave-shelf awareness, georeference placement, a cached simplified copy for big
+  references, nested-block name prefixing (a nested block of the same name in two drawings merges), and the
+  engine-run test (attach, change the file, update; Overlay vs Attach nesting).
+- **Callout tab**: floor elevation and edit buttons (no standalone command exists; the Callout panel does it).
+- **Entrance-layer objects and station-label text**: decide whether they get a tab.
+- **Scan tab**: turn and flip the scan image (rewrites the scan file; ask first).
+- **Translations**: new labels need adding to `i18n/` (needs Qt's `lupdate`, not on the build machine).
+- **Handbook**: retake the stale `handbook-panel.png` before a public publish.
+- **Repo cutover**: test the merged build, then move this branch onto `cavecad`; import the other tool branches
+  (`i18n`, `profile-in-plan`, `th2-sketch`, `v2`, `github-versioning`); archive the two old repos.
+
 ## Planned
 
 ### External references (xrefs) for drawings
