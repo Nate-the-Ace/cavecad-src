@@ -43,6 +43,48 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Sheet number = the Layout tab name, both ways
+Changing the sheet number on the sheet changes the Layout tab's name, and renaming the Layout tab changes the sheet
+number.
+
+**What exists (read from `Core/CsLayoutGen.js`, `Core/CsSheet.js`, `scripts/Layouts/Layouts.js`, `LayoutTabs.js`)**
+- There is NO sheet-number field today. `CsSheet.FIELDS` (the title block's fields) has none. The only sheet label
+  is "SHEET A1" on a tiled plan, drawn top-left from the tile's id (`CsLayoutGen.draw`, ~line 375). On a one-sheet
+  plan there is no label at all, and the tab is just "Plan" (or "Elevation").
+- For tiled sheets the layout NAME already equals the tile id (`job(t.id, ...)`: id = name), so the two start equal.
+- Renaming goes through one place, `Layouts.rename(di, name, newName)` (called by `LayoutTabs.rename`). It enforces:
+  unique, not empty, not "Model", not starting with "*".
+- **A generated sheet is found by its NAME** (`Layouts.get(doc, job.name)` in `CsLayoutGen.generate`; the
+  `revert`/`stamp` code does the same). So today, renaming a generated sheet's tab makes the next Sheet Setup build
+  forget it and make a new "A1" beside the renamed one. This has to be fixed first or two-way linking cannot work.
+- Match lines on a tiled plan name their neighbour ("matches B2"): they would go stale on a rename.
+- The sheet index (`LayoutIndex`) lists layout names and is rebuilt only when it is added again.
+
+**Preliminary plan**
+1. **Stable identity.** Store the job's `id` on the layout (the stored job already has it; also keep it as its own
+   layout property) and make `generate`/`revert`/`state` find a layout by that id first, by name second. Then a
+   renamed sheet is still "the A1 sheet". Test: generate, rename the tab, generate again: no extra sheet appears.
+2. **A sheet-number field.** Add `sheetNumber` ("Sheet:  ") to `CsSheet.FIELDS`, drawn in the title block of every
+   sheet (single sheets too, so "Plan" reads "SHEET: PLAN"). Its text is the layout name, as a special LINKED field
+   (see the title block item: the link type is "layout name", and it works both ways). The old "SHEET A1" corner
+   label becomes the same field's value.
+3. **Name -> number.** One hook inside `Layouts.rename` (like the existing `Layouts.stateOf` hooks) calls
+   `CsLayoutGen.afterRename(doc, di, old, new)`: it rewrites that sheet's sheet-number field, the "SHEET x" label,
+   its neighbours' match-line text (labels carry `MatchTo=<job id>` so they are rewritten from names, not parsed),
+   and the sheet index text. One undo step, joined to the rename's transaction group.
+4. **Number -> name.** The transaction listener (same pattern as `SheetScaleBarListener`, busy flag and all) hears
+   an edit to a text/attribute tagged `TBField=sheetNumber` on a layout. It calls `Layouts.rename` with the typed
+   value. If the name is refused (duplicate, empty, "Model", starts with "*") the field is put back to the layout's
+   name and one message says why. Editing it never leaves the tab and the sheet disagreeing.
+5. **Sheet Setup build** reads the sheet number from the layout (never invents "A1" over a renamed sheet) and a
+   rename made while the panel is open refreshes the panel.
+6. **Edge cases to decide:** a name longer than fits the title block (shrink/wrap); duplicating a layout
+   (the copy needs a new unique name and number); "Sheet 3 of 12" counts (not asked for; leave); the plot/PDF file
+   name uses the layout name already.
+Risks: the rename hook runs inside an undoable operation, so the follow-up edits must join its group; the
+edit-hearing listener must ignore the rename's own rewrite (busy flag); drawings saved before this have no
+sheetNumber field (add it on the next build, never over a hand-made title block).
+
 ### Layout items as blocks: what benefits, and a title block with linked fields
 (Investigated by reading `Core/CsLayoutGen.js`, `CsLayoutFurniture.js`, `CsScaleBar.js`, `CsSheet.js`, `CsSheetSetup.js`.)
 
