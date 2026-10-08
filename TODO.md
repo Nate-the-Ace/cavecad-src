@@ -53,8 +53,22 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 2. **Scale bar - high. MUST STAY DYNAMIC** (it is today: see below; the block version must redraw its definition whenever the viewport's scale changes, by any route, including undo/redo, and a test must prove it). Many pieces (base, ticks, numbers, caption, unit) redrawn whenever the viewport scale
    changes. Same shape as the north arrow now: one block per viewport link, redefined on a scale change, the
    reference's insertion point is the baseline start (`CsScaleBar.anchorOf` already reads that point).
-3. **Grid - high.** Dozens of tick lines and labels per viewport, regenerated as a whole whenever the viewport
-   changes (`GridOf` tag, `removeTagged`). One block per viewport makes delete/move one action.
+3. **Grid - high. MUST BECOME DYNAMIC, and TODAY IT IS NOT.** `CsLayoutFurniture.addGrid` draws the ticks and
+   labels once, from the viewport's scale, centre, size and view centre at that moment, and nothing watches
+   afterwards (only `LayoutGrid` calls it; there is no sync and no listener). Pan, zoom, change the scale, or
+   resize the viewport and the grid is left behind. As one block per viewport it would redraw its definition
+   whenever any of those change.
+   - Link it to its viewport by GUID like the north arrow and scale bar (`GridOf` already carries the GUID).
+   - Keep the grid's own choices on the block reference (`GridAbsolute` = true/false, the origin used), so a
+     redraw needs nothing but the viewport.
+   - Triggers to watch, beyond scale: the view centre (pan), size (resizing grips), the step that fits
+     (`gridStep` changes as scale changes, so ticks get denser or sparser), and rotation. Extend the existing
+     `SheetScaleBarListener` (it already hears every viewport change and syncs the bar and arrow) to sync grids too.
+   - A rotated or clipped viewport is refused today ("a grid goes round a rectangular viewport that is not
+     turned"). Dynamic version: when a viewport becomes rotated or clipped, the grid is hidden (kept, not deleted) and
+     a message says why; it comes back when the viewport is plain again.
+   - Test: place a grid, change the viewport scale, pan it, resize it: the ticks and labels follow each time, a
+     second sync writes nothing, and undo/redo keep it in step.
 4. **Sheet index - medium.** A list of text lines (`SheetIndex`), rebuilt when re-added. A block gives one object
    to move; its content is regenerated from the layouts list.
 5. **Border - medium.** Four lines on `BORDER`. Mainly useful as a reusable template piece
