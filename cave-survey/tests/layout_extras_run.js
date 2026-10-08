@@ -161,7 +161,14 @@ check(nrows === Layouts.list(doc).length, "the index has a row for every layout:
 var idxCount = function() { var n = 0, l = doc.queryBlockEntities(inf.blockId); for (var i = 0; i < l.length; i++) { var e = doc.queryEntity(l[i]); if (!e.isUndone() && CsTags.get(e, "SheetIndex") !== "") n++; } return n; };
 var first = idxCount();
 CsLayoutFurniture.addIndex(doc, di, inf, 0.1, 0.6);
-check(idxCount() === first && first >= nrows, "adding it again replaces it: " + first);
+check(idxCount() === first && first === 1, "the index is ONE block, and adding it again replaces it: " + first);
+// anchored at its bottom left: it grows UP when a sheet is added, the anchor stays
+var idxRef = CsLayoutFurniture.indexRef(doc, inf), idxAt = idxRef.getPosition();
+Layouts.create(di, { name: "Another", paper: "Letter" });
+CsLayoutFurniture.refreshIndex(doc, di, inf, false);
+var idxAt2 = CsLayoutFurniture.indexRef(doc, inf).getPosition();
+check(Math.abs(idxAt.x - idxAt2.x) < 1e-9 && Math.abs(idxAt.y - idxAt2.y) < 1e-9, "a new sheet makes the index taller; its bottom-left anchor does not move");
+check(CsLayoutFurniture.refreshIndex(doc, di, inf, false) === 0, "and a second refresh writes nothing");
 check(CsLayoutFurniture.indexRows(doc)[0].scale !== undefined, "rows carry paper and scale");
 
 // ---- grid

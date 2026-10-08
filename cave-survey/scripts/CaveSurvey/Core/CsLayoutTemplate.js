@@ -427,6 +427,11 @@ CsLayoutTemplate.capture = function(doc, info, name) {
     // a border: axis-aligned BORDER lines running most of the paper's width / height
     // (match lines and a sheet's own edges are not it); its inset is the nearest one's distance from the paper edge
     var W = ps.w / inch, H = ps.h / inch, hlines = 0, vlines = 0, inset = Infinity;
+    var borderRefs = CsLayoutFurniture.borderRefs(doc, info);
+    if (borderRefs.length > 0) {
+        // a border block: its inset is on the reference
+        def.furniture.unshift({ kind: "border", inset: Math.round(parseFloat(CsTags.get(borderRefs[0], CsLayoutFurniture.TAG_BORDER)) * 1000) / 1000 });
+    }
     var bids = doc.queryBlockEntities(info.blockId);
     for (var bi = 0; bi < bids.length; bi++) {
         var be = doc.queryEntity(bids[bi]);
@@ -447,7 +452,7 @@ CsLayoutTemplate.capture = function(doc, info, name) {
             inset = Math.min(inset, sp.x / inch, W - sp.x / inch);
         }
     }
-    if (hlines >= 2 && vlines >= 2 && isFinite(inset)) {
+    if (borderRefs.length === 0 && hlines >= 2 && vlines >= 2 && isFinite(inset)) {
         def.furniture.unshift({ kind: "border", inset: Math.round(inset * 1000) / 1000 });
     }
 

@@ -18,6 +18,11 @@
 // one the bar shows. The redrawn bar keeps its place: it is anchored by its
 // baseline's left end, which is wherever the caver last put it.
 //
+// THE BAR IS ONE BLOCK (CsSheetBlock): a block reference named SCALE-BAR-<guid>, its insertion point the baseline's
+// left end, tagged BarOf (the GUID) and BarFpi (the scale drawn at). A new scale REDRAWS THE BLOCK'S DEFINITION and
+// never touches the reference, so the place the caver put the bar is kept by construction. Bars made as loose pieces
+// by older builds are still found and read; the first time one needs redrawing it is replaced by the block.
+//
 // Linked bars work on AUTOMATIC and MANUAL sheets alike: a bar following its
 // viewport is not a hand edit, so the sheet signature leaves bar pieces out.
 
@@ -71,72 +76,115 @@ CsScaleBar.isPiece = function(entity) {
     return CsTags.get(entity, CsScaleBar.LINK) !== "";
 };
 
+CsScaleBar.BLOCK_PREFIX = "SCALE-BAR-";
+
+CsScaleBar.blockName = function(guid) {
+    return CsSheetBlock.safeName(CsScaleBar.BLOCK_PREFIX, guid);
+};
+
 /**
- * Draws a bar into `op`.
+ * Everything the bar draws, PURE, in inches from the baseline's left end (0, 0). `d` carries the sheet's
+ * dimensions (so this needs no document): { bar: CsSheetSetup.barFor(fpi), barH, tick, small, body, caption }.
+ *
+ * \return { lines: [{ x1, y1, x2, y2, part }], texts: [{ x, y, h, label, part }], width }
+ */
+CsScaleBar.parts = function(fpi, d) {
+    var bar = d.bar, out = { lines: [], texts: [], width: 0 };
+    var blockW = bar.perBlockFeet / fpi;           // one block is perBlockFeet of cave = this many inches of paper
+    for (var k = 0; k <= bar.blocks; k++) {
+        var bx = blockW * k;
+        out.lines.push({ x1: bx, y1: 0, x2: bx, y2: d.barH, part: "tick" });
+        out.texts.push({ x: bx, y: -d.tick * 2, h: d.small, label: String(bar.perBlock * k), part: "label" });
+    }
+    out.width = blockW * bar.blocks;
+    out.lines.push({ x1: 0, y1: 0, x2: out.width, y2: 0, part: "base" });
+    out.lines.push({ x1: 0, y1: d.barH, x2: out.width, y2: d.barH, part: "top" });
+    out.texts.push({ x: 0, y: d.barH + d.body, h: d.body, label: d.caption, part: "caption" });
+    out.texts.push({ x: out.width + 0.1, y: -d.tick * 2, h: d.small, label: bar.unit, part: "unit" });
+    return out;
+};
+
+/** Draws the bar INTO a block definition (env is CsLayoutGen.envFor's, aimed at the definition). */
+CsScaleBar.drawInto = function(env, fpi) {
+    var parts = CsScaleBar.parts(fpi, { bar: CsSheetSetup.barFor(fpi), barH: CsSheetSetup.BAR.height,
+        tick: CsSheetSetup.BAR.tick, small: CsSheetSetup.TEXT.small, body: CsSheetSetup.TEXT.body,
+        caption: CsSheetSetup.scaleText(fpi) });
+    var mark = function(entity, part) {
+        CsTags.set(entity, CsScaleBar.PART, part);
+        return entity;
+    };
+    var i;
+    for (i = 0; i < parts.lines.length; i++) {
+        var ln = parts.lines[i];
+        mark(env.line(ln.x1, ln.y1, ln.x2, ln.y2, CsLayers.SCALE_BAR), ln.part);
+    }
+    for (i = 0; i < parts.texts.length; i++) {
+        var tx = parts.texts[i];
+        mark(env.text(tx.x, tx.y, tx.h, tx.label, CsLayers.SCALE_BAR), tx.part);
+    }
+};
+
+/** (Re)draws the definition of the bar linked to `guid` at `fpi`. \return the block id, or null. */
+CsScaleBar.defineBlock = function(doc, di, guid, fpi, opts) {
+    var o = isNull(opts) ? {} : opts;
+    return CsSheetBlock.redefine(doc, di, CsScaleBar.blockName(guid), function(env) {
+        CsScaleBar.drawInto(env, fpi);
+    }, { group: o.group, quiet: o.quiet, text: qsTr("Draw scale bar") });
+};
+
+/**
+ * Makes a bar: its block definition now, and its block reference ADDED TO `op` (the caller applies it).
  *
  * \param o.blockId  the layout's block
  * \param o.xIn,o.yIn  where the bar's BASELINE starts, inches of paper from the sheet's lower left
  * \param o.fpi      feet of cave per inch of paper
  * \param o.guid     the viewport this bar measures
  * \param o.tag      value of the generator's own tag (CsLayoutGen.TAG), or "" for none
- * \return the entities added
+ * \return the entities added (the one reference)
  */
 CsScaleBar.build = function(doc, di, op, o) {
     var inch = Layouts.toPaper(doc, 25.4);
-    var P = function(inches) { return inches * inch; };
-    var made = [];
-    var layerId = (function() {
-        CsLayers.ensure(doc, di, CsLayers.SCALE_BAR);
-        return doc.getLayerId(CsLayers.SCALE_BAR);
-    })();
-    var put = function(entity, part) {
-        entity.setBlockId(o.blockId);
-        entity.setLayerId(layerId);
-        if (!isNull(o.tag) && o.tag !== "" && typeof CsLayoutGen !== "undefined") {
-            CsTags.set(entity, CsLayoutGen.TAG, o.tag);
-        }
-        CsTags.set(entity, CsScaleBar.LINK, o.guid);
-        CsTags.set(entity, CsScaleBar.FPI, String(o.fpi));
-        CsTags.set(entity, CsScaleBar.PART, part);
-        op.addObject(entity, false);
-        made.push(entity);
-        return entity;
-    };
-    var text = function(x, y, heightIn, label, part) {
-        var e = new RTextEntity(doc, new RTextData(
-            new RVector(P(x), P(y)), new RVector(P(x), P(y)), P(heightIn),
-            P(CsSheetSetup.TITLE_INCHES * 4),
-            RS.VAlignMiddle, RS.HAlignLeft, RS.LeftToRight, RS.Exact,
-            1.0, CsDraw.caps(label), "standard", false, false, 0.0, false));
-        return put(e, part);
-    };
-    var line = function(x1, y1, x2, y2, part) {
-        var e = new RLineEntity(doc, new RLineData(new RVector(P(x1), P(y1)), new RVector(P(x2), P(y2))));
-        return put(e, part);
-    };
-
-    var bar = CsSheetSetup.barFor(o.fpi);
-    var barX = o.xIn, barY = o.yIn;
-    // one block is perBlockFeet of cave = perBlockFeet / fpi inches of paper
-    var blockW = bar.perBlockFeet / o.fpi;
-    var barH = CsSheetSetup.BAR.height;
-    for (var k = 0; k <= bar.blocks; k++) {
-        var bx = barX + blockW * k;
-        line(bx, barY, bx, barY + barH, "tick");
-        text(bx, barY - CsSheetSetup.BAR.tick * 2, CsSheetSetup.TEXT.small, String(bar.perBlock * k), "label");
+    var defId = CsScaleBar.defineBlock(doc, di, o.guid, o.fpi, {});
+    if (defId === null) {
+        throw new Error("scale bar block could not be made");
     }
-    line(barX, barY, barX + blockW * bar.blocks, barY, "base");
-    line(barX, barY + barH, barX + blockW * bar.blocks, barY + barH, "top");
-    text(barX, barY + barH + CsSheetSetup.TEXT.body, CsSheetSetup.TEXT.body,
-        CsSheetSetup.scaleText(o.fpi), "caption");
-    text(barX + blockW * bar.blocks + 0.1, barY - CsSheetSetup.BAR.tick * 2,
-        CsSheetSetup.TEXT.small, bar.unit, "unit");
-    return made;
+    var ref = CsSheetBlock.reference(doc, di, defId, o.blockId, CsLayers.SCALE_BAR, o.xIn * inch, o.yIn * inch);
+    if (!isNull(o.tag) && o.tag !== "" && typeof CsLayoutGen !== "undefined") {
+        CsTags.set(ref, CsLayoutGen.TAG, o.tag);
+    }
+    CsTags.set(ref, CsScaleBar.LINK, o.guid);
+    CsTags.set(ref, CsScaleBar.FPI, String(o.fpi));
+    op.addObject(ref, false);
+    return [ref];
+};
+
+/** The parts of a bar as entities: the block's contents for a block bar, the pieces themselves for a loose one. */
+CsScaleBar.partsOf = function(doc, pieces) {
+    var out = [];
+    for (var i = 0; i < pieces.length; i++) {
+        if (pieces[i].getType() === RS.EntityBlockRef) {
+            var ids = doc.queryBlockEntities(pieces[i].getReferencedBlockId());
+            for (var k = 0; k < ids.length; k++) {
+                var e = doc.queryEntity(ids[k]);
+                if (!isNull(e) && !e.isUndone()) { out.push(e); }
+            }
+        }
+        else {
+            out.push(pieces[i]);
+        }
+    }
+    return out;
 };
 
 /** Where a bar's baseline starts now (inches of paper), or null when it has no baseline. */
 CsScaleBar.anchorOf = function(doc, pieces) {
     var inch = Layouts.toPaper(doc, 25.4);
+    for (var j = 0; j < pieces.length; j++) {
+        if (pieces[j].getType() === RS.EntityBlockRef) {
+            var at = pieces[j].getPosition();       // a block bar: the insertion point IS the baseline's left end
+            return { x: at.x / inch, y: at.y / inch };
+        }
+    }
     for (var i = 0; i < pieces.length; i++) {
         if (CsTags.get(pieces[i], CsScaleBar.PART) === "base" && pieces[i].getType() === RS.EntityLine) {
             var a = pieces[i].getStartPoint(), b = pieces[i].getEndPoint();
@@ -187,6 +235,21 @@ CsScaleBar.sync = function(doc, di, vp, group, quiet) {
     if (anchor === null) {
         return false;     // the baseline is gone: leave what is left alone
     }
+    if (pieces[0].getType() === RS.EntityBlockRef) {
+        // a block bar: redraw the DEFINITION at the new scale; the reference stays exactly where it is
+        CsScaleBar.defineBlock(doc, di, guid, fpi, { group: group, quiet: quiet === true });
+        var ref = doc.queryEntity(pieces[0].getId());
+        CsTags.set(ref, CsScaleBar.FPI, String(fpi));
+        var mod = new RModifyObjectsOperation(quiet !== true);
+        mod.setText(qsTr("Scale bar follows its viewport"));
+        if (group >= 0) {
+            mod.setTransactionGroup(group);
+        }
+        mod.addObject(ref, false);
+        di.applyOperation(mod);
+        return true;
+    }
+    // a loose bar from an older build: replaced by the block, where its baseline was
     var del = new RDeleteObjectsOperation(quiet !== true);
     del.setText(qsTr("Scale bar follows its viewport"));
     if (group >= 0) {

@@ -18,7 +18,7 @@ LayoutIndex.prototype = new EAction();
 
 LayoutIndex.prototype.beginEvent = function() {
     EAction.prototype.beginEvent.call(this);
-    CsLayoutFurniture.beginPlacing(this, qsTr("Add Sheet Index"), qsTr("Click where the top left of the index goes"));
+    CsLayoutFurniture.beginPlacing(this, qsTr("Add Sheet Index"), qsTr("Click where the BOTTOM LEFT of the index goes (it grows upward)"));
 };
 
 LayoutIndex.prototype.coordinateEvent = function(event) {
@@ -36,7 +36,7 @@ LayoutIndex.init = function(basePath) {
     action.setRequiresDocument(true);
     action.setScriptFile(basePath + "/LayoutIndex.js");
     action.setIcon(basePath + "/LayoutIndex.svg");
-    action.setStatusTip(qsTr("Put a sheet index on this layout: every layout, its paper and its scale"));
+    action.setStatusTip(qsTr("Put a sheet index on this layout (anchored at its bottom left, growing upward): every layout, its paper and its scale"));
     action.setDefaultCommands(["sheetindex", "sidx"]);
     action.setGroupSortOrder(454);
     action.setSortOrder(72);

@@ -271,6 +271,7 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsSheetTile.js",
     // Sheets as layouts: plan() is the pure half (the Layouts API it
     // draws through is the engine's and is not loaded here).
+    "scripts/CaveSurvey/Core/CsSheetBlock.js",
     "scripts/CaveSurvey/Core/CsScaleBar.js",
     "scripts/CaveSurvey/Core/CsNorth.js",
     "scripts/CaveSurvey/Core/CsLayoutFurniture.js",
@@ -28313,6 +28314,29 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     ok(vJobs[0].wants.north === true && vJobs[1].wants.north === false && vJobs[2].wants.north === false,
         "CsLayoutGen.plan: only the plan sheet gets a north arrow");
     ok(CsLayoutGen.OTHER_FRAMES.section.join() === "plan,profile", "CsLayoutGen: a section sheet freezes the plan and profile layers");
+
+    // CsScaleBar.parts: what the bar draws, from the baseline's left end
+    var sbBar = { perBlockFeet: 10, perBlock: 10, blocks: 3, unit: "FEET" };
+    var sbParts = CsScaleBar.parts(20, { bar: sbBar, barH: 0.1, tick: 0.05, small: 0.08, body: 0.12, caption: "1 IN = 20 FT" });
+    near(sbParts.width, 1.5, 1e-9, "CsScaleBar.parts: three blocks of 10 ft at 20 ft/in are 1.5 in long");
+    ok(sbParts.lines.filter(function(l) { return l.part === "tick"; }).length === 4, "CsScaleBar.parts: a tick at each end of each block");
+    ok(sbParts.lines.filter(function(l) { return l.part === "base"; }).length === 1 && sbParts.lines.filter(function(l) { return l.part === "top"; }).length === 1, "CsScaleBar.parts: a base and a top line");
+    eqs(sbParts.texts.filter(function(t) { return t.part === "label"; }).map(function(t) { return t.label; }).join(","), "0,10,20,30", "CsScaleBar.parts: labelled in ground units");
+    var sbBase = sbParts.lines.filter(function(l) { return l.part === "base"; })[0];
+    ok(sbBase.x1 === 0 && sbBase.y1 === 0, "CsScaleBar.parts: the baseline starts at the block's origin, which is the bar's anchor");
+    var sbHalf = CsScaleBar.parts(40, { bar: { perBlockFeet: 10, perBlock: 10, blocks: 3, unit: "FEET" }, barH: 0.1, tick: 0.05, small: 0.08, body: 0.12, caption: "x" });
+    near(sbHalf.width, 0.75, 1e-9, "CsScaleBar.parts: at twice the ground per inch the same bar is half as long on paper");
+    eqs(CsScaleBar.blockName("abc"), "SCALE-BAR-abc", "CsScaleBar.blockName: one block per viewport link");
+    // CsLayoutFurniture.indexLayout: the sheet index grows UP from its bottom-left corner
+    var ixRows = [{ name: "A1", paper: "Letter", scale: "1in=20ft" }, { name: "A2", paper: "Letter", scale: "1in=20ft" }, { name: "B1", paper: "Letter", scale: "1in=40ft" }];
+    var ix = CsLayoutFurniture.indexLayout(ixRows, 0.1, "SHEET INDEX");
+    ok(ix.length === 1 + 3 * 3, "CsLayoutFurniture.indexLayout: a heading and three words per sheet");
+    var ixBottom = ix.filter(function(i) { return i.text === "B1"; })[0], ixTop = ix.filter(function(i) { return i.text === "A1"; })[0], ixHead = ix[0];
+    near(ixBottom.y, 0.05, 1e-9, "CsLayoutFurniture.indexLayout: the last row sits on the bottom-left corner");
+    ok(ixTop.y > ixBottom.y && ixHead.y > ixTop.y, "CsLayoutFurniture.indexLayout: the first row is above the last, the heading above all");
+    var ix4 = CsLayoutFurniture.indexLayout(ixRows.concat([{ name: "C1", paper: "", scale: "" }]), 0.1, "SHEET INDEX");
+    near(ix4.filter(function(i) { return i.text === "C1"; })[0].y, 0.05, 1e-9, "CsLayoutFurniture.indexLayout: a new sheet takes the bottom; the corner does not move");
+    ok(ix4[0].y > ixHead.y, "CsLayoutFurniture.indexLayout: and the index is taller");
 
     // CsTitleBlock: where each line goes, what a field prints, and which linked fields follow the notebook
     var tbLines = [{ text: "TRUITT CAVE", inches: 0.3, fieldId: "caveName" }, { text: "SURVEYED BY:  A B", inches: 0.1, fieldId: "surveyedBy" },

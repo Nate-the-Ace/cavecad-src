@@ -26,6 +26,11 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
   back). A generated sheet is now found by its job id, so a renamed tab is still that sheet. The sheet signature
   has a new recipe (version 2) so a rename or a linked field is not a hand edit; older sheets are still read with
   the first recipe.
+- **Scale bar = ONE block, still dynamic** (`CsScaleBar`, `CsSheetBlock`): a new scale redraws the block's
+  definition and never moves the reference; older loose bars are found and replaced by the block the first time they
+  need redrawing. **Border = ONE block** that redraws when the paper changes. **Sheet index = ONE block anchored at
+  its BOTTOM-LEFT corner**: it grows upward as sheets are added and follows renames; loose indexes from older builds
+  are replaced by the block at their lowest row.
 - **Title block = ONE block with a field (block attribute) per line** (`CsTitleBlock`): linked fields (cave name,
   surveyed by, dates, length, depth, survey code) follow the notebook; typing over one makes it manual; Location is
   never linked; Refresh from notebook / Link field to notebook on the Sheet Item tab. Falls back to the old loose
@@ -33,8 +38,8 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 - One repository: `cave-survey/` and `i18n/` merged into this repo with history; builds read from it.
 
 ### Still to do, from the items below
-- **Sheet items as blocks**: the NORTH ARROW and the TITLE BLOCK are blocks now. The scale bar (must stay dynamic),
-  the grid (must BECOME dynamic), the sheet index and the border are still loose pieces; the legend needs none. Each has readers that expect pieces (`CsScaleBar.pieces/anchorOf`, `SheetSetup.titleValues`
+- **Sheet items as blocks**: the NORTH ARROW, TITLE BLOCK, SCALE BAR, BORDER and SHEET INDEX are blocks now. Only the
+  GRID is still loose pieces (and it must BECOME dynamic, see below); the legend needs none. Each has readers that expect pieces (`CsScaleBar.pieces/anchorOf`, `SheetSetup.titleValues`
   reads the title's text entities, `CsLayoutFurniture.hasBorder`, the signature rows, `LayoutCheck`), so each
   conversion should be made and tried in the app one at a time, the way the north arrow now can be.
 - **Sheets from Views**: Viewport-tab "Re-frame to...", editing a view's scale before making it, marking a sheet

@@ -368,10 +368,17 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
         // OUTSIDE the margin box (at 0.2 in: clear of a plotter's own unprintable
         // edge) so the furniture, which starts at the margin, does not sit on the line
         var bd = Math.min(CsLayoutGen.BORDER_INSET, m);
-        line(bd, bd, W - bd, bd, CsLayers.BORDER);
-        line(W - bd, bd, W - bd, H - bd, CsLayers.BORDER);
-        line(W - bd, H - bd, bd, H - bd, CsLayers.BORDER);
-        line(bd, H - bd, bd, bd, CsLayers.BORDER);
+        // ONE block (CsLayoutFurniture.makeBorder); if that fails the four lines are drawn as before
+        try {
+            add(CsLayoutFurniture.makeBorder(doc, di, blockId, W, H, bd, "border"), CsLayers.BORDER, "border");
+        }
+        catch (eBorder) {
+            CsTell.warn(qsTr("Border: making it as a block failed (%1); it is drawn as lines instead.").arg(String(eBorder)));
+            line(bd, bd, W - bd, bd, CsLayers.BORDER);
+            line(W - bd, bd, W - bd, H - bd, CsLayers.BORDER);
+            line(W - bd, H - bd, bd, H - bd, CsLayers.BORDER);
+            line(bd, H - bd, bd, bd, CsLayers.BORDER);
+        }
         drew.push("a border");
     }
 
@@ -479,6 +486,7 @@ CsLayoutGen.draw = function(doc, di, job, info, extra) {
     if (typeof CsTitleBlock !== "undefined") {
         CsTitleBlock.purgeUnused(doc, di);
     }
+    CsSheetBlock.purge(doc, di, CsScaleBar.BLOCK_PREFIX);
     return drew;
 };
 
@@ -527,6 +535,13 @@ CsLayoutGen.signatureRows = function(doc, info, legacy) {
     for (var i = 0; i < ids.length; i++) {
         var e = doc.queryEntity(ids[i]);
         if (isNull(e) || e.isUndone()) {
+            continue;
+        }
+        if (e.getType() === RS.EntityBlockRef && (CsScaleBar.isPiece(e) || CsTags.get(e, "SheetIndex") !== "")) {
+            // a scale bar block (its contents are redrawn with the scale) or a sheet index block (its contents follow the
+            // list of sheets): only WHERE it is anchored is a hand edit
+            var rp = e.getPosition();
+            rows.push([CsScaleBar.isPiece(e) ? "BAR" : "INDEX", CsLayoutGen.round(rp.x), CsLayoutGen.round(rp.y)].join("|"));
             continue;
         }
         if (CsScaleBar.isPiece(e)) {
@@ -817,7 +832,8 @@ CsLayoutGen.refreshNames = function(doc, di, group, quiet) {
     }
     // a sheet index lists layout names: redraw each where it stands
     for (var x = 0; x < layouts.length; x++) {
-        n += CsLayoutFurniture.refreshIndex(doc, di, layouts[x]);
+        n += CsLayoutFurniture.refreshIndex(doc, di, layouts[x], quiet);
+        n += CsLayoutFurniture.refreshBorder(doc, di, layouts[x], quiet);
     }
     return n;
 };

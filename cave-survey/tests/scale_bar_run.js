@@ -39,19 +39,21 @@ CsLayoutGen.generate(doc, di, { caveBox: { minX: ox, minY: oy, maxX: ox + 100, m
 
 function vpOf() { return Layouts.viewports(doc, Layouts.get(doc, "Plan"))[0]; }
 function barPieces() { return CsScaleBar.pieces(doc, Layouts.get(doc, "Plan").blockId, CsScaleBar.guidOf(vpOf())); }
+// the bar is ONE block reference; what it draws is in its block definition
 function caption() {
-    var ps = barPieces();
+    var ps = CsScaleBar.partsOf(doc, barPieces());
     for (var i = 0; i < ps.length; i++) if (CsTags.get(ps[i], CsScaleBar.PART) === "caption") return String(ps[i].getPlainText());
     return "";
 }
 function baseLength() {
-    var ps = barPieces();
+    var ps = CsScaleBar.partsOf(doc, barPieces());
     for (var i = 0; i < ps.length; i++) if (CsTags.get(ps[i], CsScaleBar.PART) === "base") return ps[i].getLength();
     return NaN;
 }
 
 check(CsScaleBar.guidOf(vpOf()) !== "", "the viewport carries a GUID");
-check(barPieces().length > 8, "a bar is linked to it: " + barPieces().length + " pieces");
+check(barPieces().length === 1 && barPieces()[0].getType() === RS.EntityBlockRef, "the bar is ONE block reference linked to it: " + barPieces().length);
+check(CsScaleBar.partsOf(doc, barPieces()).length > 8, "and the block draws the whole bar: " + CsScaleBar.partsOf(doc, barPieces()).length + " parts");
 check(caption().toUpperCase().indexOf("20 FT") > 0, "the bar says the viewport's scale: " + caption());
 check(CsLayoutGen.state(doc, Layouts.get(doc, "Plan")) === "auto", "a freshly generated sheet is AUTO");
 var len20 = baseLength();
@@ -67,7 +69,7 @@ check(CsScaleBar.syncAll(doc, di) === 0, "and a second sync writes nothing (no l
 // a bar for 40 ft/in covers twice the cave per inch: the same bar of paper is twice the feet
 var bar40 = CsSheetSetup.barFor(40), bar20 = CsSheetSetup.barFor(20);
 check(near(baseLength(), bar40.perBlockFeet * bar40.blocks / 40 / 12, 1e-6), "the bar's length is its ground feet / feet-per-inch (in feet of paper): " + baseLength());
-check(barPieces().length > 8, "same number of pieces, not duplicates: " + barPieces().length);
+check(barPieces().length === 1 && CsScaleBar.partsOf(doc, barPieces()).length > 8, "still one bar, not duplicates: " + barPieces().length);
 
 // ---- a typed scale not on any list (custom) ----------------------------------
 vpOf().setProperty(RViewportEntity.PropertyScale, (1 / 12) / 37.5);
@@ -109,7 +111,7 @@ check(CsScaleBar.sync(doc, di, vpOf(), grp, false), "scale change + redraw in on
 check(caption().toUpperCase().indexOf("80 FT") > 0, "the bar says 80 FT: " + caption());
 di.undo();
 check(near(Layouts.feetPerInch(doc, vpOf()), 60, 1e-6), "one undo takes the scale back to 60");
-check(caption().toUpperCase().indexOf("60 FT") > 0 && barPieces().length > 8, "and the bar back to 60 FT with it: " + caption());
+check(caption().toUpperCase().indexOf("60 FT") > 0 && barPieces().length === 1, "and the bar back to 60 FT with it: " + caption());
 check(CsScaleBar.syncAll(doc, di, -1, true) === 0, "nothing left out of step after the undo");
 di.redo();
 check(caption().toUpperCase().indexOf("80 FT") > 0 && near(Layouts.feetPerInch(doc, vpOf()), 80, 1e-6), "redo brings both forward again: " + caption());
@@ -125,7 +127,7 @@ var bdi = new RDocumentInterface(back);
 bdi.importFile(rt, "", false);
 var bInfo = Layouts.get(back, "Plan");
 var bvp = Layouts.viewports(back, bInfo)[0];
-check(CsScaleBar.guidOf(bvp) !== "" && CsScaleBar.pieces(back, bInfo.blockId, CsScaleBar.guidOf(bvp)).length > 8,
+check(CsScaleBar.guidOf(bvp) !== "" && CsScaleBar.pieces(back, bInfo.blockId, CsScaleBar.guidOf(bvp)).length === 1,
     "the link and the bar come back from the file");
 var bvp2 = Layouts.viewports(back, bInfo)[0];
 bvp2.setScale((1 / 12) / 100);
@@ -145,11 +147,11 @@ var hvp = Layouts.viewports(doc, vInfo)[0];
 check(!CsScaleBar.hasBar(doc, hvp), "a hand-made viewport starts with no bar");
 check(CsScaleBar.addFor(doc, di, hvp), "a bar is added on request");
 var hvp2 = Layouts.viewports(doc, vInfo)[0];
-check(CsScaleBar.hasBar(doc, hvp2) && CsScaleBar.pieces(doc, vInfo.blockId, CsScaleBar.guidOf(hvp2)).length > 8, "and is linked to the viewport");
+check(CsScaleBar.hasBar(doc, hvp2) && CsScaleBar.pieces(doc, vInfo.blockId, CsScaleBar.guidOf(hvp2)).length === 1, "and is linked to the viewport");
 check(!CsScaleBar.addFor(doc, di, hvp2), "asking again adds nothing");
 Layouts.setViewportScale(di, hvp2, 50);
 CsScaleBar.syncAll(doc, di);
-var pcs = CsScaleBar.pieces(doc, vInfo.blockId, CsScaleBar.guidOf(hvp2)), cap2 = "";
+var pcs = CsScaleBar.partsOf(doc, CsScaleBar.pieces(doc, vInfo.blockId, CsScaleBar.guidOf(hvp2))), cap2 = "";
 for (var q = 0; q < pcs.length; q++) if (CsTags.get(pcs[q], CsScaleBar.PART) === "caption") cap2 = String(pcs[q].getPlainText());
 check(cap2.toUpperCase().indexOf("50 FT") > 0, "the new bar follows its viewport: " + cap2);
 di.undo(); di.undo();

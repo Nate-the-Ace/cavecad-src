@@ -294,6 +294,8 @@ if (typeof Layouts === "undefined" && typeof include === "function" && typeof QF
     include("scripts/Layouts/Layouts.js");
     include("scripts/Layouts/LayoutPlot.js");
 }
+// The sheet furniture blocks' shared plumbing (needs CsLayoutGen at run time only).
+include(includeBasePath + "/CsSheetBlock.js");
 include(includeBasePath + "/CsScaleBar.js");
 include(includeBasePath + "/CsNorth.js");
 include(includeBasePath + "/CsLayoutFurniture.js");

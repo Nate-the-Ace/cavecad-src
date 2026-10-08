@@ -140,22 +140,100 @@ CsLayoutFurniture.beginPlacing = function(tool, name, prompt) {
 
 
 /** A border `inset` inches inside the paper's edge, on the BORDER layer. */
+CsLayoutFurniture.BORDER_PREFIX = "SHEET-BORDER-";
+CsLayoutFurniture.TAG_BORDER = "BorderInset";
+
+/**
+ * The border as ONE block: four lines in a definition named for the layout (SHEET-BORDER-<layout block id>), a
+ * reference at the paper's lower left tagged with the inset and the paper it was drawn for (so a new paper redraws
+ * it, see refreshBorder). Makes the definition now; the reference is returned for the caller to add.
+ *
+ * \param W, H, inset  inches
+ * \param generatedTag the generator's own tag for the reference ("border"), or "" for a border a person placed
+ */
+CsLayoutFurniture.makeBorder = function(doc, di, layoutBlockId, W, H, inset, generatedTag) {
+    var name = CsSheetBlock.safeName(CsLayoutFurniture.BORDER_PREFIX, layoutBlockId);
+    var defId = CsSheetBlock.redefine(doc, di, name, function(env) {
+        var b = inset;
+        env.line(b, b, W - b, b, CsLayers.BORDER);
+        env.line(W - b, b, W - b, H - b, CsLayers.BORDER);
+        env.line(W - b, H - b, b, H - b, CsLayers.BORDER);
+        env.line(b, H - b, b, b, CsLayers.BORDER);
+    }, { text: qsTr("Draw border") });
+    if (defId === null) {
+        throw new Error("border block could not be made");
+    }
+    var ref = CsSheetBlock.reference(doc, di, defId, layoutBlockId, CsLayers.BORDER, 0, 0);
+    CsTags.set(ref, CsLayoutFurniture.TAG_BORDER, String(inset));
+    CsTags.set(ref, "BorderPaper", W + "x" + H);
+    if (!isNull(generatedTag) && generatedTag !== "") {
+        CsTags.set(ref, CsLayoutGen.TAG, generatedTag);
+    }
+    return ref;
+};
+
 CsLayoutFurniture.addBorder = function(doc, di, info, inset) {
     var ps = Layouts.paperSize(doc, info);
     var inch = Layouts.toPaper(doc, 25.4);
-    var env = CsLayoutGen.envFor(doc, di, info.blockId, qsTr("Add border"), "");
-    var W = ps.w / inch, H = ps.h / inch, b = inset;
-    env.line(b, b, W - b, b, CsLayers.BORDER);
-    env.line(W - b, b, W - b, H - b, CsLayers.BORDER);
-    env.line(W - b, H - b, b, H - b, CsLayers.BORDER);
-    env.line(b, H - b, b, b, CsLayers.BORDER);
-    di.applyOperation(env.op);
+    var W = ps.w / inch, H = ps.h / inch;
+    var op = new RAddObjectsOperation();
+    op.setText(qsTr("Add border"));
+    op.addObject(CsLayoutFurniture.makeBorder(doc, di, info.blockId, W, H, inset, ""), false);
+    di.applyOperation(op);
     return true;
 };
 
+/** The border references on a layout (the block kind). */
+CsLayoutFurniture.borderRefs = function(doc, info) {
+    var out = [], ids = doc.queryBlockEntities(info.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (!isNull(e) && !e.isUndone() && e.getType() === RS.EntityBlockRef && CsTags.get(e, CsLayoutFurniture.TAG_BORDER) !== "") {
+            out.push(e);
+        }
+    }
+    return out;
+};
 
-/** True when the layout already has a border (axis-aligned BORDER lines most of the paper wide and tall). */
+/**
+ * Keeps a block border on its paper: when the paper (or margin-driven paper) changed since it was drawn, redraws the
+ * DEFINITION; the reference stays. Writes nothing when it already fits.
+ *
+ * \return 1 when it was redrawn, else 0
+ */
+CsLayoutFurniture.refreshBorder = function(doc, di, info, quiet) {
+    var refs = CsLayoutFurniture.borderRefs(doc, info);
+    if (refs.length === 0) {
+        return 0;
+    }
+    var ps = Layouts.paperSize(doc, info), inch = Layouts.toPaper(doc, 25.4);
+    var W = ps.w / inch, H = ps.h / inch, wanted = W + "x" + H;
+    if (CsTags.get(refs[0], "BorderPaper") === wanted) {
+        return 0;
+    }
+    var inset = parseFloat(CsTags.get(refs[0], CsLayoutFurniture.TAG_BORDER));
+    var name = CsSheetBlock.safeName(CsLayoutFurniture.BORDER_PREFIX, info.blockId);
+    CsSheetBlock.redefine(doc, di, name, function(env) {
+        var b = inset;
+        env.line(b, b, W - b, b, CsLayers.BORDER);
+        env.line(W - b, b, W - b, H - b, CsLayers.BORDER);
+        env.line(W - b, H - b, b, H - b, CsLayers.BORDER);
+        env.line(b, H - b, b, b, CsLayers.BORDER);
+    }, { quiet: quiet === true, text: qsTr("Border follows the paper") });
+    var ref = doc.queryEntity(refs[0].getId());
+    CsTags.set(ref, "BorderPaper", wanted);
+    var mod = new RModifyObjectsOperation(quiet !== true);
+    mod.setText(qsTr("Border follows the paper"));
+    mod.addObject(ref, false);
+    di.applyOperation(mod);
+    return 1;
+};
+
+/** True when the layout already has a border (a border block, or axis-aligned BORDER lines most of the paper wide and tall). */
 CsLayoutFurniture.hasBorder = function(doc, info) {
+    if (CsLayoutFurniture.borderRefs(doc, info).length > 0) {
+        return true;
+    }
     var ps = Layouts.paperSize(doc, info), inch = Layouts.toPaper(doc, 25.4);
     var W = ps.w / inch, H = ps.h / inch, h = 0, v = 0;
     var ids = doc.queryBlockEntities(info.blockId);
@@ -499,75 +577,110 @@ CsLayoutFurniture.indexRows = function(doc) {
     return rows;
 };
 
+CsLayoutFurniture.INDEX_PREFIX = "SHEET-INDEX-";
+CsLayoutFurniture.INDEX_COLUMNS = [0, 1.6, 2.8];     // inches from the left: sheet, paper, scale
+
 /**
- * A sheet index with its top left at paper (x, y): every layout, its paper
- * and its scale. Re-adding it replaces the earlier one on this layout.
+ * Where every word of the sheet index goes, PURE, in inches from the index's BOTTOM-LEFT corner (0, 0): the last row
+ * sits on the corner and the index grows UP (a new sheet makes it taller, never moves its anchor). `h` is the body text height.
+ *
+ * \return [{ x, y, text, heading }], the heading first
+ */
+CsLayoutFurniture.indexLayout = function(rows, h, headingText) {
+    var step = h * 1.6, n = rows.length, out = [];
+    out.push({ x: 0, y: (n > 0 ? (n - 1) * step + step * 1.4 : 0) + h / 2, text: headingText, heading: true });
+    for (var r = 0; r < n; r++) {
+        var y = (n - 1 - r) * step + h / 2;
+        out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[0], y: y, text: rows[r].name, heading: false });
+        out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[1], y: y, text: rows[r].paper, heading: false });
+        out.push({ x: CsLayoutFurniture.INDEX_COLUMNS[2], y: y, text: rows[r].scale, heading: false });
+    }
+    return out;
+};
+
+CsLayoutFurniture.indexDraw = function(rows) {
+    return function(env) {
+        var items = CsLayoutFurniture.indexLayout(rows, CsSheetSetup.TEXT.body, qsTr("SHEET INDEX"));
+        for (var i = 0; i < items.length; i++) {
+            env.text(items[i].x, items[i].y, items[i].heading ? CsSheetSetup.TEXT.heading : CsSheetSetup.TEXT.body,
+                items[i].text, CsLayers.TITLE_BLOCK, "index", true);
+        }
+    };
+};
+
+/** The sheet index reference on a layout, or null. */
+CsLayoutFurniture.indexRef = function(doc, info) {
+    var ids = doc.queryBlockEntities(info.blockId);
+    for (var i = 0; i < ids.length; i++) {
+        var e = doc.queryEntity(ids[i]);
+        if (!isNull(e) && !e.isUndone() && e.getType() === RS.EntityBlockRef && CsTags.get(e, "SheetIndex") !== "") {
+            return e;
+        }
+    }
+    return null;
+};
+
+/**
+ * A sheet index as ONE block, ANCHORED AT ITS BOTTOM-LEFT corner at paper (x, y): every layout, its paper and its
+ * scale. It grows upward as sheets are added. Re-adding it replaces the earlier one on this layout. The index is
+ * placed by a person, so the generator never rewrites it.
+ *
+ * \return how many rows it has
  */
 CsLayoutFurniture.addIndex = function(doc, di, info, x, y) {
     CsLayoutFurniture.removeTagged(doc, di, info, "SheetIndex");
     var rows = CsLayoutFurniture.indexRows(doc);
-    var env = CsLayoutGen.envFor(doc, di, info.blockId, qsTr("Add sheet index"), "");
-    var inch = Layouts.toPaper(doc, 25.4);
-    var xIn = x / inch, yIn = y / inch, h = CsSheetSetup.TEXT.body, step = h * 1.6;
-    var put = function(px, py, label, heading) {
-        var t = env.text(px, py, heading ? CsSheetSetup.TEXT.heading : h, label, CsLayers.TITLE_BLOCK, "index", true);
-        CsTags.set(t, "SheetIndex", "1");
-    };
-    put(xIn, yIn, qsTr("SHEET INDEX"), true);
-    var row = yIn - step * 1.4;
-    for (var i = 0; i < rows.length; i++) {
-        put(xIn, row, rows[i].name, false);
-        put(xIn + 1.6, row, rows[i].paper, false);
-        put(xIn + 2.8, row, rows[i].scale, false);
-        row -= step;
+    var name = CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId);
+    var defId = CsSheetBlock.redefine(doc, di, name, CsLayoutFurniture.indexDraw(rows), { text: qsTr("Add sheet index") });
+    if (defId === null) {
+        throw new Error("sheet index block could not be made");
     }
-    di.applyOperation(env.op);
+    var ref = CsSheetBlock.reference(doc, di, defId, info.blockId, CsLayers.TITLE_BLOCK, x, y);
+    CsTags.set(ref, "SheetIndex", "1");
+    var op = new RAddObjectsOperation();
+    op.setText(qsTr("Add sheet index"));
+    op.addObject(ref, false);
+    di.applyOperation(op);
     return rows.length;
 };
 
-// ---------------------------------------------------------------------
-// Coordinate grid round a viewport
-//
-// Ticks and labels just OUTSIDE a rectangular, unturned viewport. By default
-// the labels are DISTANCES FROM THE CAVE'S SOUTH-WEST CORNER (0, 100, 200 ...):
-// a map must not carry where the cave is. True map coordinates are offered
-// only after the caver has said so in as many words.
-// ---------------------------------------------------------------------
-
 /**
- * Redraws a layout's sheet index where it stands, if it has one and what it lists is out of date (a layout was
- * renamed, added or removed). Compares what the index SAYS to what it should say first, so an index that is right
- * is never touched.
+ * Redraws a layout's sheet index where it stands, if what it lists is out of date (a layout was renamed, added or
+ * removed): the DEFINITION is redrawn and the reference - the bottom-left anchor - stays. An index made as loose text by
+ * an older build is replaced by the block, anchored at its lowest row's bottom-left. Compares what the index SAYS
+ * to what it should say first, so an index that is right is never touched.
  *
  * \return 1 when it was redrawn, else 0
  */
-CsLayoutFurniture.refreshIndex = function(doc, di, info) {
-    var heading = null, have = [];
-    var ids = doc.queryBlockEntities(info.blockId);
+CsLayoutFurniture.refreshIndex = function(doc, di, info, quiet) {
+    var rows = CsLayoutFurniture.indexRows(doc);
+    var ref = CsLayoutFurniture.indexRef(doc, info);
+    if (ref !== null) {
+        var want = [qsTr("SHEET INDEX")];
+        for (var r = 0; r < rows.length; r++) { want.push(rows[r].name, rows[r].paper, rows[r].scale); }
+        var have = CsSheetBlock.textsIn(doc, ref.getReferencedBlockId());
+        if (have.slice().sort().join("\n") === want.slice().sort().join("\n")) {
+            return 0;
+        }
+        CsSheetBlock.redefine(doc, di, CsSheetBlock.safeName(CsLayoutFurniture.INDEX_PREFIX, info.blockId),
+            CsLayoutFurniture.indexDraw(rows), { quiet: quiet === true, text: qsTr("Sheet index follows the sheets") });
+        return 1;
+    }
+    // a loose-text index from an older build: find its lowest-left corner, then replace it by the block
+    var minX = Infinity, minY = Infinity, any = false, ids = doc.queryBlockEntities(info.blockId);
     for (var i = 0; i < ids.length; i++) {
         var e = doc.queryEntity(ids[i]);
-        if (isNull(e) || e.isUndone() || CsTags.get(e, "SheetIndex") === "") {
-            continue;
-        }
-        var t = CsSheet.textOf(e);
-        have.push(t);
-        if (t === qsTr("SHEET INDEX")) {
-            heading = e;
-        }
+        if (isNull(e) || e.isUndone() || CsTags.get(e, "SheetIndex") === "" || !CsSheet.isText(e)) { continue; }
+        var at = e.getPosition();
+        minX = Math.min(minX, at.x);
+        minY = Math.min(minY, at.y);
+        any = true;
     }
-    if (heading === null) {
+    if (!any) {
         return 0;
     }
-    var want = [qsTr("SHEET INDEX")], rows = CsLayoutFurniture.indexRows(doc);
-    for (var r = 0; r < rows.length; r++) {
-        want.push(rows[r].name, rows[r].paper, rows[r].scale);
-    }
-    var a = have.slice().sort().join("\n"), b = want.slice().sort().join("\n");
-    if (a === b) {
-        return 0;
-    }
-    var at = heading.getPosition();
-    CsLayoutFurniture.addIndex(doc, di, info, at.x, at.y);
+    var inch = Layouts.toPaper(doc, 25.4);
+    CsLayoutFurniture.addIndex(doc, di, info, minX, minY - CsSheetSetup.TEXT.body / 2 * inch);
     return 1;
 };
 
