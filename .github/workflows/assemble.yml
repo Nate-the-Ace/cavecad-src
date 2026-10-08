@@ -100,12 +100,18 @@ jobs:
           mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
           cat VERSION > ../addon/VERSION
           git rev-parse HEAD > ../addon/COMMIT
-      - name: Warn about stale Handbook screenshots (never fails the build)
+      - name: Track stale Handbook screenshots (a warning, never a failure)
         continue-on-error: true
         run: |
           cd cave-survey
           if ! CAVESURVEY_PUBLISH_CHECK=1 python3 -m unittest tests.test_addon.TestHandbook.test_no_screenshot_is_stale >/tmp/stale.txt 2>&1; then
-            echo "::warning title=Handbook screenshots are out of date::Retake them before a hand publish (publish.sh will stop until then). Builds are not blocked."
+            list=$(grep -o "since: \[.*\]" /tmp/stale.txt | head -1)
+            echo "::warning title=Handbook screenshots out of date::${list:-see the log}. Builds are not blocked; retake them before a public publish."
+            {
+              echo "### Handbook screenshots to retake before a public publish"
+              echo
+              echo "${list:-see the log}"
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@v7
         with:
