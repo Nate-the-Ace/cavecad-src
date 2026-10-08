@@ -1,0 +1,54 @@
+name: macOS test build (app + tools)
+
+# A one-click Mac build for testing a branch: the app from THIS branch plus the
+# Cave Survey tools, assembled the way assemble.yml does, but published nowhere.
+# Download the "cavecad-macos-test" artifact from the finished run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tools_ref:
+        description: "Branch of the Cave Survey tools (Nate-the-Ace/CaveCAD) to include"
+        default: legacy-map
+
+permissions:
+  contents: write
+
+jobs:
+  app:
+    uses: ./.github/workflows/macos.yml
+    secrets: inherit
+
+  assemble:
+    needs: app
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: cavecad-macos-arm64
+          path: app
+      - uses: actions/checkout@v7
+        with:
+          repository: Nate-the-Ace/CaveCAD
+          ref: ${{ inputs.tools_ref }}
+          path: tools-src
+      - name: Stage the Cave Survey tools
+        run: |
+          cd tools-src
+          tools/make_package.sh --stage-only --version "$(cat VERSION)"
+          mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
+      - name: Assemble
+        run: |
+          hdiutil attach -quiet -nobrowse -readonly -mountpoint base app/CaveCAD.dmg
+          ditto base/CaveCAD.app CaveCAD.app
+          hdiutil detach -quiet base
+          ditto addon/CaveSurvey CaveCAD.app/Contents/Resources/scripts/CaveSurvey
+          codesign --force --deep -s - CaveCAD.app
+          codesign --verify --deep --strict CaveCAD.app
+          hdiutil create -quiet -volname CaveCAD -srcfolder CaveCAD.app -ov \
+            -format UDZO CaveCAD-macos-test.dmg
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cavecad-macos-test
+          path: CaveCAD-macos-test.dmg
+          if-no-files-found: error
