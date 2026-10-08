@@ -107,3 +107,8 @@ The `Testing/` directory at the repo root is the test runner infrastructure (cur
 | `src/core/RDocumentInterface.h` | Primary document API exposed to scripts |
 | `src/core/RAction.h` | C++ base action class |
 | `CMakeInclude.txt` | Shared CMake configuration |
+
+## Cloud session log
+
+Work done in the cloud Claude Code session is recorded in `docs/CLOUD-SESSION-LOG.md` (what changed, why, files, version,
+whether it has been tested in the app). Read it first when catching up, and add an entry in the same commit as every change.
