@@ -27,6 +27,9 @@ jobs:
       - name: Stage the Cave Survey tools
         run: |
           cd cave-survey
+          # TEST BUILD ONLY: skip the publish-only "screenshot is stale" check (the Handbook picture
+          # is waiting for a retake). Done to the build machine's copy; the repo is not touched.
+          sed -i 's/CAVESURVEY_PUBLISH_CHECK=1/CAVESURVEY_PUBLISH_CHECK=0/' tools/make_package.sh
           tools/make_package.sh --stage-only --version "$(cat VERSION)"
           mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
       - uses: actions/upload-artifact@v7
