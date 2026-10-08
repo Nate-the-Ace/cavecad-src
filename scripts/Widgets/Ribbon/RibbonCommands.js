@@ -97,6 +97,8 @@ RibbonCommands.classifySelection = function(doc) {
     var out = { count: all.length, kinds: {}, ids: {}, truncated: all.length > RibbonCommands.SELECTION_LIMIT };
     var n = Math.min(all.length, RibbonCommands.SELECTION_LIMIT);
     var haveTags = (typeof CsTags !== "undefined" && typeof CsShapeLine !== "undefined");
+    var haveSymbols = (typeof CsSymbols !== "undefined");
+    RibbonCommands.customNames = undefined;     // the caver's own symbols are re-read for each classification
     var haveCallout = (typeof CsTags !== "undefined" && typeof CsCallout !== "undefined");
     for (var i = 0; i < n; i++) {
         var e = doc.queryEntity(all[i]);
@@ -111,8 +113,20 @@ RibbonCommands.classifySelection = function(doc) {
         else if (haveTags && CsTags.get(e, "Station") !== "") {
             kind = "station";
         }
+        else if (haveTags && (CsTags.get(e, "From") !== "" || CsTags.get(e, "Splay") !== "")) {
+            kind = "shot";
+        }
         else if (haveCallout && CsTags.get(e, CsCallout.KEY.ID) !== "") {
             kind = (CsTags.get(e, CsCallout.KEY.KIND) === CsCallout.KIND_SECTION && CsTags.get(e, CsCallout.KEY.ROLE) === CsCallout.ROLE_BLOCK) ? "section" : "callout";
+        }
+        else if (haveSymbols && e.getType() === RS.EntityBlockRef) {
+            var bname = "";
+            try { bname = String(e.getReferencedBlockName()); } catch (eName) { }
+            if (bname !== "" && (CsSymbols.byBlock(bname) !== null || RibbonCommands.customSymbolNames()[bname] === true)) {
+                kind = "symbol";
+                out.symbolNames = out.symbolNames || [];
+                out.symbolNames.push(bname);
+            }
         }
         out.kinds[kind] = (out.kinds[kind] || 0) + 1;
         if (isNull(out.ids[kind])) { out.ids[kind] = []; }
@@ -134,6 +148,21 @@ RibbonCommands.classifySelection = function(doc) {
     for (var k in out.kinds) { if (out.kinds.hasOwnProperty(k)) { present.push(k); } }
     out.kind = present.length === 1 ? present[0] : "mixed";
     return out;
+};
+
+/** Block names of the caver's own symbols (read once per classification, and only if a block reference needs it). */
+RibbonCommands.customSymbolNames = function() {
+    if (isNull(RibbonCommands.customNames)) {
+        var names = {};
+        try {
+            var list = CsSymbols.merged().entries;
+            for (var i = 0; i < list.length; i++) { names[list[i].block] = true; }
+        }
+        catch (e) {
+        }
+        RibbonCommands.customNames = names;
+    }
+    return RibbonCommands.customNames;
 };
 
 /** True when the context's selection holds at least one entity of `kind`. */
@@ -346,6 +375,20 @@ RibbonCommands.register = function() {
           } },
         C("Modify/Translate/Translate.js", { text: qsTr("Move") }),
         K([ s("Modify/Rotate/Rotate.js"), s("Modify/Scale/Scale.js"), s("Modify/Mirror/Mirror.js") ]) ] });
+    Ribbon.registerPanel("sel-scan", { id: "sc-keep", title: qsTr("Keep scans right (all scans)"), order: 15, items: [
+        { type: "button", id: "scanReanchor", text: qsTr("Re-anchor\nall scans"), icon: "back", size: "large",
+          tooltip: qsTr("Move every scan with the survey so its stations stay matched"),
+          onClick: function(entry, ctx) {
+              if (typeof CsScanReanchor === "undefined") { EAction.handleUserWarning(qsTr("Re-anchor needs the Cave Survey tools.")); return; }
+              var r = CsScanReanchor.run(entry.di.getDocument(), entry.di);
+              EAction.handleUserMessage(qsTr("Scans: %1 moved, %2 already matched, %3 stale, %4 refused.").arg(r.moved).arg(r.matched).arg(r.stale).arg(r.refused));
+          } },
+        { type: "button", id: "scanRelink", text: qsTr("Relink\nall scans"), icon: "duplicate", size: "large",
+          tooltip: qsTr("Point every scan image at its file again (save the drawing afterwards)"),
+          onClick: function(entry, ctx) {
+              if (typeof CsScanRelink === "undefined") { EAction.handleUserWarning(qsTr("Relink needs the Cave Survey tools.")); return; }
+              EAction.handleUserMessage(CsScanRelink.summary(CsScanRelink.run(entry.di.getDocument(), entry.di)));
+          } } ] });
     Ribbon.registerPanel("sel-scan", { id: "sc-more", title: qsTr("Scans"), order: 20, items: [
         C(cs("SketchScans"), { text: qsTr("Sketch scans\npanel") }) ] });
 
@@ -378,6 +421,26 @@ RibbonCommands.register = function() {
         C(cs("StationTable"), { text: qsTr("Station\ntable") }),
         C(cs("LoopErrors"), { text: qsTr("Loop\nerrors") }),
         C(cs("EntranceLocation"), { text: qsTr("Entrance") }) ] });
+
+    Ribbon.registerTab({ id: "sel-symbol", title: qsTr("Symbol"), when: hasSel("symbol") });
+    Ribbon.registerPanel("sel-symbol", { id: "sy-use", title: qsTr("Symbol"), order: 10, items: [
+        C(cs("SymbolPalette"), { text: qsTr("Symbol\npalette") }),
+        { type: "button", id: "symbolEdit", text: qsTr("Edit\nsymbol"), icon: "rename", size: "large",
+          tooltip: qsTr("Open the selected symbol in the symbol editor (your own symbols only)"),
+          onClick: function(entry, ctx) {
+              if (typeof SymbolPaletteEdit === "undefined" || typeof CsSymbols === "undefined") { EAction.handleUserWarning(qsTr("Edit symbol needs the Cave Survey tools.")); return; }
+              var name = (!isNull(ctx.selection) && !isNull(ctx.selection.symbolNames)) ? ctx.selection.symbolNames[0] : "";
+              var list = CsSymbols.merged().entries;
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].block === name) { SymbolPaletteEdit.startEdit(list[i]); return; }
+              }
+          } } ] });
+    Ribbon.registerTab({ id: "sel-shot", title: qsTr("Survey Shot"), when: hasSel("shot") });
+    Ribbon.registerPanel("sel-shot", { id: "sh-use", title: qsTr("Survey shot"), order: 10, items: [
+        C(cs("SurveyNotebook"), { text: qsTr("Survey\nnotebook") }),
+        C(cs("StationTable"), { text: qsTr("Station\ntable") }),
+        C(cs("LoopErrors"), { text: qsTr("Loop\nerrors") }),
+        C(cs("DrawPanel"), { text: qsTr("Draw") }) ] });
 
     // ---- sheet furniture: the cave layout commands belong on a sheet, so they sit in the Layout tab
     var onSheet = function(ctx) { return ctx.mode === "layout"; };
