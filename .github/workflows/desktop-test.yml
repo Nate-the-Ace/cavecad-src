@@ -10,6 +10,10 @@ name: Windows and Linux test build (app + tools)
 
 on:
   workflow_dispatch:
+  # TEMPORARY: a new workflow cannot be started by hand until GitHub has seen it run once; removed again right after
+  push:
+    branches: [claude/cavecad-contextual-ribbon-oq2r4f]
+    paths: ['.github/workflows/desktop-test.yml']
 
 permissions:
   contents: write
