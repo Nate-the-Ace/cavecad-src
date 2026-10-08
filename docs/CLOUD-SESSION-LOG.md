@@ -16,6 +16,10 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### CI -- Windows and Linux test builds with the tools (`desktop-test.yml`)
+- New hand-started workflow: builds Windows x64+ARM64 (`windows.yml`) and Linux x86_64+aarch64 (`linux.yml`) from the branch, adds the tools, marks each package `app_commit: dev` (updater stays out) and uploads artifacts `cavecad-windows-test`, `cavecad-linux-test`, `cavecad-linux-arm-test`. It publishes nothing: no release, no `app-base`, no `latest.json` (those platform workflows only store a base on the `cavecad` branch). `assemble.yml` is the public path and is NOT used for tests.
+- First run: see the log below.
+
 ### CI -- faster Mac test builds (no tools bump)
 - Baseline (full test builds, runs 16/17): about 9-9.5 minutes. Biggest steps: cavecadjsapi plugin ~4 min, qtjsapi ~1.5, CaveCAD compile ~2 (ccache), Package ~1.7, Qt install ~0.6.
 - `macos-test.yml`: a `plan` job decides FAST or FULL. FAST (only scripts/data/tools/docs changed since the last full test build) reuses that build's compiled app from the internal `test-app-base` release, replaces its scripts (stripped as the packaging step does), adds the tools and re-signs. FULL (anything else, no base yet, or the `full` input ticked) compiles as before and then stores the bare app as the new base. Test builds only; published builds are untouched.

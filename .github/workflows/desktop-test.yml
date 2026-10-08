@@ -1,0 +1,147 @@
+name: Windows and Linux test build (app + tools)
+
+# One-click Windows (x64 and ARM64) and Linux (x86_64 and aarch64) builds for testing a branch: the app compiled from
+# THIS branch plus the Cave Survey tools in its cave-survey/ folder, packed the way assemble.yml packs them, but
+# published nowhere (no release, no app-base, no updater feed): the packages are only artifacts of this run.
+# Started by hand only (Actions > Windows and Linux test build > Run workflow, or ask Claude to start it).
+# Download "cavecad-windows-test" and "cavecad-linux-test" from the finished run.
+# Each package is marked as a development build, so the built-in updater leaves it alone.
+# (The macOS equivalent is macos-test.yml.)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
+
+  linux:
+    uses: ./.github/workflows/linux.yml
+    secrets: inherit
+
+  # staged on Linux, the same as assemble.yml does (its structural checks need GNU tools)
+  addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stage the Cave Survey tools
+        run: |
+          cd cave-survey
+          tools/make_package.sh --stage-only --version "$(cat VERSION)"
+          mkdir ../addon && cp -R dist/CaveSurveyTools-*/CaveSurvey ../addon/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon
+          path: addon/
+
+  assemble-windows:
+    needs: [windows, addon]
+    if: ${{ !cancelled() && needs.addon.result == 'success' && needs.windows.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: cavecad-windows-*
+          path: apps
+      - name: Pack
+        run: |
+          mkdir out
+          for arch in x64 arm64; do
+            [ -d "apps/cavecad-windows-$arch" ] || { echo "no Windows $arch build (it failed or was skipped)"; continue; }
+            rm -rf CaveCAD && mkdir CaveCAD
+            cp -R "apps/cavecad-windows-$arch/." CaveCAD/
+            cp -R addon/CaveSurvey CaveCAD/scripts/CaveSurvey
+            # a test build must never be "updated" to the published build
+            printf '{"platform": "windows-%s", "app_commit": "dev"}\n' "$arch" > CaveCAD/cavecad-build.json
+            printf '%s\r\n' \
+              "CaveCAD TEST BUILD with the Cave Survey tools ($arch)" \
+              "==================================" \
+              "" \
+              "Run cavecad.exe. Nothing needs installing: the Microsoft Visual C++" \
+              "runtime ships in this folder." \
+              "" \
+              "If Windows still says VCRUNTIME140.dll or MSVCP140.dll \"was not" \
+              "found\", install Microsoft's Visual C++ Redistributable ($arch):" \
+              "  https://aka.ms/vs/17/release/vc_redist.$arch.exe" \
+              "" \
+              "\"Windows protected your PC\": this build is not code-signed yet." \
+              "Click \"More info\", then \"Run anyway\". A work PC may block it" \
+              "outright; that is a policy only its IT department can lift." \
+              > CaveCAD/README-FIRST.txt
+            zip -q -9 -r "out/CaveCAD-windows-$arch-test.zip" CaveCAD
+          done
+          ls -l out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cavecad-windows-test
+          path: out/
+          if-no-files-found: error
+
+  assemble-linux-x86:
+    needs: [linux, addon]
+    if: ${{ !cancelled() && needs.addon.result == 'success' && needs.linux.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - uses: actions/download-artifact@v8
+        with:
+          name: cavecad-linux-x86_64-appimage
+          path: app
+      - name: Pack
+        run: |
+          mkdir out
+          chmod +x app/CaveCAD-x86_64.AppImage
+          ./app/CaveCAD-x86_64.AppImage --appimage-extract >/dev/null
+          cp -R addon/CaveSurvey squashfs-root/usr/bin/scripts/CaveSurvey
+          printf '{"platform": "linux-x86_64", "app_commit": "dev"}\n' > squashfs-root/usr/bin/cavecad-build.json
+          curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool -n squashfs-root out/CaveCAD-linux-x86_64-test.AppImage
+          ls -l out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cavecad-linux-test
+          path: out/
+          if-no-files-found: error
+
+  # repacked on an ARM runner so appimagetool embeds the aarch64 runtime
+  assemble-linux-arm:
+    needs: [linux, addon]
+    if: ${{ !cancelled() && needs.addon.result == 'success' && needs.linux.result != 'skipped' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon
+          path: addon
+      - uses: actions/download-artifact@v8
+        with:
+          name: cavecad-linux-aarch64-appimage
+          path: app
+      - name: Pack
+        run: |
+          mkdir out
+          chmod +x app/CaveCAD-aarch64.AppImage
+          ./app/CaveCAD-aarch64.AppImage --appimage-extract >/dev/null
+          cp -R addon/CaveSurvey squashfs-root/usr/bin/scripts/CaveSurvey
+          printf '{"platform": "linux-aarch64", "app_commit": "dev"}\n' > squashfs-root/usr/bin/cavecad-build.json
+          curl -sSLo appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool -n squashfs-root out/CaveCAD-linux-aarch64-test.AppImage
+          ls -l out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cavecad-linux-arm-test
+          path: out/
+          if-no-files-found: error
