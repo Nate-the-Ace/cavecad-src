@@ -92,7 +92,29 @@ CsNorth.arrows = function(doc, blockId) {
             out.push({ pieces: [e], pivot: { x: p.x, y: p.y }, guid: "", placed: true });
         }
     }
+    // The stored NorthAt is where the arrow was DRAWN. Move the pieces and it is stale, and a turn about it
+    // swings the arrow round a point that is no longer its own. A shaft starts at the pivot and a turn about the
+    // pivot leaves that end where it is, so the pivot now is the start of a shape line.
+    for (var g = 0; g < out.length; g++) {
+        if (!out[g].placed) {
+            var here = CsNorth.pivotOf(out[g].pieces);
+            if (here !== null) {
+                out[g].pivot = here;
+            }
+        }
+    }
     return out;
+};
+
+/** Where a generated arrow's pivot is NOW (the start of its first shaft line), or null when it has no shaft. */
+CsNorth.pivotOf = function(pieces) {
+    for (var i = 0; i < pieces.length; i++) {
+        if (CsTags.get(pieces[i], CsNorth.PART) === "shape" && pieces[i].getType() === RS.EntityLine) {
+            var a = pieces[i].getStartPoint();
+            return { x: a.x, y: a.y };
+        }
+    }
+    return null;
 };
 
 CsNorth.appliedOf = function(entity) {

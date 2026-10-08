@@ -94,7 +94,7 @@ pivot it was placed at (`NorthAt`, text "x,y"), and `CsNorth.sync` rotates the p
 pivot. Moving the pieces does not update the stored pivot, so the next sync rotates around the old spot.
 (The "placed" variant instead turns each piece around its own position, which also scatters a
 multi-piece arrow.) The scale bar (`Core/CsScaleBar.js`) keeps the same kind of stored anchor and probably
-has the matching problem when moved.
+has the matching problem when moved. (Checked: the scale bar reads its anchor from its pieces' current position, so it does not have this bug.)
 
 Direction: make each item one block reference. Its insertion point is the pivot, so moving it can never
 displace the pivot, and "follow the viewport" becomes setting the block reference's rotation (still keyed
@@ -107,7 +107,7 @@ the `NORTH-ARROW` layer, and turns it about its own insertion point. So the targ
 half-supported; the generator just does not use it yet.
 1. Reproduce: a test that places an arrow, moves it, turns the viewport, and checks every piece stayed on
    the arrow's own centre (fails today).
-2. Quick safety fix first (small, ships alone): when `CsNorth.sync` finds loose pieces, take the pivot from
+2. DONE in the working branch (needs a run on a real engine): quick safety fix (small, ships alone): when `CsNorth.sync` finds loose pieces, take the pivot from
    the pieces' current position (their bounding-box origin) instead of the stored `NorthAt` text. Same for
    the scale bar's stored anchor. Stops the displaced rotation in old drawings immediately.
 3. Define one block per item (`NORTH_ARROW`, `TITLE_BLOCK`, `SCALE_BAR`, `LEGEND`, `BORDER`) in the template /

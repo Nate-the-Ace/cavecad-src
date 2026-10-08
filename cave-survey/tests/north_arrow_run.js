@@ -68,6 +68,34 @@ vp = Layouts.viewports(doc, info)[0]; vp.setRotation(0); di.applyOperation(new R
 CsNorth.syncAll(doc, di, -1, false);
 check(near(shapeAngle(), Math.PI / 2, 1e-9), "turning the viewport back turns the arrow back");
 
+// MOVED arrow: the stored pivot is where it was drawn, so after a move a turn must still be about the arrow's own base
+function shaftBase() {
+    var a = CsNorth.arrows(doc, info.blockId).filter(function(x) { return !x.placed; })[0];
+    for (var i = 0; i < a.pieces.length; i++) {
+        var e = doc.queryEntity(a.pieces[i].getId());
+        if (CsTags.get(e, CsNorth.PART) === "shape" && e.getType() === RS.EntityLine) { return e.getStartPoint(); }
+    }
+    return null;
+}
+var base0 = shaftBase();
+var mv = new RModifyObjectsOperation();
+var gen = CsNorth.arrows(doc, info.blockId).filter(function(x) { return !x.placed; })[0];
+for (var m = 0; m < gen.pieces.length; m++) {
+    var pe = doc.queryEntity(gen.pieces[m].getId());
+    pe.move(new RVector(1.5, 0.75));
+    mv.addObject(pe, false);
+}
+di.applyOperation(mv);
+var base1 = shaftBase();
+check(near(base1.x, base0.x + 1.5, 1e-9) && near(base1.y, base0.y + 0.75, 1e-9), "the arrow moved with all its pieces");
+vp = Layouts.viewports(doc, info)[0]; vp.setRotation(40 * Math.PI / 180); di.applyOperation(new RModifyObjectOperation(vp));
+CsNorth.syncAll(doc, di, -1, false);
+var base2 = shaftBase();
+check(near(base2.x, base1.x, 1e-9) && near(base2.y, base1.y, 1e-9), "a moved arrow turns about its own base, not the place it was drawn");
+check(near(shapeAngle(), Math.PI / 2 + 40 * Math.PI / 180, 1e-9), "and still takes the viewport's angle");
+vp = Layouts.viewports(doc, info)[0]; vp.setRotation(0); di.applyOperation(new RModifyObjectOperation(vp));
+CsNorth.syncAll(doc, di, -1, false);
+
 // a PLACED arrow (a block reference on the layer) reads the viewport under it
 var blk = new RBlock(doc, "NA", new RVector(0, 0));
 di.applyOperation(new RAddObjectOperation(blk, false));
