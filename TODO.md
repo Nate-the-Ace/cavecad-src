@@ -43,6 +43,54 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 
 ## Planned
 
+### Layout items as blocks: what benefits, and a title block with linked fields
+(Investigated by reading `Core/CsLayoutGen.js`, `CsLayoutFurniture.js`, `CsScaleBar.js`, `CsSheet.js`, `CsSheetSetup.js`.)
+
+**Ranked by benefit.** "Benefit" = one object to select, move, copy and reuse, with its dynamic behaviour kept.
+1. **Title block - highest.** Today it is loose text lines, each tagged `TBField=<field id>` (`CsSheet`), plus a white
+   backing rectangle. It was loose text on purpose: older builds kept it in `TB_*` blocks and editing a field
+   needed a dedicated tool. Attributes (below) keep double-click editing, so the block comes back without that cost.
+2. **Scale bar - high.** Many pieces (base, ticks, numbers, caption, unit) redrawn whenever the viewport scale
+   changes. Same shape as the north arrow now: one block per viewport link, redefined on a scale change, the
+   reference's insertion point is the baseline start (`CsScaleBar.anchorOf` already reads that point).
+3. **Grid - high.** Dozens of tick lines and labels per viewport, regenerated as a whole whenever the viewport
+   changes (`GridOf` tag, `removeTagged`). One block per viewport makes delete/move one action.
+4. **Sheet index - medium.** A list of text lines (`SheetIndex`), rebuilt when re-added. A block gives one object
+   to move; its content is regenerated from the layouts list.
+5. **Border - medium.** Four lines on `BORDER`. Mainly useful as a reusable template piece
+   (`CsLayoutTemplate` saves a sheet's pieces); it follows the paper size, so the generator redraws its
+   definition when the paper or margin changes. The white "backing" rectangles behind the furniture should
+   become part of their block.
+6. **Detail marks - low.** A circle and a letter that tie a detail viewport to its callout; fine as they are.
+7. **Legend - none needed.** It is already one object (a viewport onto the model-space legend).
+8. **Tile labels and match lines on tiled sheets - leave.** Generated per sheet; nobody assembles these.
+
+**The title block, with fields linked to the notebook**
+- ONE block per sheet. The definition holds the fixed parts (heading rule, backing); each field is an
+  **attribute** (a QCAD block attribute: tag = the field id from `CsSheet.FIELDS`, prompt = its label, text = its
+  line). The reference carries one attribute entity per field, in the layout's block, double-click editable like text.
+- Keep every existing reader working by tagging each attribute entity `TBField=<id>` too: `CsSheet.taggedTexts`,
+  `SheetSetup.titleValues`, `CsLayoutCheck`, `CsLayoutTemplate`, Survey Stats' stamping and Check Map then see
+  attributes exactly as they see text today (the attribute's text is the same full line, prefix included).
+- **Linked fields.** The notebook already produces the values (`CsSheetSetup.autoFill(survey, stats, grade)`):
+  cave name, surveyed by, survey dates, length, depth, survey code. Each of those attributes carries a link:
+  `TBLink = auto` (follows the notebook) or `manual` (someone typed over it), and `TBAuto` = the last value the
+  link wrote. A sync step (like `CsNorth.sync`) rewrites an `auto` attribute whose notebook value changed. If the
+  attribute's text no longer equals `TBAuto`, a person edited it: it flips to `manual` and is never overwritten
+  (the suite's rule: a value already typed is never replaced by nothing or by a guess).
+- **Location is never linked** (`CsSheetSetup.locationFor` answers empty on purpose; a person types it).
+  Cartography by, personnel, copyright, survey method and legend note stay manual fields.
+- A "Re-link" button (Title Block tab) sets a manual field back to `auto`; "Refresh from notebook" runs the sync.
+- Where the sync runs: after Sheet Setup builds, after Survey Stats, after a notebook save, and from the button.
+
+**Order of work:** (1) title block block+attributes with the sync, because it is the request and the readers are
+known; (2) scale bar; (3) grid; (4) index and border. Each is made and tried in the app before the next.
+**Risks:** attribute entities inside references behave differently on copy/explode (an exploded title block must
+keep its text); the DXF round trip of attributes (check it opens in other CAD programs); old drawings with loose-text
+title blocks and `TB_*` legacy blocks must keep reading (convert only on request); `CsLayoutGen.signature` must
+count attribute text so a hand edit still marks a sheet "edited"; the layout-template save/load code
+(`CsLayoutTemplate.js:457`) reads the tagged texts and must handle attributes.
+
 ### External references (xrefs) for drawings
 Bring the visuals of another drawing into this one as a single unit, with a live link: when the
 referenced drawing is saved, an open drawing that uses it offers to update.
