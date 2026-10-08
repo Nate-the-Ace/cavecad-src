@@ -5,6 +5,56 @@ Every new item gets a short preliminary plan when it is added (what exists, what
 
 ## Planned
 
+### External references (xrefs) for drawings
+Bring the visuals of another drawing into this one as a single unit, with a live link: when the
+referenced drawing is saved, an open drawing that uses it offers to update.
+
+**What the app already has (read from `src/core`, `scripts/Block`, `scripts/Widgets/BlockList`)**
+- A block can carry an XRef file name (`RBlock::setXRefFileName`, `isXRef`); blocks brought in from an xref are
+  named `<xref>|<name>` (`isFromXRef`); there is an `EntityXRef` entity type and `RBlockList` has an
+  `xRefUpdated` signal and xref-only context-menu hooks.
+- Each open drawing owns a file watcher (`RDocumentInterface::fileSystemWatcher`). When a watched file changes,
+  `xRefFileChanged` remembers the path, and when you return to that drawing (`resume()`) it asks the main window
+  to reload (`reloadXRefsSignal`). Undo/redo of the file-name property, and bind (turn the xref into a normal
+  block) are also wired in `RDocumentInterface`.
+- **What is missing:** the part that actually reads the other file. It is an interface, `RBlockProxy`
+  (`loadXRef`, `unloadXRef`, `bindXRef`, `getFullXRefFilePath`), and nothing in this build implements it (in
+  upstream QCAD that is a closed-source plugin). Nothing listens for `reloadXRefsSignal` either, so there is no
+  "update?" prompt, and no Attach XRef command. So the plumbing exists but the feature does not.
+
+**Preliminary plan**
+1. Decide the approach (first task, a short spike):
+   - (a) Write our own `RBlockProxy` in C++ (read the DXF/DWG with the existing import code into the xref block,
+     names prefixed `xref|`). Most faithful, uses all the existing hooks, needs a native build for every platform.
+   - (b) Do it in script: an "Attach drawing" command that imports the other file's visible geometry into a block
+     (like Insert Block from file, which already exists), records the path and the file's modified time in the
+     block, and re-imports on demand. No new native code, easy to ship through the tools-only fast path; but the
+     existing watcher/prompt hooks would be bypassed.
+   Recommendation: start with (b) for cave use (only plan/profile visuals are needed), keep the data model
+   (block + file name + `|` names) identical so (a) can replace it later without breaking drawings.
+2. Attach: "Attach drawing..." picks a file (cave shelf aware, paths stored relative so a cave folder can move),
+   inserts one block reference carrying the whole visual, at a chosen point/scale/rotation. The drawing is
+   treated as one unit: selecting any part selects the whole reference; its layers show under `xref|LAYER`
+   and can be toggled/greyed as a group but not edited.
+3. Dynamic link: watch the referenced file (reuse `fileSystemWatcher` for (a); a `QFileSystemWatcher` in the tools
+   for (b)). On change, if the drawing is open show a non-blocking offer "<name> changed - update?" (Update now /
+   Later / Always update this one). Also check on open and on layout switch for files changed while closed.
+4. Management panel (an "External references" list like the Block list): status per reference (loaded, changed,
+   missing, newer), Reload, Unload, Detach/Bind (make it a normal block), Re-path (the Relink idea Sketch Scans
+   already has, `CsScanRelink`), Open the source drawing.
+5. Cave specifics: referencing another cave's plan for context, a cave's profile into a sheet, or a survey into
+   a regional map. Honour the georeference/anchor tags so the reference lands at the right place and north
+   (`CsGeoProject`, anchor station), and a viewframe (see the sheet builder item) can use an xref as a view.
+6. Output: xrefs must plot, export to PDF/DXF (DXF round trip: write the xref block with its path, plus an option
+   to bind on export so the file opens anywhere), and package with the cave (`CsPackage`) including the
+   referenced files.
+7. Ribbon: a contextual "External Reference" tab when a reference is selected (Reload, Unload, Bind, Re-path,
+   Open source), using the selection framework.
+Risks: circular references (A uses B uses A) - detect and refuse; a missing file must never delete the cached
+visuals (keep the last good copy); big references slowing the drawing (cache a simplified copy, regenerate on
+update); coordinate/scale/unit mismatch between drawings; the same layer names clashing (the `xref|` prefix
+solves this only if every import path honours it); updating a drawing someone has open on another computer.
+
 ### Sheet items as blocks that stay dynamic (north arrow bug)
 Sheet page elements (north arrow, title block, scale bar, legend, border...) should each be a
 **block**, so a sheet can be pieced together easily from parts. They must stay **dynamic**: the north
