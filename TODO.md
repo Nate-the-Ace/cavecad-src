@@ -20,11 +20,21 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 - External references: Attach Drawing (Overlay/Attach, Absolute/Relative, remembered defaults, Overlay+Absolute to
   begin with), External References manager, update offer when the file changes, ribbon tab (`CsXref`).
 - Area Fill tab: Scale and Density controls.
+- **Sheet number = Layout tab name, both ways** (`CsSheetLink`, `SheetNameListener`, `CsLayoutGen.refreshNames`): a new
+  "Sheet:" title block field; renaming the tab rewrites it, the "SHEET A1" corner label, the neighbours' match lines
+  and the sheet index; editing the field renames the tab (a name that is not allowed is refused and the line is put
+  back). A generated sheet is now found by its job id, so a renamed tab is still that sheet. The sheet signature
+  has a new recipe (version 2) so a rename or a linked field is not a hand edit; older sheets are still read with
+  the first recipe.
+- **Title block = ONE block with a field (block attribute) per line** (`CsTitleBlock`): linked fields (cave name,
+  surveyed by, dates, length, depth, survey code) follow the notebook; typing over one makes it manual; Location is
+  never linked; Refresh from notebook / Link field to notebook on the Sheet Item tab. Falls back to the old loose
+  text lines if making the block fails, and `CaveSurvey/TitleBlockAsBlock` = false switches it off.
 - One repository: `cave-survey/` and `i18n/` merged into this repo with history; builds read from it.
 
 ### Still to do, from the items below
-- **Sheet items as blocks**: only the NORTH ARROW is a block so far. Scale bar, title block, border and legend are
-  still loose pieces. Each has readers that expect pieces (`CsScaleBar.pieces/anchorOf`, `SheetSetup.titleValues`
+- **Sheet items as blocks**: the NORTH ARROW and the TITLE BLOCK are blocks now. The scale bar (must stay dynamic),
+  the grid (must BECOME dynamic), the sheet index and the border are still loose pieces; the legend needs none. Each has readers that expect pieces (`CsScaleBar.pieces/anchorOf`, `SheetSetup.titleValues`
   reads the title's text entities, `CsLayoutFurniture.hasBorder`, the signature rows, `LayoutCheck`), so each
   conversion should be made and tried in the app one at a time, the way the north arrow now can be.
 - **Sheets from Views**: Viewport-tab "Re-frame to...", editing a view's scale before making it, marking a sheet
