@@ -50,7 +50,7 @@ other `*_run.js`) are written but have NOT been run. Try each in the app before 
 1. **Title block - highest.** Today it is loose text lines, each tagged `TBField=<field id>` (`CsSheet`), plus a white
    backing rectangle. It was loose text on purpose: older builds kept it in `TB_*` blocks and editing a field
    needed a dedicated tool. Attributes (below) keep double-click editing, so the block comes back without that cost.
-2. **Scale bar - high.** Many pieces (base, ticks, numbers, caption, unit) redrawn whenever the viewport scale
+2. **Scale bar - high. MUST STAY DYNAMIC** (it is today: see below; the block version must redraw its definition whenever the viewport's scale changes, by any route, including undo/redo, and a test must prove it). Many pieces (base, ticks, numbers, caption, unit) redrawn whenever the viewport scale
    changes. Same shape as the north arrow now: one block per viewport link, redefined on a scale change, the
    reference's insertion point is the baseline start (`CsScaleBar.anchorOf` already reads that point).
 3. **Grid - high.** Dozens of tick lines and labels per viewport, regenerated as a whole whenever the viewport
