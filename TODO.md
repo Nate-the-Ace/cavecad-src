@@ -382,6 +382,7 @@ Where it touches: `cave-survey/scripts/CaveSurvey/LayoutNew`, `SheetSetup`, `Lay
 `CsLayers.frameOf`.
 
 ### Split a map into trips (idea, preliminary plan)
+**STATUS: Phase 1 built (0.9.215.16, `splittrips`): split, overall file with xrefs, merge back, shared set. Untested in the app; phases 2 and 3 below remain.**
 **Decisions so far (from Nathan):** (1) putting everything back into ONE file must work and is part of the first
 version, not a later extra; (2) re-adjusting the whole cave after a split can wait; (3) every map file, each trip's and
 the overall one, must have the stations and the other shared survey items available.

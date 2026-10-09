@@ -16,6 +16,13 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### 0.9.215.16 -- Split into Trips, phase 1 (split + merge back) -- NEW TOOL, untested in app
+- What: `splittrips` (also `spt`; Cave Survey menu/tab, External references group). Splits the open drawing into one file per trip plus `<cave> - Overall.dxf`, which attaches each trip file as an Overlay xref at 0,0 (relative paths). Run in a drawing that has split trips attached, the same command MERGES them back (own items pasted back, xrefs and their layers removed) and reports "N of M items brought back" per trip plus any station that is missing or moved.
+- Every trip file carries the shared set (all station points incl. trip anchors, untagged control layers except aerial/contour/scan), plus only its own Trip-tagged items. Layouts stay only in the overall file. The open drawing is never changed by a split (copy-modify-export through a temp DXF, like `CsLayoutGen.writeCopies`). Items with no trip and not shared stay in the overall file and are counted in the dialog.
+- Also: `CsLayers.frameOf` now ignores a `Name|` xref layer prefix, so plan/profile/section rules work on xref layers.
+- Files: `Core/CsSplit.js` (pure classify/plan/names/compare + engine), `SplitTrips/SplitTrips.js` + svgs, `Core/CsAll.js`, `Core/CsLayers.js`, `RibbonCommands.js`, handbook page `split-trips.html` + `index.json`, README row, `tests/js_unit.js`, `tests/test_addon.py`.
+- Unknown until run in the app: whether `RPasteOperation` keeps custom-property tags (Trip/Station) on pasted items during merge (the count line will show a mismatch if not), and whether freezing the xref's prefixed shared layers hides them as intended. Try on a COPY of a cave: split, open the overall file, merge back, compare counts. Phase 2/3 still in TODO.md.
+
 ### Idea logged: split a map into trips (TODO.md, plan only, nothing built)
 - One file per trip plus an overall file with each trip as an xref. Preliminary plan and the risks (network adjustment across trips, tools that cannot see inside xrefs, prefixed layer names breaking frame rules) are in `TODO.md` under "Split a map into trips".
 

@@ -1,0 +1,17 @@
+<h1>Split into Trips</h1>
+<p>Split a whole cave into one file per trip, plus an overall file that shows every trip as an external reference, and put them back into one drawing when you want. <code>splittrips</code> (also <code>spt</code>)</p>
+<h2>When you reach for it</h2>
+<p>Several people can then work on the cave at once, each in their own trip file, and the overall file shows the lot. Every file carries all the stations, so a trip can always be drawn against the whole survey.</p>
+<h2>Splitting</h2>
+<p>Run the tool in a drawing that has trips. Tick the trips to split out, choose the folder and the cave name used in the file names, and press OK. This drawing is not changed. You get:</p>
+<ul>
+<li><b>One file per trip</b> - named like <code>Cave - Trip 2 2024-04-06 Team B.dxf</code>. It holds every station and the control layers, plus that trip's own legs, splays, traced features and symbols. No layouts.</li>
+<li><b>An overall file</b> - <code>Cave - Overall.dxf</code>. It keeps the stations, the surface (aerial photo, contours, scans), the layouts, and anything that belongs to no trip. Each trip file is attached to it as an Overlay <a href="xref-manager.html">xref</a> at 0,0, by relative path, so the folder can be moved or shared.</li>
+</ul>
+<p>Items with no trip (hand-drawn lines, areas, callouts, cross sections, labels) stay in the overall file; the window counts them first.</p>
+<h2>Merging back</h2>
+<p>Open the overall file and run the tool again. It lists the trip files; tick the ones to bring back. Each trip's own items are pasted into the drawing and its xref is removed. The trip files are left in place. The result says how many items came back of how many were expected, and notes any station that is missing or sits somewhere else than in the drawing (the drawing's position is kept).</p>
+<h2>Please check</h2>
+<p>Try it on a copy of a cave first: split, merge, and compare the item counts. Trip tags on pasted items and the station positions are reported, not silently fixed.</p>
+<h2>Where it is</h2>
+<p>The Cave Survey menu and the Cave Survey tab (External references).</p>

@@ -307,6 +307,7 @@ include(includeBasePath + "/CsLayoutGen.js");
 include(includeBasePath + "/CsViews.js");
 // External references: another drawing's visuals as one linked unit (needs CsTags).
 include(includeBasePath + "/CsXref.js");
+include(includeBasePath + "/CsSplit.js");
 // The title block's linked fields and the sheet number = layout name (pure).
 include(includeBasePath + "/CsSheetLink.js");
 // The title block as one block with a field per line, and the linked-field sync (after CsLayoutGen, CsSheet, CsSheetLink).

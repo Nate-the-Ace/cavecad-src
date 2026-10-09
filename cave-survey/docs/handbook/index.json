@@ -887,6 +887,17 @@
    "shots": []
   },
   {
+   "id": "split-trips",
+   "title": "Split into Trips",
+   "class": "tool",
+   "file": "split-trips.html",
+   "stage": 452,
+   "tools": [
+    "SplitTrips"
+   ],
+   "shots": []
+  },
+  {
    "id": "xref-manager",
    "title": "External References",
    "class": "tool",

@@ -1821,6 +1821,7 @@ MENU = {
     "AreaSync/AreaSync.js":               (452, 35, ["syncareas", "sya"]),
     "CrossSection/CrossSection.js":       (452, 40, ["crosssection", "cxs"]),
     "XrefManager/XrefManager.js":         (452, 66, ["externalreferences", "xrefs", "xm", "attachdrawing", "xref", "xr"]),
+    "SplitTrips/SplitTrips.js":           (452, 68, ["splittrips", "spt"]),
     # 453 -- put a reference under the map
     "SketchScans/SketchScans.js":         (453, 10, ["sketchscans", "ss"]),
     "EntranceLocation/EntranceLocation.js": (453, 15,
@@ -2091,6 +2092,7 @@ class TestSheetGuard(unittest.TestCase):
         "LoopErrors", "RepairDrawing", "ScatterBreakdown", "ShapedLines",
         "SketchScans", "SurfaceData", "SurveyNotebook", "SymbolPalette",
         "ResetDrawing", "EntranceLocation", "LinetypeMaker", "XrefManager",
+        "SplitTrips",
     ]
 
     # Tools that only READ, and are welcome on a sheet: checking a sheet
@@ -2154,7 +2156,7 @@ class TestSheetGuard(unittest.TestCase):
         "AreaSync", "BuildLegend", "DrawPanel", "EntranceLocation",
         "GenerateProfile", "ImportCaveSurvey", "LinetypeMaker", "LoopErrors",
         "RepairDrawing", "ResetDrawing", "ScatterBreakdown", "SketchScans",
-        "SurfaceData", "SurveyNotebook",
+        "SurfaceData", "SurveyNotebook", "SplitTrips",
     ]
 
     def test_whole_drawing_tools_refuse_the_inside_of_a_viewport(self):

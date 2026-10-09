@@ -283,6 +283,8 @@ var CORE_FILES = [
     "scripts/CaveSurvey/Core/CsViews.js",
     // External references: paths, remembered defaults and the nesting plan are pure.
     "scripts/CaveSurvey/Core/CsXref.js",
+    // Splitting a cave into trip files: classification, file names and station comparison are pure.
+    "scripts/CaveSurvey/Core/CsSplit.js",
     // The title block's linked fields and the sheet number: pure.
     "scripts/CaveSurvey/Core/CsSheetLink.js",
     // The title block as one block with fields: rows, field text and the linked-field sync are pure.
@@ -28418,6 +28420,27 @@ eqs(CsSymbolStore.AREA_MARKER_TAGS.custom, "AreaCustom",
     var xrBack = CsGeoProject.latLonAtDrawingPoint(xrNorth, { lat: 37.0, lon: -86.0, x: 0, y: 0 }, CsUnits.METERS);
     near(xrBack.lat, 37.001, 1e-9, "CsGeoProject.drawingPointAtLatLon: the inverse of latLonAtDrawingPoint");
     eqs(CsXref.normalize("/a/b/../c/./d.dxf"), "/a/c/d.dxf", "CsXref.normalize: dots and double dots collapse");
+
+    // CsSplit: which item belongs to which trip, file names, station comparison
+    eqs(CsSplit.classify({ tripTag: 3, station: false, layer: "CTRL-SHOTS" }).kind, "trip", "CsSplit.classify: a Trip tag makes it the trip's even on a control layer");
+    eqs(CsSplit.classify({ tripTag: 3, station: true, layer: "CTRL-STATIONS" }).kind, "shared", "CsSplit.classify: a station is shared, anchor or not");
+    eqs(CsSplit.classify({ tripTag: null, station: false, layer: "CTRL-LRUD" }).kind, "shared", "CsSplit.classify: an untagged control item is shared");
+    eqs(CsSplit.classify({ tripTag: null, station: false, layer: "CTRL-AERIAL" }).kind, "other", "CsSplit.classify: the surface stays with the overall file");
+    eqs(CsSplit.classify({ tripTag: null, station: false, layer: "WALLS" }).kind, "other", "CsSplit.classify: hand drawing belongs to no trip");
+    var spItems = [{ id: 1, kind: "trip", trip: 1 }, { id: 2, kind: "trip", trip: 2 }, { id: 3, kind: "shared", trip: null }, { id: 4, kind: "other", trip: null }];
+    var spPlan = CsSplit.plan(spItems);
+    eqs(String(spPlan.trips["2"]), "2", "CsSplit.plan: groups by trip");
+    eqs(String(CsSplit.toDelete(spItems, [1])), "2,4", "CsSplit.toDelete: a trip file keeps the shared set and its own trip only");
+    eqs(CsSplit.fileNameFor("Big Cave", { trip: 2, date: "2024-04-06", team: "Team B" }), "Big Cave - Trip 2 2024-04-06 Team B.dxf", "CsSplit.fileNameFor: cave, trip, date, team");
+    eqs(CsSplit.fileNameFor("A/B", { trip: 1, date: "", team: "x:y" }), "A B - Trip 1 x y.dxf", "CsSplit.fileNameFor: unsafe characters are removed");
+    eqs(CsSplit.overallName("Big Cave"), "Big Cave - Overall.dxf", "CsSplit.overallName");
+    var spRows = CsSplit.rows({ "2": 5, "1": 0 }, { "2": { name: "N", date: "d", team: "t" } });
+    eqs(spRows[0].trip + "/" + spRows[1].trip, "1/2", "CsSplit.rows: in trip order");
+    eqs(CsSplit.tripLabel(spRows[1]), "Trip 2  d  t  (N)", "CsSplit.tripLabel");
+    var spCmp = CsSplit.compareStations({ A: { x: 0, y: 0 }, B: { x: 1, y: 1 } }, { A: { x: 0, y: 0 }, B: { x: 5, y: 1 }, C: { x: 0, y: 0 } }, 1e-6);
+    eqs(String(spCmp.missing) + "|" + String(spCmp.moved), "C|B", "CsSplit.compareStations: missing and moved are told apart");
+    eqs(CsLayers.frameOf("Trip 2|PROFILE-SLOPE"), "profile", "CsLayers.frameOf: an xref layer prefix is ignored");
+    eqs(CsSplit.isSharedLayer("CTRL-STATIONS") && !CsSplit.isSharedLayer("CTRL-CONTOURS"), true, "CsSplit.isSharedLayer: surface layers are not shared");
     eqs(CsXref.normalize("C:\\Caves\\Truitt\\..\\Jones.dxf"), "C:/Caves/Jones.dxf", "CsXref.normalize: a Windows path keeps its drive");
     ok(CsXref.isAbsolute("/a/b") && CsXref.isAbsolute("C:/a") && !CsXref.isAbsolute("a/b") && !CsXref.isAbsolute("../a"), "CsXref.isAbsolute");
     eqs(CsXref.stem("/x/Truitt Cave.dxf"), "Truitt Cave", "CsXref.stem: the file name without its extension");

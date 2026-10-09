@@ -483,7 +483,8 @@ CsLayers.frameOf = function(layerName) {
     if (layerName === undefined || layerName === null) {
         return "plan";
     }
-    var name = String(layerName);
+    // an xref's layers arrive as "Name|LAYER": the frame is the layer's own
+    var name = String(layerName).replace(/^.*\|/, "");
     var i;
     for (i = 0; i < CsLayers.SHEET_LAYERS.length; i++) {
         if (name === CsLayers.SHEET_LAYERS[i]) {
