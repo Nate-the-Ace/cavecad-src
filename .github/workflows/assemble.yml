@@ -17,8 +17,10 @@ on:
     workflows: [Windows build, Linux AppImage, macOS build]
     types: [completed]
     branches: [cavecad]
-  schedule:
-    - cron: '*/30 * * * *'
+  # PAUSED (was: schedule, cron '*/30 * * * *'): it failed on every run, in the tools
+  # package checks, and sent failure emails. Put the two lines back to resume:
+  #   schedule:
+  #     - cron: '*/30 * * * *'
   workflow_dispatch:
   workflow_call:
     inputs:
