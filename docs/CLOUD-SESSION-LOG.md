@@ -16,6 +16,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### CI -- scheduled "Assemble latest build" paused (on branch `cavecad`, commit a32b7694)
+- It failed on every run (142-146) in the tools package checks: it checks out the OLD tools repo `Nate-the-Ace/CaveCAD@legacy-map` (0.9.215.1), whose Handbook screenshot `handbook-panel.png` is stale. Failure emails each time. At the user's request the `schedule:` trigger in `assemble.yml` was commented out (put the two lines back to resume). It still runs after platform builds on `cavecad` (workflow_run) and would fail the same way; real fix = retake/re-hash that screenshot in `legacy-map`.
+
 ### 0.9.215.16 -- Split into Trips, phase 1 (split + merge back) -- NEW TOOL, untested in app
 - What: `splittrips` (also `spt`; Cave Survey menu/tab, External references group). Splits the open drawing into one file per trip plus `<cave> - Overall.dxf`, which attaches each trip file as an Overlay xref at 0,0 (relative paths). Run in a drawing that has split trips attached, the same command MERGES them back (own items pasted back, xrefs and their layers removed) and reports "N of M items brought back" per trip plus any station that is missing or moved.
 - Every trip file carries the shared set (all station points incl. trip anchors, untagged control layers except aerial/contour/scan), plus only its own Trip-tagged items. Layouts stay only in the overall file. The open drawing is never changed by a split (copy-modify-export through a temp DXF, like `CsLayoutGen.writeCopies`). Items with no trip and not shared stay in the overall file and are counted in the dialog.
