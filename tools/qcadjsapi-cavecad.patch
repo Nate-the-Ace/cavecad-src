@@ -166,3 +166,31 @@ index f5c5985..0d1b798 100644
 -- 
 2.54.0 (Apple Git-157)
 
+diff --git a/RScriptHandlerJs.cpp b/RScriptHandlerJs.cpp
+index da948ec..3874edb 100644
+--- a/RScriptHandlerJs.cpp
++++ b/RScriptHandlerJs.cpp
+@@ -25,6 +25,7 @@
+ #include "RFileCache.h"
+ #include "RScriptHandlerJs.h"
+ #include "RSingleApplication.h"
++#include "RCave3dBridge.h"
+ #include "RScriptHandlerRegistry.h"
+ #include "RJSWrapperObj.h"
+ #include "RJSTools.h"
+@@ -492,6 +493,15 @@ void RScriptHandlerJs::init(bool main) {
+     global.setProperty("qApp", engine->newQObject(app));
+     QQmlEngine::setObjectOwnership(app, QQmlEngine::CppOwnership);
+ 
++    // CaveCAD: the 3D view's script bridge, a plain QObject (no generated wrapper). One shared object for every
++    // engine, never deleted: ownership is set BEFORE the engine is handed the object, or its garbage collector
++    // would be free to delete it.
++    {
++        RCave3dBridge* cave3dBridge = RCave3dBridge::getInstance();
++        QQmlEngine::setObjectOwnership(cave3dBridge, QQmlEngine::CppOwnership);
++        global.setProperty("cave3d", engine->newQObject(cave3dBridge));
++    }
++
+     RS_Wrapper::init(*rjsapi);
+     //RJSType_Wrapper::init(*rjsapi);
+     RPropertyTypeId_Wrapper::init(*rjsapi);
