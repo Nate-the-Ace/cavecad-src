@@ -382,6 +382,23 @@ Where it touches: `cave-survey/scripts/CaveSurvey/LayoutNew`, `SheetSetup`, `Lay
 `CsLayers.frameOf`.
 
 ### Split a map into trips (idea, preliminary plan)
+**Decisions so far (from Nathan):** (1) putting everything back into ONE file must work and is part of the first
+version, not a later extra; (2) re-adjusting the whole cave after a split can wait; (3) every map file, each trip's and
+the overall one, must have the stations and the other shared survey items available.
+
+**The shared set** (what every file carries, beyond its own trip's drawing): all station points and their labels (on
+the control layers, locked and hidden by default), the entrance georeference and datum tags, the elevation anchor, and
+the layer and linetype tables. Chosen way: each trip file gets a COPY of the shared set, so every tool that reads
+stations straight from the open drawing (3D View, Statistics, Loop Errors, profile, cross section, sheet builder) keeps
+working with no change. A `Refresh shared set in trip files` command copies the overall file's current stations
+into every trip file when they change (for example after a re-adjustment later); it never touches a trip's own drawing.
+Later option: one shared stations file attached to everyone instead of copies, once the readers can look through xrefs.
+
+**Merge back** (`Merge trips back`, phase one): reads each trip file in memory, brings in its own items (not the shared
+set, which is taken once from the overall file, with a report of any station a trip file changed), puts them back in
+the main drawing (or a new file) with their original tags and layers, and removes the xrefs. A split followed
+immediately by a merge must give back the original drawing (item count and positions): that is the test.
+
 Idea: turn one whole-cave drawing into one file per trip, plus an overall file that shows every trip as an external
 reference (xref), so each trip can be edited, shared and updated on its own.
 
@@ -409,7 +426,7 @@ How it could work:
 6. **Round trip back:** a `Merge trips back` command (Bind every trip xref into one drawing again) so nobody is locked in.
 
 Things that must be settled or will break:
-- **The survey data and network adjustment.** A trip file that is redrawn from the Survey Notebook solves only its own
+- **(Decided, see above: stations are copied into every file; whole-cave adjustment can wait.) The survey data and network adjustment.** A trip file that is redrawn from the Survey Notebook solves only its own
   shots; without the rest of the cave its stations drift (loop closures cross trips). Options: (a) trip files are
   FROZEN linework only and the survey data stays in the overall file; (b) each trip carries a fixed start point taken
   from the whole-cave solution. Recommend (a) to start with, plus (b) as a later "make this trip stand alone".
@@ -439,8 +456,9 @@ edit the same file, and the overall file only reads them. What that asks of the 
 
 Where it would live: new `cave-survey/scripts/CaveSurvey/SplitTrips/`, logic in a new `Core/CsSplit.js` (pure part:
 choosing which entity belongs to which trip, testable like `CsViews`), reusing `CsXref.attach`/`openSource`, and a
-handbook page. Start with phase 1 (split out, original untouched, trips as Overlay xrefs, frozen-linework option
-only), then merge-back, then the tools that need to see through xrefs.
+handbook page. Phase 1 (together): split out with the original untouched, trips as Overlay xrefs, shared set copied into each file,
+AND merge back with the round-trip test. Phase 2: refresh shared set, the "in use by" markers, conflict-copy checks.
+Phase 3: trips that stand on their own (a fixed start point per trip) and, if wanted, re-adjustment from the trips.
 
 ### Contextual ribbon follow-ups
 - Retake the Handbook screenshots before a public publish (the build lists which are stale).
