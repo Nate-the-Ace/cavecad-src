@@ -381,6 +381,54 @@ Where it touches: `cave-survey/scripts/CaveSurvey/LayoutNew`, `SheetSetup`, `Lay
 (profile boxes), `Core/CsSectionBay.js` (cross sections). Layer rules for telling views apart:
 `CsLayers.frameOf`.
 
+### Split a map into trips (idea, preliminary plan)
+Idea: turn one whole-cave drawing into one file per trip, plus an overall file that shows every trip as an external
+reference (xref), so each trip can be edited, shared and updated on its own.
+
+What is already there to build on: every leg, splay, traced feature and placed symbol carries a numeric `Trip` tag
+(`CsTrace.TRIP_TAG`); the trip's name, date and team live on its anchor station point (`CsDraw.survey`, `CsTripEdit`);
+trips already have layer groups (Layer Manager "Trips > Trip 0 ..."); `CsTrace.tripForPoints` assigns an untagged
+stroke to the trip of its nearest station. Xrefs now exist (`CsXref`, External References window, Open XREF button,
+update offer when a file changes, Overlay/Attach, relative paths) and an xref's layers are shown as `Name|LAYER`.
+
+How it could work:
+1. **Command** `Split into Trips` (Cave Survey menu, and a button in the External References window). A dialog lists the
+   trips (name, date, team, how many shots) with ticks, an output folder (default `<cave folder>/Trips/`), the path
+   style (Relative by default so the cave folder can move) and "keep the original" (saved as `<name> (before split).dxf`).
+2. **Never destructive.** The original is left alone. For each trip: open a copy of the drawing in memory
+   (`CsXref.openSource` shows how), delete everything that belongs to the OTHER trips, and save it as
+   `<Cave> - Trip <n> <date>.dxf`. Because it is a copy, layers, linetypes and blocks come along without extra work.
+3. **Same coordinates everywhere.** Every trip file keeps the original drawing coordinates and carries the entrance
+   georeference tags, so attaching a trip to the overall file at 0,0 puts it exactly where it was (no placement by
+   location needed; both agree anyway).
+4. **The overall file** is the original with all trip-tagged items removed and one Overlay xref per trip file attached
+   at 0,0. It keeps what is shared: surface and aerial photo, contours, entrance location, sheet layouts, title block,
+   and anything that belongs to no trip.
+5. **Who owns untagged things** (hand-drawn lines, areas, callouts, cross sections, labels): by nearest station
+   (`tripForPoints`); anything still unknown stays in the overall file and the dialog says how many.
+6. **Round trip back:** a `Merge trips back` command (Bind every trip xref into one drawing again) so nobody is locked in.
+
+Things that must be settled or will break:
+- **The survey data and network adjustment.** A trip file that is redrawn from the Survey Notebook solves only its own
+  shots; without the rest of the cave its stations drift (loop closures cross trips). Options: (a) trip files are
+  FROZEN linework only and the survey data stays in the overall file; (b) each trip carries a fixed start point taken
+  from the whole-cave solution. Recommend (a) to start with, plus (b) as a later "make this trip stand alone".
+- **Tools that read the drawing's stations** (3D View, Statistics, Loop Errors, profile and cross-section tools, sheet
+  builder) do not see inside an xref block. Either the overall file keeps the station points (hidden, not drawn), or
+  those readers learn to look through xrefs (`CsXref.xrefOfReference`).
+- **Prefixed layer names.** An xref's layers become `Trip 0|PLAN-WALLS`; `CsLayers.frameOf` and every rule keyed on a
+  layer name (plan / profile / section views, viewport layer freezing by view, sheet builder) must ignore a
+  `Name|` prefix. Per-viewport frozen layers are stored by layer id, so layouts made before the split need their
+  freezes rebuilt for the new prefixed layers.
+- Hand-drawn items with no trip, and drawings from before tag schema v3 (no `Trip` tag): the dialog should say how
+  many items it could not place instead of guessing.
+- Sketch scans and images: keep their relative paths working when files move into `Trips/`.
+
+Where it would live: new `cave-survey/scripts/CaveSurvey/SplitTrips/`, logic in a new `Core/CsSplit.js` (pure part:
+choosing which entity belongs to which trip, testable like `CsViews`), reusing `CsXref.attach`/`openSource`, and a
+handbook page. Start with phase 1 (split out, original untouched, trips as Overlay xrefs, frozen-linework option
+only), then merge-back, then the tools that need to see through xrefs.
+
 ### Contextual ribbon follow-ups
 - Retake the Handbook screenshots before a public publish (the build lists which are stale).
 - Add the new tab and button labels to the translation catalogs (`i18n/`).
