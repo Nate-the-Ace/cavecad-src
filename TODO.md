@@ -424,6 +424,19 @@ Things that must be settled or will break:
   many items it could not place instead of guessing.
 - Sketch scans and images: keep their relative paths working when files move into `Trips/`.
 
+**Why it matters most: several people can work on the cave at once.** Each person takes a trip file, so two people never
+edit the same file, and the overall file only reads them. What that asks of the design:
+- The overall file's update offer (already there) is how everyone sees other people's changes: save a trip, and the
+  others are offered the update. Test it over Google Drive, where "file changed" can arrive late or as a conflict copy.
+- A gentle **"in use by"** marker so two people do not open the same trip by accident: a small lock note next to the
+  trip file (who and when), shown when someone else opens it, never a hard block. Autosave files (`~name.dxf`) must not be
+  mistaken for trips.
+- A **trip's author** (the team on its anchor station) is offered as its owner in the External References window.
+- Survey data should be editable per trip, so the person drawing a trip can fix its shots: this is where option (b)
+  below (a trip carries a fixed start point from the whole-cave solution) becomes needed, and the overall file then
+  re-solves the network from the trips' data on request.
+- Conflict copies from the sync service ("Truitt Cave (conflicted copy).dxf") should be spotted and reported, not attached.
+
 Where it would live: new `cave-survey/scripts/CaveSurvey/SplitTrips/`, logic in a new `Core/CsSplit.js` (pure part:
 choosing which entity belongs to which trip, testable like `CsViews`), reusing `CsXref.attach`/`openSource`, and a
 handbook page. Start with phase 1 (split out, original untouched, trips as Overlay xrefs, frozen-linework option
