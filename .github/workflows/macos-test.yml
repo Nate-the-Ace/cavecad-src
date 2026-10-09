@@ -52,7 +52,7 @@ jobs:
               why="the earlier build's commit ${base} is not in this history"
             else
               # what the app is made of besides compiled code: anything else changing means a full build
-              bad="$(git diff --name-only "$base" HEAD | grep -Ev '^(scripts|patterns|linetypes|fonts|libraries|defaults|cave-survey|i18n|docs|tests|examples)/|^[^/]+\.(md|txt)$|^\.github/workflows/(macos-test|assemble|linux|windows|release)\.yml$' || true)"
+              bad="$(git diff --name-only "$base" HEAD | grep -Ev '^(scripts|patterns|linetypes|fonts|libraries|defaults|cave-survey|i18n|docs|tests|examples)/|^[^/]+\.(md|txt)$|^\.github/workflows/(macos-test|desktop-test|assemble|linux|windows|release)\.yml$' || true)"
               if [ -n "$bad" ]; then
                 why="these changed since the last full build and need compiling: $(echo "$bad" | head -5 | tr '\n' ' ')"
               else
