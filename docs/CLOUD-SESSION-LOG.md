@@ -16,6 +16,9 @@ so that local sessions can catch up. **Newest entries are at the top of each sec
 
 ## Work log (newest first)
 
+### (app script) -- hardening viewport selection (second step)
+- A NEW blank layout's viewports select fine; only the older layout (with sheet furniture) did not, so the old layout's items or state were catching the click. Besides `pickFix` (below), the Layout tab's Viewports panel now has **Select viewport**: a list of the layout's viewports (with their scales); picking one selects it, no clicking involved (`LayoutTabs.selectViewportMenu`). Untested in app.
+
 ### (app script) -- clicking inside a viewport selects it again
 - Reported: on a layout, plain clicks do not select either viewport (Select All and double-click-through still work; the double click uses the same pick, so the viewport IS the closest thing at the click on a double click). Cause not found by reading. `LayoutTabs.pickFix` (called from `DefaultAction` when a click is released): a click inside a viewport selects that viewport unless something is really drawn within 4 px of the cursor; anything else that won the pick is passed over and named in the console ("Click passed over a ... on layer ... to reach the viewport"). Untested in app; the console line tells which sheet item was catching the click.
 - VP Freeze (Layer Manager) was confirmed working by the user; the earlier "not working" was the unselectable viewport.

@@ -1791,6 +1791,51 @@ LayoutTabs.setViewportFrozen = function(vp, layerIds) {
 };
 
 /**
+ * Pops a list of this layout's viewports; the one picked becomes the selection. A way to a viewport that does not
+ * depend on a click landing on its frame.
+ */
+LayoutTabs.selectViewportMenu = function(entry) {
+    var doc = entry.di.getDocument();
+    var info = Layouts.current(doc);
+    if (isNull(info)) {
+        return;
+    }
+    var vps = Layouts.viewports(doc, info).filter(function(v) { return !v.isOverall() && !v.isUndone(); });
+    if (vps.length === 0) {
+        EAction.handleUserMessage(qsTr("This layout has no viewports."));
+        return;
+    }
+    var pick = function(v) {
+        entry.di.clearSelection();
+        entry.di.selectEntity(v.getId(), false);
+        entry.di.repaintViews();
+    };
+    if (vps.length === 1) {
+        pick(vps[0]);
+        return;
+    }
+    var menu = new QMenu(entry.bar);
+    var acts = [];
+    for (var i = 0; i < vps.length; i++) {
+        var label = qsTr("Viewport %1").arg(i + 1);
+        try {
+            var fpi = Layouts.feetPerInch(doc, vps[i]);
+            if (isFinite(fpi) && fpi > 0) { label += "   " + Layouts.scaleLabel(fpi); }
+        }
+        catch (eLabel) {
+        }
+        acts.push(menu.addAction(label));
+    }
+    var chosen = menu.exec(QCursor.pos());
+    if (!isNull(chosen)) {
+        for (var k = 0; k < acts.length; k++) {
+            if (chosen.text === acts[k].text) { pick(vps[k]); break; }
+        }
+    }
+    destr(menu);
+};
+
+/**
  * Where the click landed on a layout: a click inside a viewport selects that viewport, unless something is really
  * drawn under the cursor (a line, a piece of text within a few pixels). Whatever ELSE won the pick -- a block whose
  * area reaches across the viewport, say -- is passed over, and the reason is told in the console so it can be fixed
@@ -2043,7 +2088,11 @@ LayoutTabs.registerRibbon = function() {
           tooltip: qsTr("Draw a viewport on this layout: a rectangle, a polygon or a circle"),
           menu: [ { text: qsTr("Rectangle  (two corners)"), onClick: function(entry) { LayoutTabs.newViewport(entry); } },
                   { text: qsTr("Polygon  (click the corners)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "polygon"); } },
-                  { text: qsTr("Circle  (centre, then radius)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "circle"); } } ] } ] });
+                  { text: qsTr("Circle  (centre, then radius)"), onClick: function(entry) { LayoutTabs.shapeTool(entry, "circle"); } } ] },
+        // a way to select a viewport that never depends on where the click lands
+        { type: "button", id: "pickvp", text: qsTr("Select\nviewport"), icon: "square", size: "large", enabled: onLayout,
+          tooltip: qsTr("Pick one of this layout's viewports from a list and select it (its tab and the Layer Manager's per-viewport column then follow)"),
+          onClick: function(entry) { LayoutTabs.selectViewportMenu(entry); } } ] });
     Ribbon.registerPanel("layout", { id: "furniture", title: qsTr("Sheet furniture"), order: 30, items: [
         { type: "button", id: "addnorth", action: "LayoutNorthArrow.js", text: qsTr("North\narrow"), icon: "rect-viewport", size: "large", enabled: onLayout },
         { type: "button", id: "addbar", action: "LayoutScaleBar.js", text: qsTr("Scale\nbar"), icon: "scale", size: "large", enabled: onLayout },
